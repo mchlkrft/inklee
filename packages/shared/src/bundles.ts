@@ -135,27 +135,83 @@ export function bundlePriceMinor(priceAmount: number): number {
 }
 
 /**
- * The single payable goods line a bundle contributes at checkout (decision B2).
+ * The single payable goods line a bundle contributes at checkout (decision
+ * B2, revised by GC6).
  *
- * A bundle becomes ONE `product` line at the BUNDLE price, so the goods-fee base
- * is unambiguously the bundle price and NEVER the sum of the components' list
- * prices. The component products are recorded separately (product_bundle_items)
- * for fulfilment; they are not each priced into the fee base. The shape matches
- * what `goodsBaseMinorFromLines` / `computeOrderFees` (order-fees.ts) consume, so
- * a bundle drops into the existing appointment-plus-goods fee composition when
- * the payable checkout is wired.
+ * A bundle becomes ONE first-class `bundle` line at the BUNDLE price, so the
+ * goods-fee base is unambiguously the bundle price and NEVER the sum of the
+ * components' list prices. The components are snapshotted at sale time
+ * (order_item_bundle_components, migration 0135) for fulfilment and records;
+ * they are not each priced into the fee base. `goodsBaseMinorFromLines`
+ * (order-fees.ts) counts `bundle` lines alongside `product` lines, so a bundle
+ * drops into the existing appointment-plus-goods fee composition.
  */
 export function bundleGoodsLine(bundle: {
   id: string;
   name: string;
   priceAmount: number;
-}): { type: "product"; name: string; bundleId: string; totalMinor: number } {
+}): { type: "bundle"; name: string; bundleId: string; totalMinor: number } {
   return {
-    type: "product",
+    type: "bundle",
     name: bundle.name,
     bundleId: bundle.id,
     totalMinor: bundlePriceMinor(bundle.priceAmount),
   };
+}
+
+export type BundlePurchasability =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | "not_public"
+        | "empty"
+        | "component_unavailable"
+        | "component_out_of_stock";
+    };
+
+/**
+ * Whether a bundle can be SOLD right now (decision GC6). Display rules and
+ * sale rules deliberately differ: the shop MAY show a bundle while omitting a
+ * hidden component (understating the saving, the safe direction for a claim),
+ * but the checkout must refuse to charge for a bundle it cannot fulfil whole.
+ *
+ * The caller resolves each component against the SELLABLE catalog (active +
+ * publicly visible + matching currency, the same filtered read that prices the
+ * order) and passes `product: null` for any component that did not resolve.
+ * That keeps this function pure and makes the money-path rule explicit at the
+ * call site: an artist can legitimately keep a hidden or archived product
+ * inside a bundle (the editor allows it), and the answer is "not purchasable",
+ * never "sell it short".
+ *
+ * Stock is the parent product's tracked quantity (`null` = untracked =
+ * unlimited, matching the product card's own sold-out rule). v1 bundles group
+ * products, not variants, so variant-level stock is not consulted here.
+ */
+export function bundlePurchasable(
+  bundle: Bundle,
+  components: {
+    /** Bundle-declared count of this product per ONE bundle. */
+    quantity: number;
+    /** The component as resolved against the sellable catalog; null when the
+     *  product is missing, archived, hidden, or otherwise not sellable. */
+    product: { stock: number | null } | null;
+  }[],
+  /** How many bundles the buyer wants. */
+  lineQuantity = 1,
+): BundlePurchasability {
+  if (!isBundlePublic(bundle)) return { ok: false, reason: "not_public" };
+  if (components.length === 0) return { ok: false, reason: "empty" };
+  const wanted = Number.isFinite(lineQuantity) ? Math.max(1, lineQuantity) : 1;
+  for (const c of components) {
+    if (!c.product) return { ok: false, reason: "component_unavailable" };
+    const perBundle = Number.isFinite(c.quantity) ? Math.max(1, c.quantity) : 1;
+    const { stock } = c.product;
+    if (stock !== null && stock < perBundle * wanted) {
+      return { ok: false, reason: "component_out_of_stock" };
+    }
+  }
+  return { ok: true };
 }
 
 export function bundleSavings(

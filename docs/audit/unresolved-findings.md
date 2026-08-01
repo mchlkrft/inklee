@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `85a150438b61`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `9cba2a44a28c`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (63)
+## Open (64)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -70,6 +70,7 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-FEE-003 | low | payment | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
 | SHOP-FUL-001 | low | payment | conditionally-reachable | latent | Settlement and refund disagree on which order_items reach inventory: settle passes ALL lines to decrementInventory while refund restocks only type='product' |
+| SHOP-FUL-002 | low | payment | conditionally-reachable | latent | A bundle-snapshot read failure during a FULL goods refund permanently loses the restock, the discount-redemption release and the audit row, because the throw lands after the once-only flip has been consumed and no retry can re-enter |
 | WHK-CUR-001 | low | webhook | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |
 | BDEL-POL-001 | informational | governance | currently-unreachable | theoretical | UNRATIFIED: no product policy exists for what deletion does to an active subscription; the period-end rule in Terms is scoped to cancellation, not deletion |

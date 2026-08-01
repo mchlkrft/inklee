@@ -21,6 +21,76 @@ export type PaidOrderItem = {
   total_amount: number | string;
 };
 
+/** A raw order_items row as read for inventory purposes: PaidOrderItem plus
+ *  the columns bundle expansion needs (0135). */
+export type InventoryOrderItem = PaidOrderItem & {
+  id?: string | null;
+  bundle_id?: string | null;
+};
+
+/**
+ * ONE rule for which order lines move inventory, in ONE place (SHOP-FUL-001).
+ *
+ * Settlement and refund previously each decided for themselves which lines
+ * reach the stock movers: settle passed everything, refund filtered
+ * type='product' in its query. That asymmetry was latent while every line was
+ * a product; the 'bundle' type (GC6, migration 0135) is exactly the shape the
+ * two sides would have classified differently, producing one-way stock drift.
+ * Both directions now expand through here.
+ *
+ * - `product` lines pass through UNCHANGED (same object, so callers' own
+ *   bookkeeping keeps working).
+ * - `bundle` lines expand to their components from the sale-time SNAPSHOT
+ *   (order_item_bundle_components), never the live product_bundle_items join,
+ *   which mutates with the artist's edits and cascades away on product
+ *   delete. Snapshot quantity is per ONE bundle; it is multiplied by the
+ *   line's own quantity here, so decrement and restock cannot multiply
+ *   differently. Components whose product_id was SET NULL by a deletion are
+ *   skipped (nothing left to move).
+ * - Everything else (deposit, future types) moves NOTHING, explicitly.
+ */
+export async function expandInventoryMovements(
+  items: InventoryOrderItem[],
+): Promise<PaidOrderItem[]> {
+  const movements: PaidOrderItem[] = [];
+  for (const item of items) {
+    if (item.type === "product") {
+      movements.push(item);
+      continue;
+    }
+    if (item.type !== "bundle" || !item.id) continue;
+
+    const lineQty = Math.max(0, Number(item.quantity) || 0);
+    if (lineQty <= 0) continue;
+
+    const { data: components, error } = await serviceClient
+      .from("order_item_bundle_components")
+      .select("product_id, title_snapshot, quantity")
+      .eq("order_item_id", item.id);
+    if (error) {
+      // Fail loud to the caller's Sentry path is not available here; skipping
+      // silently would be the exact defect this function exists to prevent, so
+      // throw and let the (already best-effort) inventory caller capture it.
+      throw new Error(
+        `bundle component snapshot read failed for order item ${item.id}: ${error.message}`,
+      );
+    }
+    for (const c of components ?? []) {
+      if (!c.product_id) continue;
+      movements.push({
+        product_id: c.product_id as string,
+        variant_id: null,
+        quantity: Math.max(0, Number(c.quantity) || 0) * lineQty,
+        type: "product",
+        title_snapshot: (c.title_snapshot as string) ?? "",
+        variant_snapshot: null,
+        total_amount: 0,
+      });
+    }
+  }
+  return movements;
+}
+
 /**
  * Low-stock alerts (P5c).
  *

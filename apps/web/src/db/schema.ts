@@ -606,6 +606,8 @@ export const orderFulfillmentStatusEnum = pgEnum("order_fulfillment_status", [
 export const orderItemTypeEnum = pgEnum("order_item_type", [
   "deposit",
   "product",
+  // 0135 (GC6): a sold bundle is ONE first-class line at the bundle's price.
+  "bundle",
 ]);
 
 export const orders = pgTable("orders", {
@@ -673,7 +675,39 @@ export const orderItems = pgTable("order_items", {
   unitAmount: numeric("unit_amount", { precision: 10, scale: 2 }).notNull(),
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("eur"),
+  // 0135 (GC6): attribution to the sold bundle; SET NULL in SQL so deleting a
+  // bundle never touches sales history. Plain uuid (no drizzle reference) —
+  // product_bundles is not mirrored here, same targeted-drift pattern as
+  // discountCodeId above.
+  bundleId: uuid("bundle_id"),
 });
+
+// Composition snapshot for a sold bundle (0135, decision GC6). Fulfilment and
+// the product deletion guard read THIS, never live product_bundle_items: the
+// live join mutates with the artist's edits and cascades away on product
+// delete, which would erase what was actually sold.
+export const orderItemBundleComponents = pgTable(
+  "order_item_bundle_components",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "set null",
+    }),
+    titleSnapshot: text("title_snapshot").notNull(),
+    quantity: integer("quantity").notNull(),
+    // The component's LIST price at sale, major units, records/display only;
+    // the charged amount is the bundle line's totalAmount.
+    unitListPrice: numeric("unit_list_price", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+);
 
 // Booking interests (commerce-layer extension, 2026-06-01) — what the client
 // marked they'd like to buy when submitting the booking request. The artist

@@ -2,7 +2,13 @@ import { notFound } from "next/navigation";
 import { serviceClient } from "@/lib/supabase/service";
 import { isGoodsCommerceEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
-import { ShopCheckout, type CheckoutProduct } from "./shop-checkout";
+import { publicBundlesForArtist } from "@/lib/server/bundles";
+import { bundleSavings, bundlePurchasable } from "@inklee/shared/bundles";
+import {
+  ShopCheckout,
+  type CheckoutProduct,
+  type CheckoutBundle,
+} from "./shop-checkout";
 
 // Standalone shop checkout (GC1 slice C3): the public, guest-buyer page. Fully
 // dark: 404 while GOODS_COMMERCE_ENABLED is off, so the route is invisible
@@ -79,6 +85,69 @@ export default async function ShopCheckoutPage({
       })),
   }));
 
+  // Bundles (GC6): publicBundlesForArtist is entitlement- and kill-switch-
+  // aware (fails flat, so a plan blip never breaks the page). Display rules:
+  // savings computed against the VISIBLE components only (a hidden component
+  // understates the saving, the safe direction); availability mirrors the
+  // money path's bundlePurchasable so the buyer is not offered a bundle the
+  // server will refuse. Non-EUR bundles are dropped because the standalone
+  // path charges EUR unconditionally.
+  const rawBundles = await publicBundlesForArtist(
+    serviceClient,
+    artist.id as string,
+  );
+  const productRowById = new Map((rows ?? []).map((p) => [p.id as string, p]));
+  const bundles: CheckoutBundle[] = rawBundles
+    .filter((b) => b.currency === "eur")
+    .map((b) => {
+      const components = b.items.map((it) => {
+        const p = productRowById.get(it.productId);
+        return {
+          quantity: it.quantity,
+          product: p
+            ? {
+                stock: p.quantity === null ? null : Number(p.quantity),
+                title: (p.title as string) ?? "",
+                priceAmount: Number(p.price_amount ?? 0),
+              }
+            : null,
+        };
+      });
+      const present = components.filter(
+        (c): c is typeof c & { product: NonNullable<(typeof c)["product"]> } =>
+          c.product !== null,
+      );
+      const savings = bundleSavings(
+        b.priceAmount,
+        present.map((c) => ({
+          priceAmount: c.product.priceAmount,
+          quantity: c.quantity,
+        })),
+      );
+      const verdict = bundlePurchasable(
+        b,
+        components.map((c) => ({
+          quantity: c.quantity,
+          product: c.product ? { stock: c.product.stock } : null,
+        })),
+        1,
+      );
+      return {
+        id: b.id,
+        name: b.name,
+        priceAmount: b.priceAmount,
+        currency: b.currency,
+        savingsAmount: savings.isSaving ? savings.savingsAmount : 0,
+        componentSummary: present
+          .map(
+            (c) =>
+              `${c.quantity > 1 ? `${c.quantity}x ` : ""}${c.product.title}`,
+          )
+          .join(" + "),
+        available: verdict.ok,
+      };
+    });
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8">
       <header className="space-y-1">
@@ -93,7 +162,7 @@ export default async function ShopCheckoutPage({
         <p className="rounded-[14px] border border-border px-4 py-6 text-sm text-muted-foreground">
           This shop isn&apos;t taking card orders yet. Check back soon.
         </p>
-      ) : products.length === 0 ? (
+      ) : products.length === 0 && bundles.length === 0 ? (
         <p className="rounded-[14px] border border-border px-4 py-6 text-sm text-muted-foreground">
           Nothing is for sale right now.
         </p>
@@ -102,6 +171,7 @@ export default async function ShopCheckoutPage({
           slug={slug}
           artistName={artistName}
           products={products}
+          bundles={bundles}
           stripePublishableKey={publishableKey as string}
         />
       )}

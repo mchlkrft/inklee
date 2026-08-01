@@ -35,9 +35,9 @@ describe("bundlePriceMinor", () => {
 });
 
 describe("bundleGoodsLine", () => {
-  it("is ONE product line at the bundle price", () => {
+  it("is ONE first-class bundle line at the bundle price (GC6)", () => {
     expect(bundleGoodsLine(BUNDLE)).toEqual({
-      type: "product",
+      type: "bundle",
       name: "Starter kit",
       bundleId: "b1",
       totalMinor: 4000,
@@ -47,6 +47,10 @@ describe("bundleGoodsLine", () => {
   it("feeds a goods base equal to the bundle price, NOT the components' sum", () => {
     // The bundle is 40.00; its parts would total 52.00 separately. The base is
     // the bundle price (4000), because only the single bundle line is present.
+    // FAILS IF goodsBaseMinorFromLines stops counting `bundle` lines (e.g. the
+    // GC6 widening is reverted while the line type stays 'bundle'): the base
+    // silently drops to 0, which v1's 0% goods rate would otherwise hide until
+    // the P7 v2 flip. That mutant is exactly why this asserts 4000, not >0.
     const base = goodsBaseMinorFromLines([bundleGoodsLine(BUNDLE)]);
     expect(base).toBe(4000);
     expect(base).not.toBe(5200);
@@ -91,8 +95,8 @@ describe("goods fee on a bundle sale, real schedules", () => {
 
   it("a bundle sold ALONGSIDE a deposit: the deposit is excluded from the goods base", () => {
     // A single PaymentIntent can carry the deposit (appointment lane) AND a
-    // bundle (goods lane). goodsBaseMinorFromLines counts only `product` lines,
-    // so the deposit line never inflates the goods base.
+    // bundle (goods lane). goodsBaseMinorFromLines counts product and bundle
+    // lines, so the deposit line never inflates the goods base.
     const lines = [
       { type: "deposit", totalMinor: 10000 }, // 100.00 deposit
       bundleGoodsLine(BUNDLE), // 40.00 bundle

@@ -8,14 +8,32 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const serviceTables: Record<string, unknown[]> = {};
 const serviceErrors: Record<string, { message: string } | null> = {};
 
+/** Every read the guard performed, with the column it filtered on.
+ *
+ *  Added for C4: without it the double answered by TABLE alone, so a leg that
+ *  filtered the right table on the WRONG column (product_id vs order_item_id)
+ *  returned the same rows and the whole suite stayed green. A column swap is a
+ *  one-token mistake that changes what the guard is actually asking. */
+let serviceReads: { table: string; filters: Record<string, unknown> }[] = [];
+
 function serviceQuery(table: string) {
   const rows = serviceTables[table] ?? [];
   const error = serviceErrors[table] ?? null;
   const result = { data: error ? null : rows, error };
+  const read = { table, filters: {} as Record<string, unknown> };
+  serviceReads.push(read);
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "in", "limit", "order"]) {
+  for (const m of ["select", "limit", "order"]) {
     chain[m] = () => chain;
   }
+  chain.eq = (column: string, value: unknown) => {
+    read.filters[column] = value;
+    return chain;
+  };
+  chain.in = (column: string, values: unknown) => {
+    read.filters[column] = values;
+    return chain;
+  };
   chain.then = (resolve: (v: unknown) => unknown) => resolve(result);
   return chain;
 }
@@ -57,6 +75,7 @@ function artistClient(count: number | null, error = false) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  serviceReads = [];
   for (const k of Object.keys(serviceTables)) delete serviceTables[k];
   for (const k of Object.keys(serviceErrors)) delete serviceErrors[k];
   getAccountOverrides.mockResolvedValue({});
@@ -122,6 +141,55 @@ describe("productHasOrderReferences", () => {
     serviceTables["order_items"] = [];
     serviceErrors["product_variants"] = { message: "boom" };
     expect(await productHasOrderReferences("p-1")).toBe(true);
+  });
+});
+
+// C4 / GC6: a product sold ONLY inside a bundle. The bundle sale is one order
+// line with product_id NULL, so the direct order_items check cannot see it; the
+// components live only in the 0135 snapshot table. Without this leg the product
+// looks unreferenced, gets hard-deleted, and product_bundle_items' ON DELETE
+// CASCADE then erases it from the live bundle with no record of what was sold.
+describe("productHasOrderReferences and bundle components (GC6)", () => {
+  it("archives a product referenced ONLY through a bundle sale", async () => {
+    serviceTables.order_items = [];
+    serviceTables.booking_interests = [];
+    serviceTables.product_variants = [];
+    serviceTables.order_item_bundle_components = [{ id: "c1" }];
+    // Fails if the order_item_bundle_components leg is deleted: every other
+    // read is empty, so the guard would return false and the product would be
+    // hard-deleted out from under a paid bundle order.
+    expect(await productHasOrderReferences("p1")).toBe(true);
+
+    // And it asks the right QUESTION. The snapshot table carries both
+    // `product_id` and `order_item_id`; filtering on the latter would ask "was
+    // this id an order item", which is never true of a product id, so the guard
+    // would answer false for every product while looking entirely correct.
+    const bundleRead = serviceReads.find(
+      (r) => r.table === "order_item_bundle_components",
+    );
+    expect(bundleRead).toBeDefined();
+    expect(bundleRead!.filters).toEqual({ product_id: "p1" });
+  });
+
+  it("fails SAFE toward archiving when the bundle-component read errors", async () => {
+    serviceTables.order_items = [];
+    serviceErrors.order_item_bundle_components = { message: "db down" };
+    // Same direction as every other leg: an unreadable reference check must
+    // archive, never delete. Fails if this leg is written fail-open (returning
+    // false, or simply ignoring `error`), which is the defect the 2026-07-28
+    // review found in the variant-list leg.
+    expect(await productHasOrderReferences("p1")).toBe(true);
+  });
+
+  it("still deletes when the bundle-component table is empty like everything else", async () => {
+    // The positive control for the two above: with the SAME reads present and
+    // empty, the answer is false. Without it, "true" could mean the guard is
+    // simply stuck on.
+    serviceTables.order_items = [];
+    serviceTables.booking_interests = [];
+    serviceTables.product_variants = [];
+    serviceTables.order_item_bundle_components = [];
+    expect(await productHasOrderReferences("p1")).toBe(false);
   });
 });
 

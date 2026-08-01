@@ -182,6 +182,22 @@ Two things follow, both done here:
 
 ## Update log
 
+- **2026-08-01 — Standalone shop checkout (GC1 C2/C3) + payable bundles (C4,
+  both branch-only).** The public guest-buyer checkout at
+  `/[slug]/shop/checkout` (products + bundles, PaymentElement on the artist's
+  own destination-charge PI, dark behind `GOODS_COMMERCE_ENABLED`) is 🌐
+  **web-only BY DECISION**: it is a VISITOR surface and the app is
+  artists-only, same reasoning as the client portal and the public shop
+  render. No new mobile route, no wire-type change, no new block type, so no
+  EAS build implication from this slice. Native-relevant edges: (1) bundle
+  MANAGEMENT parity (2026-07-31 rows) is unchanged and stays gated on a fresh
+  build before `goods_bundles` is granted; (2) the artist will eventually want
+  standalone ORDER visibility in the app (orders list currently shows
+  booking-coupled orders) — that is an OPEN row, not built on either surface.
+  This entry also backfills the missing C2/C3 register update from 2026-08-01
+  (the checkout shipped without a row, which the founder rule defines as a
+  bug).
+
 - **2026-07-31 — Product bundles, native route + screen (Stage 3, slice 3,
   branch-only).** Closes the bundles native gap opened by slice 2:
   `GET/POST/PATCH/DELETE /api/mobile/goods/bundles` (the native twin of the web

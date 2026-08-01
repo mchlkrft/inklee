@@ -31,6 +31,20 @@ export type CheckoutProduct = {
   }[];
 };
 
+export type CheckoutBundle = {
+  id: string;
+  name: string;
+  priceAmount: number;
+  currency: string;
+  /** Display-only saving vs the parts, major units; 0 hides the line. */
+  savingsAmount: number;
+  /** "2x Print A + Tote bag" style summary of what is inside. */
+  componentSummary: string;
+  /** Purchasable right now (visible components in stock). Display-only; the
+   *  server re-checks at order time. */
+  available: boolean;
+};
+
 const MAX_QTY = 10;
 
 type Phase =
@@ -89,11 +103,13 @@ export function ShopCheckout({
   slug,
   artistName,
   products,
+  bundles = [],
   stripePublishableKey,
 }: {
   slug: string;
   artistName: string;
   products: CheckoutProduct[];
+  bundles?: CheckoutBundle[];
   stripePublishableKey: string;
 }) {
   const stripePromise = useMemo(
@@ -108,6 +124,10 @@ export function ShopCheckout({
   const [discountCode, setDiscountCode] = useState("");
   // quantities keyed by `${productId}::${variantId ?? ""}`.
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  // Bundle quantities keyed by bundle id.
+  const [bundleQuantities, setBundleQuantities] = useState<
+    Record<string, number>
+  >({});
   // The chosen variant per product (products with variants need one).
   const [variantChoice, setVariantChoice] = useState<Record<string, string>>(
     {},
@@ -117,6 +137,12 @@ export function ShopCheckout({
     setQuantities((prev) => ({
       ...prev,
       [key]: Math.max(0, Math.min(MAX_QTY, Math.trunc(qty))),
+    }));
+
+  const setBundleQty = (id: string, qty: number) =>
+    setBundleQuantities((prev) => ({
+      ...prev,
+      [id]: Math.max(0, Math.min(MAX_QTY, Math.trunc(qty))),
     }));
 
   const selections = useMemo(
@@ -134,6 +160,17 @@ export function ShopCheckout({
     [quantities],
   );
 
+  const bundleSelections = useMemo(
+    () =>
+      Object.entries(bundleQuantities)
+        .filter(([, qty]) => qty > 0)
+        .map(([bundleId, quantity]) => ({ bundleId, quantity })),
+    [bundleQuantities],
+  );
+
+  const nothingPicked =
+    selections.length === 0 && bundleSelections.length === 0;
+
   // Display-only estimate; the server total is authoritative and shown on the
   // pay button once the intent exists.
   const estimateMinor = useMemo(() => {
@@ -147,8 +184,13 @@ export function ShopCheckout({
       const unit = v?.priceAmount ?? p.priceAmount;
       sum += Math.round(unit * 100) * s.quantity;
     }
+    for (const s of bundleSelections) {
+      const b = bundles.find((x) => x.id === s.bundleId);
+      if (!b) continue;
+      sum += Math.round(b.priceAmount * 100) * s.quantity;
+    }
     return sum;
-  }, [selections, products]);
+  }, [selections, products, bundleSelections, bundles]);
 
   const startCheckout = () => {
     setError(null);
@@ -157,6 +199,7 @@ export function ShopCheckout({
         slug,
         email,
         selections,
+        bundles: bundleSelections,
         discountCode: discountCode.trim() || undefined,
       });
       if (!result.ok) {
@@ -213,6 +256,64 @@ export function ShopCheckout({
         <p className="rounded-md border border-destructive/30 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive">
           {error}
         </p>
+      )}
+
+      {bundles.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-foreground">Bundles</h2>
+          <ul className="space-y-2">
+            {bundles.map((b) => {
+              const qty = bundleQuantities[b.id] ?? 0;
+              return (
+                <li
+                  key={b.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-border px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {b.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {formatPrice(b.priceAmount, b.currency)}
+                      {b.savingsAmount > 0
+                        ? ` · save ${formatPrice(b.savingsAmount, b.currency)}`
+                        : ""}
+                      {b.available ? "" : " · unavailable"}
+                    </p>
+                    {b.componentSummary && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {b.componentSummary}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBundleQty(b.id, qty - 1)}
+                      disabled={qty === 0}
+                      aria-label={`Fewer ${b.name}`}
+                      className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground disabled:opacity-40"
+                    >
+                      -
+                    </button>
+                    <span className="w-6 text-center text-sm text-foreground">
+                      {qty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBundleQty(b.id, qty + 1)}
+                      disabled={!b.available || qty >= MAX_QTY}
+                      aria-label={`More ${b.name}`}
+                      className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground disabled:opacity-40"
+                    >
+                      +
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
 
       <ul className="space-y-2">
@@ -322,12 +423,12 @@ export function ShopCheckout({
       <button
         type="button"
         onClick={startCheckout}
-        disabled={pending || selections.length === 0 || !email.includes("@")}
+        disabled={pending || nothingPicked || !email.includes("@")}
         className="w-full rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
         {pending
           ? "Preparing..."
-          : selections.length === 0
+          : nothingPicked
             ? "Pick something to buy"
             : `Continue (${formatPrice(estimateMinor / 100, "eur")})`}
       </button>

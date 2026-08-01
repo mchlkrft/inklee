@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `85a150438b61`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `9cba2a44a28c`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-98 recorded finding(s), 3 structural pattern(s), across 75 mapped area(s).
-93 remain open by remediation status. 79 are reachable (directly or conditionally) rather than latent.
-87 have not passed independent verification.
-172 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+99 recorded finding(s), 3 structural pattern(s), across 76 mapped area(s).
+94 remain open by remediation status. 80 are reachable (directly or conditionally) rather than latent.
+88 have not passed independent verification.
+174 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -28,7 +28,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 28 |
 | medium | 39 |
-| low | 25 |
+| low | 26 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -39,14 +39,14 @@ The register is deliberately incomplete. It records what has been examined, not 
 | deferred | 1 |
 | fixed-unverified | 26 |
 | mitigated | 1 |
-| open | 63 |
+| open | 64 |
 | verified | 5 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 85 |
+| not-started | 86 |
 | partially-verified | 1 |
 | passed | 11 |
 | pending | 1 |
@@ -141,7 +141,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 21 |
+| payment | 22 |
 | jobs | 12 |
 | webhook | 12 |
 | billing | 11 |
@@ -243,6 +243,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-FEE-003 | low | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | PAY-UI-006 | low | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | SHOP-FUL-001 | low | conditionally-reachable | latent | Settlement and refund disagree on which order_items reach inventory: settle passes ALL lines to decrementInventory while refund restocks only type='product' |
+| SHOP-FUL-002 | low | conditionally-reachable | latent | A bundle-snapshot read failure during a FULL goods refund permanently loses the restock, the discount-redemption release and the audit row, because the throw lands after the once-only flip has been consumed and no retry can re-enter |
 | WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | OPS-DOC-001 | informational | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
@@ -301,6 +302,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Commit edb99fb (2026-07-21) records that 0095-0098 ALSO had to be repaired into the ledger because 'they had been applied by another session via direct SQL and were unrecorded' — a second, later ledger/reality divergence, in the safe direction. Whether other silent divergences exist was NOT checked against a live catalog.
 - Every /api/mobile/* route relies on requireMobileUser and none of the routes I read carries a rate limit except events/route.ts and settings/connect-link/route.ts. The authenticated-but-unthrottled write routes (goods, travel, booking-form fields) were not assessed for abuse volume.
 - Every other `revoke execute ... from public` in the migration set was NOT enumerated. Any function whose only caller is the service role and which revokes from PUBLIC without an explicit service_role grant has the live version of this defect.
+- Every other caller of a deliberately-throwing helper placed after a once-only conditional update was NOT enumerated.
 - Every other fixture divergence between the local stack and production: seed.sql also runs ALTER DEFAULT PRIVILEGES (lines 27-30), so future objects created locally differ too, and pg_default_acl was not diffed.
 - Every other object created by 0036 and 0037 was compared and matched; objects created by migrations applied out of band that this pass could not attribute were not separately enumerated.
 - Every other place a plpgsql RPC writes a row and a TypeScript caller then reads that row back through PostgREST with a different filter: `delete_collection_atomic` (0124) and `send_payment_request` (0126) were not inspected for this shape.
@@ -350,6 +352,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The add-on order path (request/[token]/actions.ts:541-560) creates pending orders too; its rows DO carry booking_id, so the cleanup sweep can see the booking, but whether a pending add-on order is ever cancelled was NOT inspected here.
 - The artist cancel path's forfeiture branch
 - The billing-webhook endpoint's subscription set
+- The booking add-on refund branch of the same webhook was NOT inspected for the same consumed-flip-then-throw shape.
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
 - The charge.refunded handler returns BEFORE settleGoodsOrderRefund when the PI has payment_allocations (webhook/route.ts:199-205). Today no appointment-payment PI writes an orders row (the only two order inserts are request/[token]/actions.ts:543 and goods-checkout.ts:209), so nothing is shadowed. If an appointment payment ever carries goods, that early return would skip the goods settle entirely. Recorded as a forward hazard; NOT a defect at this commit.
 - The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.

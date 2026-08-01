@@ -89,7 +89,11 @@ vi.mock("@/lib/email/send", () => ({
 vi.mock("@/lib/email/booking-templates", () => ({
   buildEmailHtml: (body: string) => `<html>${body}</html>`,
 }));
-vi.mock("@/lib/order-fulfillment", () => ({
+vi.mock("@/lib/order-fulfillment", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/order-fulfillment")>()),
+  // The stock MOVER is mocked; the expansion rule (expandInventoryMovements,
+  // SHOP-FUL-001) stays REAL so its line classification is under test here.
+  // Product-only fixtures pass through it without any DB read.
   decrementInventory: (...a: unknown[]) => mockDecrement(...a),
 }));
 
@@ -126,6 +130,10 @@ type RecordedOp = {
   isFilters: Record<string, unknown>;
   /** `.lt(col, v)` — the sweep's age cutoff. */
   ltFilters: Record<string, unknown>;
+  /** `.in(col, values)` — a third bucket, because the bundle catalog read's
+   *  `in("id", ids)` is the only thing scoping it to the ids the buyer actually
+   *  selected, and an unrecorded `.in` would let that assertion be vacuous. */
+  inFilters: Record<string, unknown>;
 };
 let ops: RecordedOp[] = [];
 
@@ -137,6 +145,7 @@ function newOp(table: string, verb: string, payload: unknown): RecordedOp {
     filters: {},
     isFilters: {},
     ltFilters: {},
+    inFilters: {},
   };
   ops.push(op);
   return op;
@@ -157,7 +166,10 @@ function makeChain(op: RecordedOp) {
       op.ltFilters[column] = value;
       return chain;
     },
-    in: () => chain,
+    in: (column: string, values: unknown) => {
+      op.inFilters[column] = values;
+      return chain;
+    },
     select: () => chain,
     single: () => Promise.resolve(nextReply(key)),
     maybeSingle: () => Promise.resolve(nextReply(key)),
@@ -232,6 +244,43 @@ function queueHappyPath() {
   queue("order_items:insert", { data: null });
   queue("orders:update", { data: null });
 }
+
+// --- Bundle fixtures (C4 / GC6) ---------------------------------------------
+// The bundle is priced BELOW its parts on purpose: 40.00 against components
+// listing at 30.00 + 2 x 11.00 = 52.00. Every money assertion below therefore
+// distinguishes "charged the bundle price" from "charged the components' sum",
+// which two identical numbers could not.
+
+const CATALOG_ROW_2 = {
+  id: "p2",
+  title: "Tee",
+  price_amount: 11,
+  currency: "eur",
+  status: "active",
+  quantity: 10,
+  available_from: null,
+  preorder: false,
+  product_variants: [],
+};
+
+const BUNDLE_ROW = {
+  id: "b1",
+  name: "Starter kit",
+  price_amount: 40,
+  currency: "eur",
+  is_public_visible: true,
+  archived_at: null,
+};
+
+const BUNDLE_ITEM_ROWS = [
+  { bundle_id: "b1", product_id: "p1", quantity: 1 },
+  { bundle_id: "b1", product_id: "p2", quantity: 2 },
+];
+
+/** An explicit per-feature entitlement override, so the gate's answer does not
+ *  depend on which features the free/plus baselines happen to carry today. */
+const BUNDLES_ENTITLED = { entitlementOverrides: { goods_bundles: true } };
+const BUNDLES_BLOCKED = { entitlementOverrides: { goods_bundles: false } };
 
 describe("createStandaloneGoodsCheckoutCore", () => {
   it("creates the order (booking_id null, buyer email), items and PI, and returns the secret", async () => {
@@ -479,6 +528,409 @@ describe("createStandaloneGoodsCheckoutCore", () => {
 });
 
 // ---------------------------------------------------------------------------
+// PAYABLE BUNDLES (C4, decision GC6). A bundle is ONE first-class order line at
+// the BUNDLE price, plus a sale-time composition snapshot that fulfilment, the
+// refund restock and the product-deletion guard all read instead of the live
+// join. Everything here is on the money path through serviceClient, where RLS
+// never applies, so the resolver's own filters are the only protection.
+
+describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
+  beforeEach(() => {
+    mockOverrides.mockResolvedValue(BUNDLES_ENTITLED);
+  });
+
+  function queueBundleHappyPath() {
+    queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
+    queue("orders:insert", { data: { id: "o1" } });
+    queue("order_items:insert", { data: null }); // product lines
+    queue("order_items:insert", {
+      data: [{ id: "oi-b1", bundle_id: "b1" }], // bundle lines, .select("id, bundle_id")
+    });
+    queue("order_item_bundle_components:insert", { data: null });
+    queue("orders:update", { data: null });
+  }
+
+  const MIXED_INPUT = {
+    ...INPUT,
+    bundles: [{ bundleId: "b1", quantity: 2 }],
+  };
+
+  it("charges product gross + the BUNDLE price x quantity, never the components' sum", async () => {
+    queueBundleHappyPath();
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    // 2 x 30.00 product = 60.00, plus 2 x 40.00 bundle = 80.00 -> 140.00.
+    // MUTANT KILLED (fee/charge on the components' sum): pricing the bundle
+    // from its parts would give 2 x 52.00 = 104.00 and a 164.00 total. B2/GC6
+    // say the artist's own bundle price is the price, full stop.
+    // MUTANT KILLED (bundle gross dropped from goodsGrossMinor): 6000.
+    expect(r).toEqual({
+      ok: true,
+      orderId: "o1",
+      clientSecret: "secret_1",
+      totalMinor: 14000,
+      currency: "eur",
+    });
+    expect(mockStripe.paymentIntents.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 14000 }),
+      expect.anything(),
+    );
+
+    const orderInsert = ops.find(
+      (o) => o.table === "orders" && o.verb === "insert",
+    );
+    expect(orderInsert!.payload).toMatchObject({
+      goods_amount: 140, // product 60 + bundle 80, both in the goods lane
+      subtotal_amount: 140,
+    });
+  });
+
+  it("writes ONE 'bundle' order item at the bundle price, with its bundle_id", async () => {
+    queueBundleHappyPath();
+    await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    const inserts = ops.filter(
+      (o) => o.table === "order_items" && o.verb === "insert",
+    );
+    // Two inserts: the product lines, then the bundle lines. Fails if bundles
+    // are folded into the product insert, which would lose the `.select("id,
+    // bundle_id")` the snapshot rows are keyed on.
+    expect(inserts).toHaveLength(2);
+
+    const bundleRows = inserts[1]!.payload as Record<string, unknown>[];
+    expect(bundleRows).toHaveLength(1);
+    expect(bundleRows[0]).toEqual({
+      order_id: "o1",
+      // type 'bundle', not 'product': goodsBaseMinorFromLines counts both, but
+      // expandInventoryMovements and the refund restock branch on this value,
+      // and a bundle mislabelled 'product' would try to move stock on a line
+      // with no product_id and silently move nothing.
+      type: "bundle",
+      product_id: null,
+      variant_id: null,
+      bundle_id: "b1",
+      title_snapshot: "Starter kit",
+      variant_snapshot: null,
+      quantity: 2,
+      unit_amount: 40, // the bundle price, not 52
+      total_amount: 80,
+      currency: "eur",
+    });
+  });
+
+  it("snapshots the composition with PER-BUNDLE quantities and component list prices", async () => {
+    queueBundleHappyPath();
+    await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    const snap = ops.find(
+      (o) => o.table === "order_item_bundle_components" && o.verb === "insert",
+    );
+    expect(snap).toBeDefined();
+    // Quantities are per ONE bundle (1 and 2), NOT already multiplied by the
+    // line quantity of 2. That division of labour is load-bearing:
+    // expandInventoryMovements multiplies by the line quantity at fulfilment
+    // time, so pre-multiplying here would decrement 2 and 8 instead of 2 and 4
+    // — a double-count that only shows up as stock drift after real sales.
+    expect(snap!.payload).toEqual([
+      {
+        order_item_id: "oi-b1",
+        product_id: "p1",
+        title_snapshot: "Print",
+        quantity: 1,
+        unit_list_price: 30,
+      },
+      {
+        order_item_id: "oi-b1",
+        product_id: "p2",
+        title_snapshot: "Tee",
+        quantity: 2,
+        unit_list_price: 11,
+      },
+    ]);
+  });
+
+  // SHOP-VIS-001, applied to bundles. The same lesson as the product catalog
+  // read one describe up: this read feeds the MONEY path through serviceClient
+  // where RLS never applies, so these filters are the only thing between a
+  // crafted `bundles` payload and an offer the artist has hidden, archived, or
+  // never owned.
+  it("SHOP-VIS-001: the bundle read is scoped to this artist's VISIBLE, unarchived, EUR bundles", async () => {
+    queueBundleHappyPath();
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+    expect(r.ok).toBe(true);
+
+    const bundleRead = ops.find(
+      (o) => o.table === "product_bundles" && o.verb === "select",
+    );
+    expect(bundleRead).toBeDefined();
+    // Exact, not a subset, so deleting ANY one line turns this red. Per line —
+    //   artist_id         -> deleting it sells another artist's bundle through
+    //                        this artist's Connect account;
+    //   is_public_visible -> deleting it sells a bundle the artist has hidden
+    //                        (the SHOP-VIS-001 defect itself, one table over);
+    //   currency          -> deleting it charges a non-EUR bundle's number as
+    //                        if it were EUR, because this path charges EUR
+    //                        unconditionally.
+    expect(bundleRead!.filters).toEqual({
+      artist_id: "a1",
+      is_public_visible: true,
+      currency: "eur",
+    });
+    // `.is(archived_at, null)`, not `.eq`: they are different PostgREST
+    // predicates for null, and only `.is` excludes archived offers.
+    expect(bundleRead!.isFilters).toEqual({ archived_at: null });
+    // Scoped to the ids the buyer selected.
+    expect(bundleRead!.inFilters).toEqual({ id: ["b1"] });
+
+    // The composition read is artist-scoped too: without it a crafted payload
+    // could pull another artist's bundle_items into this order's snapshot.
+    const itemsRead = ops.find(
+      (o) => o.table === "product_bundle_items" && o.verb === "select",
+    );
+    expect(itemsRead!.filters).toEqual({ artist_id: "a1" });
+    expect(itemsRead!.inFilters).toEqual({ bundle_id: ["b1"] });
+  });
+
+  it("refuses when the artist is not entitled to bundles", async () => {
+    mockOverrides.mockResolvedValue(BUNDLES_BLOCKED);
+    queueBundleHappyPath();
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    expect(r).toEqual({
+      ok: false,
+      error: "That bundle isn't available right now.",
+    });
+    // The gate runs BEFORE the reads: a blocked artist's bundle catalog is
+    // never even looked at. Fails if the gate is deleted, because the queued
+    // rows would then be consumed and the order would go through.
+    expect(ops.find((o) => o.table === "product_bundles")).toBeUndefined();
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+  });
+
+  it("fails CLOSED when the plan read blows up (money rule)", async () => {
+    mockOverrides.mockRejectedValue(new Error("plan read down"));
+    queueBundleHappyPath();
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+    expect(r).toEqual({
+      ok: false,
+      error: "Couldn't prepare the order. Try again.",
+    });
+
+    // The discriminator. The fee block LATER catches the same throw and returns
+    // the SAME string, so asserting only on the message would pass with the
+    // bundle gate's try/catch deleted. What separates them is how far the code
+    // got: with the gate present the bundle catalog is never read.
+    expect(ops.find((o) => o.table === "product_bundles")).toBeUndefined();
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+  });
+
+  it("aggregates duplicate bundle ids BEFORE the quantity cap", async () => {
+    queueBundleHappyPath();
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...INPUT,
+      bundles: [
+        { bundleId: "b1", quantity: 6 },
+        { bundleId: "b1", quantity: 5 },
+      ],
+    });
+
+    // 6 + 5 = 11 > MAX_ADDON_QUANTITY (10). Fails if the aggregation is
+    // dropped, or moved after the cap check: two entries of 6 and 5 each pass a
+    // per-entry cap and the buyer walks away with 11 bundles, which is also 11
+    // bundles' worth of stock the artist may not have.
+    expect(r).toEqual({
+      ok: false,
+      error: "You can add at most 10 of a bundle.",
+    });
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+  });
+
+  it("refuses a bundle whose component is short on stock, and writes no order", async () => {
+    queue("products:select", {
+      // p2 has ONE in stock; the bundle needs 2 per bundle x 2 bundles = 4.
+      data: [CATALOG_ROW, { ...CATALOG_ROW_2, quantity: 1 }],
+    });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    // The named bundle, so the buyer knows which offer failed. Fails if
+    // bundlePurchasable's verdict is ignored, which would sell a bundle the
+    // artist cannot fulfil whole.
+    expect(r).toEqual({
+      ok: false,
+      error: 'Not enough stock for "Starter kit".',
+    });
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+    expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a bundle whose component is not in the sellable catalog", async () => {
+    queue("products:select", { data: [CATALOG_ROW] }); // p2 hidden/archived
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    // The editor legitimately allows a hidden product inside a bundle. The
+    // checkout's answer is "refuse", never "sell it short" — a buyer paying
+    // 40.00 for a two-item kit must not receive one item.
+    expect(r).toEqual({
+      ok: false,
+      error: "Part of that bundle isn't available right now.",
+    });
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "insert"),
+    ).toBeUndefined();
+  });
+
+  it("refuses an unknown, hidden, archived or non-EUR bundle with one answer", async () => {
+    queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [] }); // filtered out by the read
+    queue("product_bundle_items:select", { data: [] });
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+    // Deliberately no oracle for WHICH: a buyer must not be able to probe an
+    // artist's hidden catalog by reading the refusal.
+    expect(r).toEqual({
+      ok: false,
+      error: "That bundle isn't available right now.",
+    });
+  });
+
+  it("rolls the whole order back when the composition snapshot fails to write", async () => {
+    queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
+    queue("orders:insert", { data: { id: "o1" } });
+    queue("order_items:insert", { data: null });
+    queue("order_items:insert", { data: [{ id: "oi-b1", bundle_id: "b1" }] });
+    queue("order_item_bundle_components:insert", {
+      error: { code: "23503", message: "insert or update violates fk" },
+    });
+
+    const r = await createStandaloneGoodsCheckoutCore(MIXED_INPUT);
+
+    // Without the snapshot the sale is unfulfillable: settlement would find no
+    // components, move no stock, and the refund would restock nothing. Fails if
+    // the rollback is downgraded to a Sentry capture that lets the order stand.
+    expect(r).toEqual({
+      ok: false,
+      error: "Couldn't save the items. Try again.",
+    });
+    const del = ops.find((o) => o.table === "orders" && o.verb === "delete");
+    expect(del).toBeDefined();
+    expect(del!.filters.id).toBe("o1");
+    // And no money was ever asked for.
+    expect(mockStripe.paymentIntents.create).not.toHaveBeenCalled();
+    expect(mockCaptureException).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tags: { action: "standalone_goods_bundle_snapshot" },
+      }),
+    );
+  });
+
+  it("a BUNDLE-ONLY order is a real order, not an empty basket", async () => {
+    queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
+    queue("product_bundles:select", { data: [BUNDLE_ROW] });
+    queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
+    queue("orders:insert", { data: { id: "o1" } });
+    queue("order_items:insert", { data: [{ id: "oi-b1", bundle_id: "b1" }] });
+    queue("order_item_bundle_components:insert", { data: null });
+    queue("orders:update", { data: null });
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...INPUT,
+      selections: [],
+      bundles: [{ bundleId: "b1", quantity: 1 }],
+    });
+
+    // Fails if the empty-basket guard forgets bundles (`computed.lines.length
+    // === 0` alone): buying only a bundle would be refused with "Pick something
+    // to buy first", which is the entire feature not working.
+    expect(r).toMatchObject({ ok: true, totalMinor: 4000 });
+    // Only ONE order_items insert here: the product branch is skipped.
+    expect(
+      ops.filter((o) => o.table === "order_items" && o.verb === "insert"),
+    ).toHaveLength(1);
+  });
+
+  // TEST-VAC-003, one table over. The v1 goods rate is 0%, so a bundle line
+  // wrongly excluded from the fee base, or a fee taken on the gross instead of
+  // the discounted subtotal, produces application_fee_amount: 0 either way and
+  // is completely invisible on the intent. The engine stays REAL and the spy
+  // records only what the checkout HANDED it, which is the one observable that
+  // separates the two.
+  it("bases the fee on the DISCOUNTED product + bundle subtotal", async () => {
+    queueBundleHappyPath();
+    mockResolveDiscount.mockResolvedValue({
+      codeId: "dc1",
+      discountMinor: 1500,
+      error: null,
+    });
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...MIXED_INPUT,
+      discountCode: "SUMMER25",
+    });
+
+    // The code is thresholded against the FULL goods gross, bundles included.
+    // Fails if the bundle gross is left out: a min_subtotal_minor of, say,
+    // 100.00 would reject a code on a 140.00 order.
+    expect(mockResolveDiscount).toHaveBeenCalledWith(
+      expect.objectContaining({ subtotalMinor: 14000 }),
+    );
+    expect(r).toMatchObject({ ok: true, totalMinor: 12500 });
+
+    // MUTANT KILLED (bundle line dropped from goodsBaseMinorFromLines): 4500.
+    // MUTANT KILLED (fee on the gross): 14000.
+    // MUTANT KILLED (bundle priced from its components): 8500.
+    expect(mockComputeOrderFees).toHaveBeenCalledTimes(1);
+    expect(mockComputeOrderFees).toHaveBeenCalledWith({
+      appointmentBaseMinor: 0,
+      goodsBaseMinor: 12500,
+      tier: "free",
+    });
+  });
+
+  it("ignores zero, negative and idless bundle entries without touching the gate", async () => {
+    queueHappyPath();
+
+    const r = await createStandaloneGoodsCheckoutCore({
+      ...INPUT,
+      bundles: [
+        { bundleId: "b1", quantity: 0 },
+        { bundleId: "b1", quantity: -3 },
+        { bundleId: "", quantity: 2 },
+      ],
+    });
+
+    // A payload of nothing resolves to no bundle lines and the product-only
+    // order goes through untouched, with no bundle read at all. Fails if the
+    // sanitising `add <= 0` / `!s.bundleId` filter goes: a negative quantity
+    // would reach the aggregate and subtract from a real line's total.
+    expect(r).toMatchObject({ ok: true, totalMinor: 6000 });
+    expect(ops.find((o) => o.table === "product_bundles")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 
 const PAID_ITEMS = [
   {
@@ -578,6 +1030,144 @@ describe("settleStandaloneGoodsOrder", () => {
     );
     expect(settled).toBe(false);
     expect(ops).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settlement of an order carrying a bundle line (C4 / GC6). expandInventoryMovements
+// is REAL here (only the stock MOVER is mocked), so these exercise the shipped
+// classification rule end to end: the paid flip reads the lines, the expansion
+// turns the bundle into its snapshot components, and only then does stock move.
+
+const BUNDLE_PAID_LINE = {
+  id: "oi-b1",
+  bundle_id: "b1",
+  product_id: null,
+  variant_id: null,
+  quantity: 2,
+  type: "bundle",
+  title_snapshot: "Starter kit",
+  variant_snapshot: null,
+  total_amount: 80,
+};
+
+function queuePaidBundleOrder() {
+  queue("orders:update", {
+    data: [
+      {
+        id: "o1",
+        artist_id: "a1",
+        client_email: null, // no receipt: keeps this test on the inventory path
+        discount_code_id: null,
+        discount_amount: 0,
+      },
+    ],
+  });
+  queue("order_items:select", { data: [PAID_ITEMS[0], BUNDLE_PAID_LINE] });
+}
+
+describe("settleStandaloneGoodsOrder: bundle inventory (SHOP-FUL-001)", () => {
+  it("decrements the bundle's SNAPSHOT components, multiplied by the line quantity", async () => {
+    queuePaidBundleOrder();
+    queue("order_item_bundle_components:select", {
+      data: [
+        { product_id: "p1", title_snapshot: "Print", quantity: 1 },
+        { product_id: "p2", title_snapshot: "Tee", quantity: 2 },
+      ],
+    });
+
+    const settled = await settleStandaloneGoodsOrder(makeIntent());
+    expect(settled).toBe(true);
+
+    // MUTANT KILLED (settlement hands `items` straight to decrementInventory,
+    // skipping the expansion): the mover would receive the raw bundle line,
+    // whose product_id and variant_id are both null, take neither branch and
+    // move NO stock at all — a bundle sale that silently never decrements. That
+    // is exactly the pre-GC6 hole, and it is invisible without this assertion
+    // because decrementInventory reports nothing.
+    // MUTANT KILLED (component quantity not multiplied by the line quantity):
+    // 1 and 2 instead of 2 and 4.
+    expect(mockDecrement).toHaveBeenCalledTimes(1);
+    expect(mockDecrement).toHaveBeenCalledWith([
+      PAID_ITEMS[0], // the product line, unchanged
+      {
+        product_id: "p1",
+        variant_id: null,
+        quantity: 2, // 1 per bundle x 2 bundles
+        type: "product",
+        title_snapshot: "Print",
+        variant_snapshot: null,
+        total_amount: 0,
+      },
+      {
+        product_id: "p2",
+        variant_id: null,
+        quantity: 4, // 2 per bundle x 2 bundles
+        type: "product",
+        title_snapshot: "Tee",
+        variant_snapshot: null,
+        total_amount: 0,
+      },
+    ]);
+
+    // Read from the snapshot for THIS order item, never the live join.
+    const snapRead = ops.find(
+      (o) => o.table === "order_item_bundle_components" && o.verb === "select",
+    );
+    expect(snapRead!.filters).toEqual({ order_item_id: "oi-b1" });
+  });
+
+  it("a failed snapshot read is captured and NEVER fails the settlement", async () => {
+    queuePaidBundleOrder();
+    queue("order_item_bundle_components:select", {
+      data: null,
+      error: { code: "42501", message: "permission denied" },
+    });
+
+    const settled = await settleStandaloneGoodsOrder(makeIntent());
+
+    // The paid flip is already consumed; a webhook retry could not redo it, so
+    // throwing here would leave a paid order with no audit row and no receipt.
+    // Fails if the try/catch around the expansion is removed: the settlement
+    // rejects and the caller sees an unhandled error instead of a paid sale.
+    expect(settled).toBe(true);
+    expect(mockDecrement).not.toHaveBeenCalled();
+    expect(mockCaptureException).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("oi-b1"),
+      }),
+      expect.objectContaining({
+        tags: { action: "standalone_goods_inventory" },
+      }),
+    );
+    // The rest of settlement still ran.
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "goods_order_paid" }),
+    );
+  });
+
+  it("the buyer's receipt lists the bundle line", async () => {
+    queue("orders:update", {
+      data: [
+        {
+          id: "o1",
+          artist_id: "a1",
+          client_email: "buyer@example.com",
+          discount_code_id: null,
+          discount_amount: 0,
+        },
+      ],
+    });
+    queue("order_items:select", { data: [BUNDLE_PAID_LINE] });
+    queue("order_item_bundle_components:select", { data: [] });
+    queue("profiles:select", { data: { display_name: "Mika Ink" } });
+
+    await settleStandaloneGoodsOrder(makeIntent());
+
+    // Fails if the receipt's line filter stays product-only: a buyer who bought
+    // one bundle would receive a receipt whose item list is empty.
+    const html = mockSendEmail.mock.calls[0]![0].html as string;
+    expect(html).toContain("- Starter kit x 2");
   });
 });
 

@@ -22,7 +22,11 @@ vi.mock("@/lib/supabase/service", () => ({ serviceClient: mockServiceClient }));
 vi.mock("@/lib/audit", () => ({
   writeAudit: (...a: unknown[]) => mockWriteAudit(...a),
 }));
-vi.mock("@/lib/order-fulfillment", () => ({
+vi.mock("@/lib/order-fulfillment", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/order-fulfillment")>()),
+  // The stock MOVER is mocked; the expansion rule (expandInventoryMovements,
+  // SHOP-FUL-001) stays REAL so its line classification is under test here.
+  // Product-only fixtures pass through it without any DB read.
   restockInventory: (...a: unknown[]) => mockRestock(...a),
 }));
 
@@ -189,7 +193,15 @@ describe("settleGoodsOrderRefund", () => {
     );
     expect(lineRead).toBeDefined();
     expect(lineRead!.filters.order_id).toBe("o1");
-    expect(lineRead!.filters.type).toBe("product");
+    // C4 (GC6): the restock read takes product AND bundle lines; bundle lines
+    // expand to their snapshot components via expandInventoryMovements, the
+    // same rule settlement decrements through. Deposit lines stay excluded.
+    // Fails if the read narrows back to product-only (bundle sales would
+    // decrement at settle and never restock on refund) or widens to deposits.
+    expect(lineRead!.inFilter).toEqual({
+      column: "type",
+      values: ["product", "bundle"],
+    });
     // The queued rows were actually consumed: this is the positive control for
     // the two negative restock tests below, which assert the SAME rows stay
     // unconsumed. Fails if the read moves outside the flip gate and the rows
@@ -225,23 +237,116 @@ describe("settleGoodsOrderRefund", () => {
   it("REDELIVERY: the lost flip skips restock and redemption release (once-only)", async () => {
     queue("orders:select", { data: ORDER });
     queue("orders:update", { data: [] }); // flip lost — another delivery won
-    // TEST-VAC-002: rows ARE available. Restocking them is exactly the double
-    // restock a redelivery must not perform, so "not called" now means the flip
-    // gate held, not that the harness had nothing to hand over.
+    // TEST-VAC-002 instrument, revised for SHOP-FUL-002: the read + expansion
+    // now deliberately run BEFORE the flip (so an expansion failure cannot
+    // consume the once-only gate), which means the queued rows ARE consumed in
+    // this lost-flip race window. The double-restock mutant is still killed,
+    // now directly: the movements are in hand when the gate decides, so
+    // removing the `if (!flipped || flipped.length === 0) return` line makes
+    // restock fire with exactly these rows, and the not-called assertion goes
+    // red. (A true redelivery in production exits earlier still, at the order
+    // lookup, because the row is already `refunded` — the "no order" test.)
     queue("order_items:select", { data: PRODUCT_ITEMS });
 
     const outcome = await settleGoodsOrderRefund(fullCharge());
     expect(outcome).toBe("refunded");
 
-    // Fails if the `if (!flipped || flipped.length === 0) return` gate is
-    // removed: the read would consume the queued rows and restock 3 units of
-    // stock that were already returned by the delivery that won the flip.
-    expect(pending("order_items:select")).toBe(1);
-    expect(ops.find((o) => o.table === "order_items")).toBeUndefined();
+    expect(pending("order_items:select")).toBe(0); // read pre-flip, by design
     expect(mockRestock).not.toHaveBeenCalled();
 
     expect(ops.find((o) => o.table === "discount_redemptions")).toBeUndefined();
     expect(mockWriteAudit).not.toHaveBeenCalled();
+  });
+
+  it("SHOP-FUL-002: a snapshot read failure returns none WITHOUT consuming the flip", async () => {
+    queue("orders:select", { data: ORDER });
+    // A bundle line forces the expansion to read the 0135 snapshot; that read
+    // errors. The expansion throws by design (a silent skip is the drift the
+    // one-rule expansion exists to prevent).
+    queue("order_items:select", {
+      data: [
+        {
+          id: "oi9",
+          bundle_id: "b1",
+          product_id: null,
+          variant_id: null,
+          quantity: 1,
+          type: "bundle",
+          title_snapshot: "Starter kit",
+          variant_snapshot: null,
+          total_amount: 40,
+        },
+      ],
+    });
+    queue("order_item_bundle_components:select", {
+      data: null,
+      error: { message: "boom" },
+    });
+
+    const outcome = await settleGoodsOrderRefund(fullCharge());
+    expect(outcome).toBe("none");
+
+    // THE point of the fix: the once-only flip was never issued, so the order
+    // is still `paid` and a redelivery or manual replay can settle everything
+    // later. Fails if the expansion moves back below the flip (the pre-fix
+    // shape): the update would be recorded here, the gate consumed, and the
+    // restock + redemption release + audit lost with no retry path.
+    expect(
+      ops.find((o) => o.table === "orders" && o.verb === "update"),
+    ).toBeUndefined();
+    expect(mockRestock).not.toHaveBeenCalled();
+    expect(ops.find((o) => o.table === "discount_redemptions")).toBeUndefined();
+    expect(mockWriteAudit).not.toHaveBeenCalled();
+  });
+
+  it("FULL refund of a BUNDLE order: restocks the snapshot components, not the bundle line", async () => {
+    queue("orders:select", { data: ORDER });
+    queue("order_items:select", {
+      data: [
+        {
+          id: "oi9",
+          bundle_id: "b1",
+          product_id: null,
+          variant_id: null,
+          quantity: 2, // two bundles bought
+          type: "bundle",
+          title_snapshot: "Starter kit",
+          variant_snapshot: null,
+          total_amount: 80,
+        },
+      ],
+    });
+    queue("order_item_bundle_components:select", {
+      data: [
+        { product_id: "p1", title_snapshot: "Print", quantity: 3 },
+        { product_id: null, title_snapshot: "Deleted thing", quantity: 1 },
+      ],
+    });
+    queue("orders:update", { data: [{ id: "o1" }] }); // flip won
+
+    const outcome = await settleGoodsOrderRefund(fullCharge());
+    expect(outcome).toBe("refunded");
+
+    // The mover receives the EXPANDED component movement (3 per bundle x 2
+    // bundles = 6), never the raw bundle line, and the deleted component is
+    // skipped. Fails if the refund side stops expanding (the SHOP-FUL-001
+    // one-way drift: decremented at settle, never restocked) or multiplies
+    // wrongly.
+    expect(mockRestock).toHaveBeenCalledTimes(1);
+    expect(mockRestock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        product_id: "p1",
+        variant_id: null,
+        quantity: 6,
+        type: "product",
+      }),
+    ]);
+    // The audit reports MOVEMENTS (what actually went back to stock).
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ restocked_lines: 1 }),
+      }),
+    );
   });
 
   it("PARTIAL refund: visibility-only (paid -> partially_refunded), no restock, no release", async () => {

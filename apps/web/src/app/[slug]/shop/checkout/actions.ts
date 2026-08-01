@@ -5,7 +5,10 @@ import { serviceClient } from "@/lib/supabase/service";
 import { isGoodsCommerceEnabled } from "@/lib/features";
 import { checkShopCheckoutRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
-import { createStandaloneGoodsCheckoutCore } from "@/lib/server/goods-checkout";
+import {
+  createStandaloneGoodsCheckoutCore,
+  type BundleSelection,
+} from "@/lib/server/goods-checkout";
 import type { AddonSelection } from "@/lib/orders";
 
 // PUBLIC, UNAUTHENTICATED action (GC1 slice C3): a guest buyer starts a
@@ -23,6 +26,7 @@ export async function startShopCheckoutAction(input: {
   slug: string;
   email: string;
   selections: AddonSelection[];
+  bundles?: BundleSelection[];
   discountCode?: string;
 }): Promise<ShopCheckoutActionResult> {
   // Double gate: the page 404s when parked, and the action refuses too, so a
@@ -58,6 +62,7 @@ export async function startShopCheckoutAction(input: {
     artistId,
     clientEmail: String(input.email ?? ""),
     selections: Array.isArray(input.selections) ? input.selections : [],
+    bundles: Array.isArray(input.bundles) ? input.bundles : [],
     discountCode:
       typeof input.discountCode === "string" ? input.discountCode : undefined,
   });

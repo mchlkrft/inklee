@@ -3,7 +3,11 @@ import type Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
-import { restockInventory, type PaidOrderItem } from "@/lib/order-fulfillment";
+import {
+  restockInventory,
+  expandInventoryMovements,
+  type InventoryOrderItem,
+} from "@/lib/order-fulfillment";
 
 // GOODS ORDER REFUND SETTLEMENT (GC1 slice C1; closes the recon's goods refund
 // hole). Until now `charge.refunded` never touched `orders`: the enum had
@@ -77,6 +81,24 @@ export async function settleGoodsOrderRefund(
     if (!order) return "none";
 
     if (charge.refunded) {
+      // Read + EXPAND BEFORE the flip (SHOP-FUL-002). expandInventoryMovements
+      // throws on a snapshot read failure, and the flip below is once-only: a
+      // throw AFTER it would consume the gate with the restock, redemption
+      // release and audit all lost, unrecoverably (a redelivery exits at the
+      // order lookup because the row is already `refunded`). Reads are
+      // idempotent, so failing HERE returns "none" with the flip unconsumed
+      // and a redelivery or manual replay can settle the whole thing later.
+      const { data: itemRows } = await serviceClient
+        .from("order_items")
+        .select(
+          "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
+        )
+        .eq("order_id", order.id)
+        .in("type", ["product", "bundle"]);
+      const movements = await expandInventoryMovements(
+        (itemRows ?? []) as InventoryOrderItem[],
+      );
+
       // Full refund: the once-only flip gate (same shape as the paid flip).
       const { data: flipped } = await serviceClient
         .from("orders")
@@ -86,18 +108,13 @@ export async function settleGoodsOrderRefund(
         .select("id");
       if (!flipped || flipped.length === 0) return "refunded";
 
-      // Restock the product lines (restockInventory skips unlimited stock and
-      // clears the low-stock flag; not internally idempotent, which is why it
-      // sits INSIDE the flip gate).
-      const { data: itemRows } = await serviceClient
-        .from("order_items")
-        .select(
-          "product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
-        )
-        .eq("order_id", order.id)
-        .eq("type", "product");
-      const items = (itemRows ?? []) as PaidOrderItem[];
-      if (items.length > 0) await restockInventory(items);
+      // The stock WRITE stays inside the flip gate (restockInventory is not
+      // internally idempotent; the gate is what makes a redelivered
+      // charge.refunded unable to restock twice). Product AND bundle lines
+      // went through the ONE expansion rule (SHOP-FUL-001): bundle lines
+      // restock their 0135 snapshot components, exactly what settlement
+      // decremented, so the two directions cannot drift.
+      if (movements.length > 0) await restockInventory(movements);
 
       // Release the discount redemption: the cap counts REAL net sales, and a
       // fully unwound sale is not one. Deleting the row frees the cap (the
@@ -118,7 +135,7 @@ export async function settleGoodsOrderRefund(
           order_id: order.id,
           payment_intent_id: intentId,
           amount_refunded: charge.amount_refunded,
-          restocked_lines: items.length,
+          restocked_lines: movements.length,
           redemption_released: Boolean(order.discount_code_id),
           via: "stripe_webhook",
         },

@@ -10453,6 +10453,134 @@ findings:
         action: "opened"
         note: "Reported during the track-C fix-batch test authoring; recorded by the supervisor."
 
+  - id: "SHOP-FUL-002"
+    title: "A bundle-snapshot read failure during a FULL goods refund permanently loses the
+      restock, the discount-redemption release and the audit row, because the throw lands after
+      the once-only flip has been consumed and no retry can re-enter"
+    summary: "SHOP-FUL-001's fix routed both inventory directions through
+      expandInventoryMovements, which THROWS on a snapshot read error by design. Settlement was
+      hardened for that: settleStandaloneGoodsOrder wraps the call in its own try/catch so the
+      rest of settlement still runs (goods-checkout.ts:596-604). The refund side was not.
+      settleGoodsOrderRefund calls it bare at goods-refund.ts:106, AFTER the once-only flip to
+      'refunded' at :85-91 has already committed. The throw unwinds to the function-level catch at
+      :148, which captures to Sentry and returns 'none'. Restock never runs, the discount
+      redemption is never released, and no goods_order_refunded audit row is written. A Stripe
+      redelivery cannot heal it: the order read at :75-80 filters
+      .in(status, ['paid','partially_refunded']) and the order is now 'refunded', so the retry
+      returns 'none' without reaching the restock."
+    classification:
+      domain: "payment"
+      category: "silent-failure"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "test-integrity agent authoring the C4 payable-bundle tests (did not write the
+        refund, settlement or expansion code)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "f6298940"
+      environment: "repository-only"
+      discovery_context: "Noticed while writing the settlement-side test that pins the try/catch
+        around expandInventoryMovements. The asymmetry was the tell: one caller of a
+        deliberately-throwing function guards it and the other does not."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-refund.ts"
+        - "apps/web/src/lib/order-fulfillment.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+      symbols:
+        - "settleGoodsOrderRefund"
+        - "expandInventoryMovements"
+        - "settleStandaloneGoodsOrder"
+    evidence:
+      observed_facts:
+        - "apps/web/src/lib/order-fulfillment.ts:70-77 expandInventoryMovements throws on a
+          snapshot read error, deliberately ('skipping silently would be the exact defect this
+          function exists to prevent')."
+        - "apps/web/src/lib/server/goods-checkout.ts:596-604 settleStandaloneGoodsOrder wraps the
+          call in a local try/catch with tags.action standalone_goods_inventory."
+        - "apps/web/src/lib/server/goods-refund.ts:106 calls it with no local guard, after the
+          flip at :85-91 and before the redemption release at :115-120 and the audit at :122-134."
+        - "EXECUTED reproduction (throwaway vitest probe against the real settleGoodsOrderRefund,
+          recording serviceClient double, restockInventory mocked, snapshot read replying
+          {data: null, error: 42501}): outcome 'none'; restockInventory 0 calls;
+          discount_redemptions:delete never issued; writeAudit 0 calls; the single Sentry capture
+          carried tags.action goods_order_refund_settle. Ops issued were exactly
+          [orders:select, orders:update, order_items:select, order_item_bundle_components:select],
+          confirming the flip HAD been consumed before the throw."
+        - "EXECUTED redelivery case in the same probe (orders:select replying null, which is what
+          the .in(status,[paid,partially_refunded]) predicate returns once the row is 'refunded'):
+          ops were exactly [orders:select], outcome 'none', restock 0 calls, audit 0 calls, and the
+          queued snapshot rows were left UNCONSUMED, proving the retry never reaches the restock."
+      references:
+        - "apps/web/src/lib/server/goods-refund.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+      inspected_comparables_without_issue:
+        - "settleStandaloneGoodsOrder (goods-checkout.ts) guards the identical call and was
+          verified by test to return true, capture, and still write its audit row when the
+          snapshot read fails."
+    assessment:
+      interpretation: "Not a divergence of RULE (both sides now share the one expansion rule,
+        which is SHOP-FUL-001 correctly closed) but a divergence of ERROR POSTURE around it. The
+        C4 slice made a previously non-throwing path throwing and hardened only one of its two
+        callers."
+      root_cause_hypothesis: "The settlement caller's guard was written because its comment
+        already reasoned about the consumed paid-flip; the refund caller has the same consumed-flip
+        property but its pre-existing function-level try/catch looked like sufficient cover, and it
+        is, for reporting but not for recovery."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists: stock stays decremented for goods the buyer returned,
+        and a discount code keeps a redemption counted against its cap for a fully unwound sale."
+      production_exposure: "None today: GOODS_COMMERCE_ENABLED off, and 0135 is not applied to
+        production."
+      exploit_preconditions: "Not attacker-driven. Needs a full refund on an order containing a
+        bundle line AND a failing read of order_item_bundle_components (permission, timeout,
+        transient outage)."
+      remaining_uncertainty: "Probability of the triggering read failure is unquantified. The
+        reproduction used a recording double, not a real Postgres, so it proves the control flow
+        and the call/no-call facts, NOT the database-level behaviour of the flip. Whether the
+        correct remedy is a local try/catch (matching settlement, accepting a lost restock but
+        keeping the redemption release and the audit row) or a wider restructure that lets a retry
+        re-enter is a design decision for the owner, not a test-authoring one."
+    relationships:
+      related_findings:
+        - "SHOP-FUL-001"
+        - "PAY-RFD-008"
+      analogous_uninspected_areas:
+        - "The booking add-on refund branch of the same webhook was NOT inspected for the same
+          consumed-flip-then-throw shape."
+        - "Every other caller of a deliberately-throwing helper placed after a once-only
+          conditional update was NOT enumerated."
+    remediation:
+      status: "open"
+      proposed_action: "Decide the posture deliberately and make the two callers of
+        expandInventoryMovements match, or document why they differ. Whichever is chosen, it needs
+        a test: none exists today, because the current behaviour IS the defect and pinning it
+        would go red on the fix."
+    verification:
+      status: "not-started"
+      independent: false
+      verified_by: "not yet verified by a second instance; the reproduction above was run by the
+        reporting agent"
+      verified_at: "2026-08-01"
+      verification_commit: "f6298940"
+      verification_method: "Throwaway vitest probe (since deleted) driving the real
+        settleGoodsOrderRefund through a recording serviceClient double, asserting the observed
+        call/no-call facts rather than reading them off the source."
+      residual_risk: "Self-reported and self-reproduced. The control-flow claim is executed, but
+        the reproduction is against a double, not a real database, and no second instance has
+        re-run it."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "test-integrity agent (C4 bundle tests)"
+        action: "opened"
+        note: "Found while pinning the settlement-side guard; reported without a fix, per the
+          test-only scope of the task."
+
 patterns:
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
@@ -10649,6 +10777,53 @@ patterns:
       - "Consider a lint rule or a typed wrapper that makes an unhandled PostgREST error a
         compile-time or CI error rather than a reviewer responsibility."
 coverage:
+  - area: "C4 payable bundles: the bundle sale rule (bundlePurchasable), the one inventory
+      expansion rule (expandInventoryMovements), the checkout core's bundle path
+      (resolveBundleLines + createStandaloneGoodsCheckoutCore + settleStandaloneGoodsOrder), and
+      the product-deletion guard's bundle leg"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-01"
+    commit_inspected: "f6298940"
+    reviewer: "test-integrity engineer for C4, who did NOT write the C4 implementation"
+    evidence: "38 tests added across 4 files (3 extended, 1 new), taking the web unit suite from
+      157 files / 2716 tests to 158 / 2754. Per file: bundles.test.ts 10 -> 18;
+      order-fulfillment-expansion.test.ts NEW 10; goods-checkout.test.ts 21 -> 38;
+      goods-guard.test.ts 13 -> 16. EVERY new test has a PROVEN killing mutant: 34 mutants were
+      applied to the four source files ONE AT A TIME and reverted from a sha256-verified backup
+      after each run (8 on packages/shared/src/bundles.ts, 9 on order-fulfillment.ts, 13 on
+      goods-checkout.ts, 4 on goods-guard.ts). Each named the tests it must turn red BEFORE it was
+      applied, and each killed exactly those. Load-bearing highlights: deleting any ONE of the
+      bundle catalog read's four predicates (artist_id, is_public_visible, currency=eur,
+      is(archived_at,null)) or its in(id, ids) turns the SHOP-VIS-001 bundle test red, which is
+      the omission the C4 verifier's ledger row predicted; dropping the fee base's bundle lines,
+      or taking the fee on the gross, is caught on the computeOrderFees ARGUMENT because v1's 0%
+      goods rate makes both invisible on the intent (TEST-VAC-003's reasoning, applied to
+      bundles); handing settlement's raw lines to decrementInventory instead of the expansion is
+      caught, which is the pre-GC6 hole where a bundle sale decrements nothing. tsc --noEmit
+      clean; eslint clean on all four files; all four source files verified byte-identical to
+      their pre-mutation sha256 afterwards."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "SHOP-FUL-002"
+    known_exclusions: "TESTS ONLY, no implementation was written or fixed. NOT covered: the
+      refund-side bundle path beyond what goods-refund.ts's existing suite already asserts (its
+      restock read's in(type,[product,bundle]) was already pinned by the C1 slice, and no new test
+      was added there); SHOP-FUL-002 itself has NO test, deliberately, because the current
+      behaviour is the defect and pinning it would go red on the fix; migration 0135 has no
+      database test at all, so its RLS policy, its three guarded constraints and its quantity>0
+      check are unverified against a real Postgres (everything here is unit-level with recording
+      doubles); the checkout UI (actions.ts, page.tsx, shop-checkout.tsx) was not tested; no
+      concurrency or oversell behaviour was exercised (two buyers racing the same last component);
+      the snapshot's bundle_id-matched item mapping was exercised with ONE bundle only, so a
+      position-vs-id mismatch across MULTIPLE bundles in one order is untested; no production
+      state was read."
+    recommended_next_inspection: "Before GOODS_COMMERCE_ENABLED flips: a db-level test of 0135
+      against a real Postgres (the apps/web/tests/db/ gate), covering the read policy, the two
+      composite-ish FKs, ON DELETE SET NULL on product_id and CASCADE on order_item_id, and the
+      quantity>0 check. Add a multi-bundle order case to the snapshot mapping test. Decide and
+      test SHOP-FUL-002's error posture."
   - area: "Plus launch: the six engineering/doc preconditions attached to the 2026-07-31 counsel +
       accountant answers (E2 durable medium, C2 Art. 8(2) adjacency, F2 fee-refund v1, F14 fee
       schedule v2, recorded-risk homes, ledger attribution)"

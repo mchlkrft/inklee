@@ -10,12 +10,14 @@ import { buildEmailHtml } from "@/lib/email/booking-templates";
 import { isGoodsCommerceEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { getAccountOverrides } from "@/lib/entitlements-server";
+import { goodsBundlesAllowed } from "@/lib/server/entitlement-gates";
 import { appointmentFeeTier } from "@/lib/server/order-fee-sync";
 import { resolveDiscount } from "@/lib/server/discounts";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
 import { createNotification } from "@/lib/notifications";
 import {
   computeAddonLines,
+  MAX_ADDON_QUANTITY,
   type AddonProduct,
   type AddonSelection,
 } from "@/lib/orders";
@@ -24,8 +26,14 @@ import {
   goodsBaseMinorFromLines,
 } from "@inklee/shared/order-fees";
 import {
+  bundlePurchasable,
+  bundlePriceMinor,
+  type Bundle,
+} from "@inklee/shared/bundles";
+import {
   decrementInventory,
-  type PaidOrderItem,
+  expandInventoryMovements,
+  type InventoryOrderItem,
 } from "@/lib/order-fulfillment";
 
 // STANDALONE GOODS CHECKOUT (GC1 slice C2).
@@ -111,6 +119,154 @@ function toAddonProducts(rows: CatalogRow[]): AddonProduct[] {
   }));
 }
 
+export type BundleSelection = { bundleId: string; quantity: number };
+
+type ResolvedBundleLine = {
+  bundleId: string;
+  name: string;
+  quantity: number;
+  /** Bundle price, major units (the charged unit price, decision B2/GC6). */
+  unitAmount: number;
+  totalMinor: number;
+  /** Sale-time composition snapshot rows (0135), quantity per ONE bundle. */
+  components: {
+    productId: string;
+    title: string;
+    quantity: number;
+    unitListPrice: number;
+  }[];
+};
+
+/**
+ * Resolve bundle selections into payable lines (GC6). Server-authoritative,
+ * mirroring computeAddonLines' discipline: duplicates are aggregated BEFORE
+ * the quantity cap and stock checks so a crafted payload cannot split its way
+ * past either; prices come from the bundle row, never the client.
+ *
+ * SALE rules are stricter than DISPLAY rules on purpose: the shop may render
+ * a bundle while omitting a hidden component (understating the saving), but
+ * money only moves when the bundle is publicly visible, not archived, priced
+ * in EUR (the standalone path charges EUR unconditionally), and every
+ * component resolves against the same SELLABLE catalog the product lines use,
+ * with enough stock. The artist's editor legitimately allows hidden or
+ * inactive products inside a bundle; the answer here is "refuse", never
+ * "sell it short" (bundlePurchasable's contract).
+ */
+async function resolveBundleLines(
+  artistId: string,
+  selections: BundleSelection[],
+  sellableCatalog: CatalogRow[],
+): Promise<
+  { ok: true; lines: ResolvedBundleLine[] } | { ok: false; error: string }
+> {
+  // Aggregate duplicate bundle ids, same reason as the addon compositor.
+  const wanted = new Map<string, number>();
+  for (const s of selections) {
+    const add = Math.max(0, Math.trunc(Number(s.quantity) || 0));
+    if (!s.bundleId || add <= 0) continue;
+    wanted.set(s.bundleId, (wanted.get(s.bundleId) ?? 0) + add);
+  }
+  if (wanted.size === 0) return { ok: true, lines: [] };
+
+  // Entitlement gate, same rule as the DISPLAY path (publicBundlesForArtist):
+  // a paused or downgraded artist has no bundles. Display fails flat; money
+  // fails CLOSED — a plan-read blip refuses rather than guessing (money rule).
+  try {
+    if (!goodsBundlesAllowed(await getAccountOverrides(artistId))) {
+      return { ok: false, error: "That bundle isn't available right now." };
+    }
+  } catch {
+    return { ok: false, error: "Couldn't prepare the order. Try again." };
+  }
+
+  const ids = [...wanted.keys()];
+  const [{ data: bundleRows }, { data: itemRows }] = await Promise.all([
+    serviceClient
+      .from("product_bundles")
+      .select(
+        "id, name, price_amount, currency, is_public_visible, archived_at",
+      )
+      .eq("artist_id", artistId)
+      .eq("is_public_visible", true)
+      .is("archived_at", null)
+      .eq("currency", "eur")
+      .in("id", ids),
+    serviceClient
+      .from("product_bundle_items")
+      .select("bundle_id, product_id, quantity")
+      .eq("artist_id", artistId)
+      .in("bundle_id", ids),
+  ]);
+  const bundleById = new Map(
+    (bundleRows ?? []).map((b) => [b.id as string, b]),
+  );
+  const productById = new Map(sellableCatalog.map((p) => [p.id, p]));
+
+  const lines: ResolvedBundleLine[] = [];
+  for (const [bundleId, qty] of wanted) {
+    if (qty > MAX_ADDON_QUANTITY) {
+      return {
+        ok: false,
+        error: `You can add at most ${MAX_ADDON_QUANTITY} of a bundle.`,
+      };
+    }
+    const row = bundleById.get(bundleId);
+    if (!row) {
+      // Missing, hidden, archived or non-EUR: one answer, no oracle for which.
+      return { ok: false, error: "That bundle isn't available right now." };
+    }
+    const componentRows = (itemRows ?? []).filter(
+      (i) => i.bundle_id === bundleId,
+    );
+    const bundle: Bundle = {
+      id: bundleId,
+      name: (row.name as string) ?? "",
+      priceAmount: Number(row.price_amount ?? 0),
+      currency: (row.currency as string) ?? "eur",
+      position: 0,
+      isPublicVisible: true,
+      archivedAt: null,
+    };
+    const verdict = bundlePurchasable(
+      bundle,
+      componentRows.map((c) => {
+        const product = productById.get(c.product_id as string);
+        return {
+          quantity: Number(c.quantity ?? 1),
+          product: product ? { stock: product.quantity } : null,
+        };
+      }),
+      qty,
+    );
+    if (!verdict.ok) {
+      const error =
+        verdict.reason === "component_out_of_stock"
+          ? `Not enough stock for "${bundle.name}".`
+          : verdict.reason === "component_unavailable"
+            ? "Part of that bundle isn't available right now."
+            : "That bundle isn't available right now.";
+      return { ok: false, error };
+    }
+    lines.push({
+      bundleId,
+      name: bundle.name,
+      quantity: qty,
+      unitAmount: bundle.priceAmount,
+      totalMinor: bundlePriceMinor(bundle.priceAmount) * qty,
+      components: componentRows.map((c) => {
+        const product = productById.get(c.product_id as string)!;
+        return {
+          productId: c.product_id as string,
+          title: product.title,
+          quantity: Number(c.quantity ?? 1),
+          unitListPrice: Number(product.price_amount ?? 0),
+        };
+      }),
+    });
+  }
+  return { ok: true, lines };
+}
+
 /**
  * Create a standalone goods order + its PaymentIntent. Server-authoritative
  * end to end: catalog, prices, stock, discount and fee are all resolved here;
@@ -120,6 +276,7 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   artistId: string;
   clientEmail: string;
   selections: AddonSelection[];
+  bundles?: BundleSelection[];
   discountCode?: string;
 }): Promise<StandaloneCheckoutResult> {
   // Master park switch: fail closed, same as the add-on path.
@@ -161,14 +318,29 @@ export async function createStandaloneGoodsCheckoutCore(input: {
 
   const computed = computeAddonLines(catalog, input.selections);
   if (!computed.ok) return { ok: false, error: computed.error };
-  if (computed.lines.length === 0) {
+
+  // Bundles (GC6): resolved against the SAME sellable catalog the product
+  // lines validated against, so the visibility/status/currency rules cannot
+  // diverge between the two line kinds.
+  const resolvedBundles = await resolveBundleLines(
+    input.artistId,
+    input.bundles ?? [],
+    (rows ?? []) as CatalogRow[],
+  );
+  if (!resolvedBundles.ok) return { ok: false, error: resolvedBundles.error };
+  const bundleLines = resolvedBundles.lines;
+
+  if (computed.lines.length === 0 && bundleLines.length === 0) {
     return { ok: false, error: "Pick something to buy first." };
   }
 
   // Discount (optional). resolveDiscount is apply-time gated on the artist's
   // entitlement and returns a client-facing rejection message when the code
-  // does not take money off.
-  const goodsGrossMinor = Math.round(computed.goodsAmount * 100);
+  // does not take money off. The subtotal it thresholds against is the FULL
+  // goods gross, bundles included.
+  const bundleGrossMinor = bundleLines.reduce((s, l) => s + l.totalMinor, 0);
+  const goodsGrossMinor =
+    Math.round(computed.goodsAmount * 100) + bundleGrossMinor;
   const discount = await resolveDiscount({
     artistId: input.artistId,
     rawCode: input.discountCode ?? null,
@@ -184,10 +356,17 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   try {
     const tier = appointmentFeeTier(await getAccountOverrides(input.artistId));
     const goodsBaseMinor = goodsBaseMinorFromLines(
-      computed.lines.map((l) => ({
-        type: "product",
-        totalMinor: Math.round(l.totalAmount * 100),
-      })),
+      [
+        ...computed.lines.map((l) => ({
+          type: "product",
+          totalMinor: Math.round(l.totalAmount * 100),
+        })),
+        // Fee base = the bundle PRICE, never the components' sum (B2/GC6).
+        ...bundleLines.map((l) => ({
+          type: "bundle",
+          totalMinor: l.totalMinor,
+        })),
+      ],
       { discountsMinor: discount.discountMinor },
     );
     fee = computeOrderFees({
@@ -218,7 +397,7 @@ export async function createStandaloneGoodsCheckoutCore(input: {
       client_email: email,
       status: "pending",
       deposit_amount: 0,
-      goods_amount: computed.goodsAmount,
+      goods_amount: computed.goodsAmount + bundleGrossMinor / 100,
       subtotal_amount: totalMinor / 100,
       platform_fee_amount: fee.totalMinor / 100,
       fee_schedule_version: fee.scheduleVersion,
@@ -234,23 +413,87 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   }
   const orderId = order.id as string;
 
-  const { error: itemsErr } = await serviceClient.from("order_items").insert(
-    computed.lines.map((l) => ({
-      order_id: orderId,
-      type: "product",
-      product_id: l.productId,
-      variant_id: l.variantId,
-      title_snapshot: l.titleSnapshot,
-      variant_snapshot: l.variantSnapshot,
-      quantity: l.quantity,
-      unit_amount: l.unitAmount,
-      total_amount: l.totalAmount,
-      currency: "eur",
-    })),
-  );
-  if (itemsErr) {
-    await serviceClient.from("orders").delete().eq("id", orderId);
-    return { ok: false, error: "Couldn't save the items. Try again." };
+  if (computed.lines.length > 0) {
+    const { error: itemsErr } = await serviceClient.from("order_items").insert(
+      computed.lines.map((l) => ({
+        order_id: orderId,
+        type: "product",
+        product_id: l.productId,
+        variant_id: l.variantId,
+        title_snapshot: l.titleSnapshot,
+        variant_snapshot: l.variantSnapshot,
+        quantity: l.quantity,
+        unit_amount: l.unitAmount,
+        total_amount: l.totalAmount,
+        currency: "eur",
+      })),
+    );
+    if (itemsErr) {
+      await serviceClient.from("orders").delete().eq("id", orderId);
+      return { ok: false, error: "Couldn't save the items. Try again." };
+    }
+  }
+
+  // Bundle lines (GC6): one first-class 'bundle' row per bundle at the bundle
+  // price, then the sale-time composition snapshot keyed to the returned item
+  // ids. The snapshot is what fulfilment and the deletion guard read; a
+  // failure to write it makes the sale unfulfillable, so it rolls back the
+  // whole order (the order delete cascades items and snapshots).
+  if (bundleLines.length > 0) {
+    const { data: insertedBundleItems, error: bundleItemsErr } =
+      await serviceClient
+        .from("order_items")
+        .insert(
+          bundleLines.map((l) => ({
+            order_id: orderId,
+            type: "bundle",
+            product_id: null,
+            variant_id: null,
+            bundle_id: l.bundleId,
+            title_snapshot: l.name,
+            variant_snapshot: null,
+            quantity: l.quantity,
+            unit_amount: l.unitAmount,
+            total_amount: l.totalMinor / 100,
+            currency: "eur",
+          })),
+        )
+        .select("id, bundle_id");
+    if (bundleItemsErr || !insertedBundleItems) {
+      await serviceClient.from("orders").delete().eq("id", orderId);
+      return { ok: false, error: "Couldn't save the items. Try again." };
+    }
+    // Matched by bundle_id, not array position: duplicates were aggregated to
+    // one line per bundle, so the mapping is unambiguous.
+    const itemIdByBundle = new Map(
+      insertedBundleItems.map((r) => [r.bundle_id as string, r.id as string]),
+    );
+    const snapshotRows = bundleLines.flatMap((l) => {
+      const orderItemId = itemIdByBundle.get(l.bundleId);
+      if (!orderItemId) return [];
+      return l.components.map((c) => ({
+        order_item_id: orderItemId,
+        product_id: c.productId,
+        title_snapshot: c.title,
+        quantity: c.quantity,
+        unit_list_price: c.unitListPrice,
+      }));
+    });
+    const missingSnapshot =
+      snapshotRows.length === 0 || itemIdByBundle.size !== bundleLines.length;
+    const { error: snapshotErr } = missingSnapshot
+      ? { error: new Error("bundle snapshot mapping incomplete") }
+      : await serviceClient
+          .from("order_item_bundle_components")
+          .insert(snapshotRows);
+    if (snapshotErr) {
+      Sentry.captureException(snapshotErr, {
+        tags: { action: "standalone_goods_bundle_snapshot" },
+        extra: { orderId },
+      });
+      await serviceClient.from("orders").delete().eq("id", orderId);
+      return { ok: false, error: "Couldn't save the items. Try again." };
+    }
   }
 
   let intent: Stripe.PaymentIntent;
@@ -342,12 +585,24 @@ export async function settleStandaloneGoodsOrder(
   const { data: itemRows } = await serviceClient
     .from("order_items")
     .select(
-      "product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
+      "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
     )
     .eq("order_id", orderId);
-  const items = (itemRows ?? []) as PaidOrderItem[];
+  const items = (itemRows ?? []) as InventoryOrderItem[];
 
-  const lowStock = await decrementInventory(items);
+  // Inventory moves through the ONE expansion rule (SHOP-FUL-001): product
+  // lines directly, bundle lines via their 0135 snapshot. Best-effort like the
+  // rest of inventory: a failed snapshot read must not fail the settlement
+  // (the paid flip is already consumed; a webhook retry could not redo it).
+  let lowStock: Awaited<ReturnType<typeof decrementInventory>> = [];
+  try {
+    lowStock = await decrementInventory(await expandInventoryMovements(items));
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { action: "standalone_goods_inventory" },
+      extra: { orderId },
+    });
+  }
   for (const hit of lowStock) {
     await createNotification({
       artistId: order.artist_id as string,
@@ -389,7 +644,7 @@ export async function settleStandaloneGoodsOrder(
         (intent.amount_received ?? intent.amount ?? 0) / 100
       ).toFixed(2);
       const lines = items
-        .filter((i) => i.type === "product")
+        .filter((i) => i.type === "product" || i.type === "bundle")
         .map(
           (i) =>
             `- ${i.title_snapshot}${i.variant_snapshot ? ` (${i.variant_snapshot})` : ""} x ${i.quantity}`,

@@ -128,14 +128,17 @@ export function computeOrderFees(input: OrderFeeInput): OrderFeeBreakdown {
  * Separate from the fee maths on purpose: this is the one place that decides
  * what counts as goods value, and it is the place discounts, VAT and shipping
  * will be subtracted from when those exist. Today an order has neither, so the
- * base is the sum of product lines and the deposit line is excluded by type.
+ * base is the sum of product AND bundle lines; the deposit line is excluded by
+ * type. The 'bundle' widening ships WITH the enum value (GC6): under v1's 0%
+ * goods rate a dropped bundle line is invisible and would only surface as a
+ * silently-zero fee base at the P7 v2 flip.
  */
 export function goodsBaseMinorFromLines(
   lines: { type: string; totalMinor: number }[],
   deductions: { discountsMinor?: number; vatMinor?: number; shippingMinor?: number } = {},
 ): number {
   const gross = lines
-    .filter((l) => l.type === "product")
+    .filter((l) => l.type === "product" || l.type === "bundle")
     .reduce((sum, l) => sum + (Number.isFinite(l.totalMinor) ? l.totalMinor : 0), 0);
   const net =
     gross -

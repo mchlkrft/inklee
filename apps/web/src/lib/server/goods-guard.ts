@@ -85,6 +85,25 @@ export async function productHasOrderReferences(
   }
   if ((direct ?? []).length > 0) return true;
 
+  // Sold INSIDE a bundle counts too (GC6, migration 0135). A bundle sale is
+  // one order line with product_id NULL; the components live only in the
+  // snapshot table. Without this check a product sold exclusively via bundles
+  // looks unreferenced, gets hard-deleted, and product_bundle_items' ON
+  // DELETE CASCADE then erases it from the live bundle as well.
+  const { data: bundleSold, error: bundleSoldErr } = await serviceClient
+    .from("order_item_bundle_components")
+    .select("id")
+    .eq("product_id", productId)
+    .limit(1);
+  if (bundleSoldErr) {
+    Sentry.captureException(bundleSoldErr, {
+      tags: { action: "product_bundle_ref_check" },
+      extra: { productId },
+    });
+    return true; // same fail-safe direction as the direct check
+  }
+  if ((bundleSold ?? []).length > 0) return true;
+
   // Booking interests count too (P5 decision, carried from the P0 review).
   //
   // The two levels disagreed: the variant reconcile already counted interests,
