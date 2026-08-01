@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `f5b3c48828d2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `46aa3e72122d`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-123 recorded finding(s), 3 structural pattern(s), across 83 mapped area(s).
-101 remain open by remediation status. 95 are reachable (directly or conditionally) rather than latent.
-97 have not passed independent verification.
+124 recorded finding(s), 3 structural pattern(s), across 83 mapped area(s).
+102 remain open by remediation status. 96 are reachable (directly or conditionally) rather than latent.
+98 have not passed independent verification.
 178 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 51 |
+| medium | 52 |
 | low | 37 |
 | informational | 4 |
 
@@ -35,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 34 |
+| fixed-unverified | 35 |
 | mitigated | 2 |
 | open | 62 |
 | risk-accepted | 2 |
@@ -45,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 94 |
+| not-started | 95 |
 | partially-verified | 2 |
 | passed | 26 |
 | pending | 1 |
@@ -144,7 +146,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | billing | 13 |
 | jobs | 13 |
 | webhook | 13 |
-| database | 10 |
+| database | 11 |
 | web | 10 |
 | testing | 7 |
 | authorization | 5 |
@@ -208,6 +210,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
 | FEE-STP-001 | medium | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
+| GOODS-VAR-001 | medium | conditionally-reachable | latent | reconcileVariants would hard-delete a variant sold ONLY inside a bundle, stranding the sale's snapshot and silently breaking its refund restock |
 | HUB-GAL-001 | medium | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | HUB-GAL-004 | medium | conditionally-reachable | latent | isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch is dead only by accident of URL bracket handling |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
@@ -278,6 +281,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
+| GOODS-VAR-001 | medium | fixed-unverified | not-started | 88c9e544 |
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | HUB-GAL-004 | medium | fixed-unverified | not-started | 6bac9914 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | 45a44bee |

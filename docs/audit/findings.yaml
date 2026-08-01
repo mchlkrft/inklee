@@ -12904,6 +12904,103 @@ findings:
         action: "fix-committed"
         note: "Fixed in b2da53c7 the same day; queued for the next independent round."
 
+  - id: "GOODS-VAR-001"
+    title: "reconcileVariants would hard-delete a variant sold ONLY inside a bundle, stranding the
+      sale's snapshot and silently breaking its refund restock"
+    summary: "The hide-vs-hard-delete decision for a variant the artist removes from a product
+      form checked booking_interests.variant_id and order_items.variant_id only. A variant sold
+      exclusively inside a bundle writes NEITHER: the bundle sale is ONE order_items row of type
+      bundle (product_id and variant_id null by design, GC6) and the composition lives in
+      order_item_bundle_components. So such a variant read as unreferenced and was hard-deleted;
+      with 0138's variant FK carrying ON DELETE SET NULL, the snapshot's variant_id then nulled,
+      and a later refund's restock fell through to the product-level branch, which moves nothing
+      for a variant-tracked product. Net effect: stock silently not returned on a refund of a
+      bundle whose variant the artist had since tidied away. Found by the FD6 worker while
+      tracing the ruling's historical-integrity requirement, and fixed in the same commit by
+      adding order_item_bundle_components.variant_id as a third reference leg."
+    classification:
+      domain: "database"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "fd6-worker (implementing FD6; not looking for this)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "88c9e544"
+      environment: "repository-only"
+      discovery_context: "Tracing FD6's historical-integrity requirement through the delete path
+        rather than only the write path."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-variants.ts"
+      symbols:
+        - "reconcileVariants"
+      database_objects:
+        - "order_item_bundle_components.variant_id"
+    evidence:
+      observed_facts:
+        - "Pre-fix reconcileVariants consulted exactly two reference legs (booking_interests and
+          order_items), neither of which a bundle-only variant sale populates."
+        - "A bundle sale is one order_items row of type bundle with null product_id/variant_id
+          (GC6); the composition is in order_item_bundle_components (0135, variant columns 0138)."
+        - "The module had ZERO test coverage before this slice; four tests added with the fix."
+      references:
+        - "apps/web/supabase/migrations/0138_bundle_item_variants.sql"
+      inspected_comparables_without_issue:
+        - "productHasOrderReferences already gained the equivalent bundle leg during the C4
+          slice (SHOP-FUL-001 era), so the PRODUCT-level guard was already correct; only the
+          VARIANT-level one lagged."
+    assessment:
+      interpretation: "The same class as the product-level guard fixed in C4, one level down:
+        introducing a payable shape whose sales do not populate the columns a deletion guard
+        reads. The pattern is that every new order-line shape must be taught to every existing
+        reference check."
+      root_cause_hypothesis: "The bundle line shape (product_id null, composition in a side
+        table) was introduced after reconcileVariants was written, and the variant-level guard
+        was not revisited when the product-level one was."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists selling variant-bearing products inside bundles, once
+        goods commerce un-parks."
+      production_exposure: "None: bundles are unreleased, 0135/0138 unapplied, goods commerce
+        parked."
+      exploit_preconditions: "Not attacker-driven; needs normal editor use (removing a variant)
+        followed by a refund."
+      remaining_uncertainty: "The end-to-end sequence was not executed against a database (no
+        Docker); the fix is covered by unit tests over the reference-check logic."
+    relationships:
+      related_findings:
+        - "SHOP-FUL-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "88c9e544"
+      fixed_at: "2026-08-01"
+      proposed_action: "Third reference leg added (order_item_bundle_components.variant_id) so a
+        bundle-only variant archives instead of hard-deleting; four tests added to a module that
+        previously had none. Follow-up for the widening question: audit every remaining deletion
+        or reference guard for the same blind spot now that a second order-line shape exists."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued for the money-path adversarial round"
+      verified_at: "2026-08-01"
+      verification_commit: "88c9e544"
+      verification_method: "Supervisor re-ran the slice's five suites (137 tests) and read the
+        fix; the defect itself is established by reading the pre-fix reference legs against the
+        bundle line shape. Not executed against Postgres."
+      residual_risk: "The db tests covering bundle-item RLS and the new constraints are
+        CI-pending (no local Docker this session)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "fd6-worker"
+        action: "opened"
+        note: "Found and fixed in the same commit; reported for the register per the task's
+          supervisor-ledgers rule."
+
 patterns:
 
   - id: "PAT-001"
