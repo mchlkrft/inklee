@@ -2068,13 +2068,19 @@ describe("anon role reads nothing (PAY-RLS-005 / 0133)", () => {
       .insert({
         artist_id: owner.id,
         booking_id: fx.bookingId,
-        status: "sent",
+        // Built as a DRAFT first: the lines go in below, and only then is the
+        // row sent. Two 0125/0126 invariants made the original fixture (insert
+        // straight to `sent`) impossible: the fee-version check requires
+        // `fee_schedule_version` on any row with `sent_at`, and the
+        // `payment_request_lines_frozen` trigger refuses lines on an
+        // already-sent request. So this test could never have passed — found
+        // on 2026-08-01, the first session where the db suite ran against a
+        // real Postgres.
+        status: "draft",
         currency: "eur",
         collects: "deposit",
         total_minor: 5000,
         revision: 1,
-        sent_at: new Date().toISOString(),
-        customer_token_hash: "a1-regression-hash",
       })
       .select("id")
       .single();
@@ -2092,6 +2098,23 @@ describe("anon role reads nothing (PAY-RLS-005 / 0133)", () => {
       classification: "tattoo_service",
     });
     expect(line.error, line.error?.message).toBeNull();
+
+    // NOW send it: status + sent_at + the frozen fee version + the token hash,
+    // i.e. exactly the row 0128's policy would have exposed to anon. Done as
+    // an UPDATE after the lines exist, because the freeze trigger refuses
+    // lines on an already-sent request.
+    const sent = await admin
+      .from("payment_requests")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        fee_schedule_version: "fees-v1-2026-07-04",
+        customer_token_hash: "a1-regression-hash",
+      })
+      .eq("id", requestId)
+      .select("id")
+      .single();
+    expect(sent.error, sent.error?.message).toBeNull();
 
     // POSITIVE CONTROL first: the row exists and the OWNER's client sees it,
     // so the anon emptiness below is about the ROLE, not a missing row.

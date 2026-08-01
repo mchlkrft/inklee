@@ -46,6 +46,19 @@ const MIGRATION_A2 = migrationPath("0126_payment_request_send.sql");
 // migration" means the migrations that own the objects, and leaving one out
 // measures a convergence gap that is really a missing file.
 const MIGRATION_A3 = migrationPath("0127_payment_request_intent.sql");
+// 0131 (processor cost) and 0136 (fee-tier stamp) BOTH add constraints to
+// `payment_collections`, a table this file drops everything from. They were
+// missing from the repair run, so the "whole constraint set comes back" claim
+// was measuring a set the run could never restore — the two tests had been red
+// since 0131 landed and nobody saw it, because the db suite had never run
+// against Postgres until 2026-08-01. Same rule as 0126/0127 above: "re-run the
+// migration" means the migrations that OWN the objects.
+const MIGRATION_C1 = migrationPath(
+  "0131_payment_collection_processor_cost.sql",
+);
+const MIGRATION_D1 = migrationPath("0136_fee_tier_stamp.sql");
+// 0128 owns idx_payment_requests_token_hash, the 14th index on these tables.
+const MIGRATION_A4 = migrationPath("0128_payment_request_client_token.sql");
 
 /** The six that were inline. Named individually because "six came back" is a
  *  weaker claim than "these six came back": a run that restored six DIFFERENT
@@ -70,6 +83,9 @@ let sql: PgSession;
 let migrationText: string;
 let migrationA2Text: string;
 let migrationA3Text: string;
+let migrationC1Text: string;
+let migrationD1Text: string;
+let migrationA4Text: string;
 
 async function constraintNames(): Promise<string[]> {
   const rows = await sql.query<{ conname: string }>(
@@ -97,6 +113,9 @@ beforeAll(async () => {
   migrationText = readFileSync(MIGRATION, "utf8");
   migrationA2Text = readFileSync(MIGRATION_A2, "utf8");
   migrationA3Text = readFileSync(MIGRATION_A3, "utf8");
+  migrationC1Text = readFileSync(MIGRATION_C1, "utf8");
+  migrationD1Text = readFileSync(MIGRATION_D1, "utf8");
+  migrationA4Text = readFileSync(MIGRATION_A4, "utf8");
   expect(
     Math.min(migrationText.length, migrationA2Text.length),
     "both migration files must be readable, or nothing below tests anything",
@@ -197,6 +216,8 @@ describe("0125 converges: a dropped constraint comes BACK on a re-run", () => {
       await sql.query(migrationText);
       await sql.query(migrationA2Text);
       await sql.query(migrationA3Text);
+      await sql.query(migrationC1Text);
+      await sql.query(migrationD1Text);
 
       const after = await constraintNames();
       expect(after).toEqual(before);
@@ -233,8 +254,16 @@ describe("0125 converges: a dropped constraint comes BACK on a re-run", () => {
       );
       expect(Number(gone[0].n), "the indexes must really be gone").toBe(0);
 
+      // Every migration that OWNS an index on these tables, for the same
+      // reason the constraint test lists them: a repair run missing a file
+      // measures a gap that is really an incomplete replay. 0126 and 0131/0136
+      // were absent here, so one index could never come back.
       await sql.query(migrationText);
+      await sql.query(migrationA2Text);
       await sql.query(migrationA3Text);
+      await sql.query(migrationA4Text);
+      await sql.query(migrationC1Text);
+      await sql.query(migrationD1Text);
 
       const restored = await sql.query<{ n: string }>(
         `select count(*)::text as n from pg_indexes
