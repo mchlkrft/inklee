@@ -240,15 +240,17 @@ Two things follow, both done here:
   `settings/hub/route.ts` (`richBlocksAllowed`) + `app/settings/link-hub.tsx`
   (summary + gated add). On `feat/p5d-collections`, NOT on master.
 
-- **2026-08-01 — P9 artist payment-requests WEB UI, slice 2a (branch-only).**
-  First web surface for appointment payments: `(artist)/bookings/payments`
-  (read-only list via the shared read layer) + `actions.ts` (send / cancel
-  server actions wrapping the same cores the mobile routes use). NOT yet in the
-  nav (the feature is dark / entitlement-gated; the item appears at
-  launch-readiness, like `/pricing`), reachable by URL. NATIVE EQUIVALENT is a
-  follow-on: the app already has the write + read `/api/mobile/payments/requests`
-  routes but no management SCREEN yet. Create / revise / refund web forms +
-  link delivery + client receipt are later slices. On `feat/p5d-collections`.
+- **2026-08-01 — P9 artist payment-requests WEB UI, slices 2a + 2b (branch-only).**
+  Web surface for appointment payments under `(artist)/bookings/payments`: the
+  list (2a, read-only via the shared read layer), the per-request detail page
+  `[id]` (2b-i, shows lines), and the create flow `new/` (2b-ii/iii: a form with a
+  booking/project subject picker + collects + line editor → `createPaymentRequestAction`).
+  `actions.ts` wraps the SAME cores the mobile routes call: create / send / cancel
+  (revise + refund forms still to come). NOT yet in the nav (feature is dark /
+  entitlement-gated; the item appears at launch-readiness, like `/pricing`),
+  reachable by URL. NATIVE EQUIVALENT is a follow-on: the app already has the
+  write + read `/api/mobile/payments/requests` routes but no management SCREEN.
+  Link delivery + client receipt are later slices. On `feat/p5d-collections`.
 
 - **2026-07-31 — P9 A7 appointment payment mobile routes (branch-only).**
   Five `/api/mobile/payments/requests` routes: create (POST), send (POST

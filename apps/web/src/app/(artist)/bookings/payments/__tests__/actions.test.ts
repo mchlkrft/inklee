@@ -1,22 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { getUser, sendCore, cancelCore, revalidatePath } = vi.hoisted(() => ({
-  getUser: vi.fn(),
-  sendCore: vi.fn(),
-  cancelCore: vi.fn(),
-  revalidatePath: vi.fn(),
-}));
+const { getUser, createCore, sendCore, cancelCore, revalidatePath } =
+  vi.hoisted(() => ({
+    getUser: vi.fn(),
+    createCore: vi.fn(),
+    sendCore: vi.fn(),
+    cancelCore: vi.fn(),
+    revalidatePath: vi.fn(),
+  }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getUser } }),
 }));
 vi.mock("@/lib/server/appointment-payments", () => ({
+  createPaymentRequestCore: (...a: unknown[]) => createCore(...a),
   sendPaymentRequestCore: (...a: unknown[]) => sendCore(...a),
   cancelPaymentRequestCore: (...a: unknown[]) => cancelCore(...a),
 }));
 
 import {
+  createPaymentRequestAction,
   sendPaymentRequestAction,
   cancelPaymentRequestAction,
 } from "../actions";
@@ -24,8 +28,60 @@ import {
 beforeEach(() => {
   vi.clearAllMocks();
   getUser.mockResolvedValue({ data: { user: { id: "artist1" } } });
+  createCore.mockResolvedValue({ ok: true, id: "r1", status: "draft" });
   sendCore.mockResolvedValue({ ok: true, id: "r1", status: "sent" });
   cancelCore.mockResolvedValue({ ok: true, id: "r1", status: "cancelled" });
+});
+
+const CREATE_INPUT = {
+  subject: { kind: "booking" as const, id: "b1" },
+  collects: "deposit",
+  currency: "eur",
+  lines: [
+    {
+      name: "Deposit",
+      unitAmountMinor: 5000,
+      quantity: 1,
+      classification: "tattoo_service",
+    },
+  ],
+};
+
+describe("createPaymentRequestAction", () => {
+  it("creates a draft via the core and returns the id", async () => {
+    const r = await createPaymentRequestAction(CREATE_INPUT);
+    expect(r).toEqual({ ok: true, id: "r1" });
+    expect(createCore).toHaveBeenCalledWith(
+      expect.anything(),
+      "artist1",
+      expect.objectContaining({
+        subject: { kind: "booking", id: "b1" },
+        collects: "deposit",
+      }),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments");
+  });
+
+  it("surfaces a not-entitled refusal without revalidating", async () => {
+    createCore.mockResolvedValue({
+      ok: false,
+      code: "not_entitled",
+      error: "Card deposits aren't included in your current plan.",
+    });
+    const r = await createPaymentRequestAction(CREATE_INPUT);
+    expect(r).toEqual({
+      ok: false,
+      error: "Card deposits aren't included in your current plan.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("refuses when not signed in, without calling the core", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+    const r = await createPaymentRequestAction(CREATE_INPUT);
+    expect(r).toEqual({ ok: false, error: "Not signed in." });
+    expect(createCore).not.toHaveBeenCalled();
+  });
 });
 
 describe("sendPaymentRequestAction", () => {

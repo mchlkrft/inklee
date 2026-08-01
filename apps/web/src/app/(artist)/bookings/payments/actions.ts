@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
+  createPaymentRequestCore,
   sendPaymentRequestCore,
   cancelPaymentRequestCore,
+  type PaymentSubjectInput,
+  type PaymentLineInput,
 } from "@/lib/server/appointment-payments";
 
 // Web server actions for the artist payment-requests surface. Thin wrappers over
@@ -52,4 +55,35 @@ export async function cancelPaymentRequestAction(
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath(LIST_PATH);
   return { ok: true };
+}
+
+export type CreatePaymentRequestInput = {
+  subject: PaymentSubjectInput;
+  collects: string;
+  currency?: string;
+  lines: PaymentLineInput[];
+};
+
+export type CreatePaymentRequestResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
+
+/** Create a DRAFT payment request. The core validates the subject ownership
+ *  (composite FK), the collects value, the lines, and the entitlement (returns a
+ *  plan-specific message the form surfaces). Nothing is sent here: the artist
+ *  reviews the draft, then uses Send. */
+export async function createPaymentRequestAction(
+  input: CreatePaymentRequestInput,
+): Promise<CreatePaymentRequestResult> {
+  const auth = await currentArtistId();
+  if (!auth.ok) return { ok: false, error: "Not signed in." };
+  const result = await createPaymentRequestCore(auth.supabase, auth.id, {
+    subject: input.subject,
+    collects: input.collects,
+    currency: input.currency,
+    lines: input.lines,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath(LIST_PATH);
+  return { ok: true, id: result.id };
 }

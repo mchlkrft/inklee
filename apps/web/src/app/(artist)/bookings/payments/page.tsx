@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listPaymentRequestsForArtist } from "@/lib/server/appointment-payment-read";
 import { PaymentRequestsList } from "./payment-requests-list";
@@ -21,13 +22,21 @@ export default async function PaymentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Payments</h1>
-        <p className="text-sm text-muted-foreground">
-          Structured payment requests for appointments and projects. Send a
-          draft to give your client a secure payment link, or cancel one you no
-          longer need.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold text-foreground">Payments</h1>
+          <p className="text-sm text-muted-foreground">
+            Structured payment requests for appointments and projects. Send a
+            draft to give your client a secure payment link, or cancel one you
+            no longer need.
+          </p>
+        </div>
+        <Link
+          href="/bookings/payments/new"
+          className="shrink-0 rounded-lg bg-brand-mustard px-4 py-2 text-sm font-semibold text-brand-charcoal transition-opacity hover:opacity-90"
+        >
+          New request
+        </Link>
       </header>
       <PaymentRequestsList requests={requests} />
     </div>
