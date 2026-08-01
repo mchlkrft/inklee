@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `022f6a77b842`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `69f4d29d4a31`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (68)
+## Open (62)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -26,7 +26,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-ORD-001 | high | payment | conditionally-reachable | latent | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
 | PAY-ORD-002 | high | payment | conditionally-reachable | latent | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
 | PAY-RFD-001 | high | payment | conditionally-reachable | latent | A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status |
-| SHOP-ORD-002 | high | payment | conditionally-reachable | latent | The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility |
 | WHK-COLL-001 | high | webhook | currently-unreachable | latent | P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator |
 | WHK-ERR-001 | high | webhook | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | webhook | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
@@ -50,10 +49,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-RFD-008 | medium | payment | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | production-config | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
-| SHOP-DROP-001 | medium | public-surface | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
-| SHOP-FUL-003 | medium | payment | conditionally-reachable | latent | Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read failure on a paid bundle order permanently skips inventory decrement (oversell), the exact shape SHOP-FUL-002 fixed on the refund side |
-| SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
-| SHOP-VAR-001 | medium | payment | conditionally-reachable | latent | Bundles cannot express variants, and nothing guards the gap: a variant-stocked product inside a bundle sells with no variant chosen and no stock moved |
 | WHK-DEA-001 | medium | webhook | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |
 | WHK-DSP-001 | medium | webhook | unknown | unknown | The charge.dispute.* handler exists in code but no artifact in the repository subscribes the endpoint to it, and the commit that added the handler changed no runbook |
 | WHK-RFD-001 | medium | webhook | directly-reachable | latent | charge.refunded records at most one audit row per booking carrying the first cumulative amount, so a partial refund is indistinguishable from a full one and later partials are never recorded |
@@ -74,7 +69,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-AUD-001 | low | payment | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | payment | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
-| SHOP-MIG-001 | low | migration | currently-unreachable | latent | 0135 declares the snapshot table's PRIMARY KEY inline inside create table if not exists, under a comment claiming plain columns only |
 | WHK-CUR-001 | low | webhook | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |
 | BDEL-POL-001 | informational | governance | currently-unreachable | theoretical | UNRATIFIED: no product policy exists for what deletion does to an active subscription; the period-end rule in Terms is scoped to cancellation, not deletion |
@@ -86,7 +80,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (22)
+## Fixed but NOT verified (28)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -101,6 +95,7 @@ A commit exists. Nothing independent has confirmed it works.
 | PAY-RLS-005 | high | payment | currently-unreachable | latent | 0128 anon SELECT policies expose every sent payment request via the anon key |
 | PAY-SPON-001 | high | payment | directly-reachable | historically-impacting | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | PAY-WHK-001 | high | webhook | currently-unreachable | latent | A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on |
+| SHOP-ORD-002 | high | payment | conditionally-reachable | latent | The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility |
 | BILL-UI-001 | medium | billing | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | billing | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
 | DATA-MIG-002 | medium | migration | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
@@ -110,10 +105,15 @@ A commit exists. Nothing independent has confirmed it works.
 | PAY-RFD-003 | medium | payment | conditionally-reachable | latent | Artist refund route lets the artist choose the fee-refund case, controlling Inklee's fee |
 | PAY-RFD-004 | medium | payment | conditionally-reachable | latent | Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund |
 | PAY-RFD-007 | medium | payment | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
+| SHOP-DROP-001 | medium | public-surface | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
+| SHOP-FUL-003 | medium | payment | conditionally-reachable | latent | Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read failure on a paid bundle order permanently skips inventory decrement (oversell), the exact shape SHOP-FUL-002 fixed on the refund side |
+| SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
+| SHOP-VAR-001 | medium | payment | conditionally-reachable | latent | Bundles cannot express variants, and nothing guards the gap: a variant-stocked product inside a bundle sells with no variant chosen and no stock moved |
 | BILL-UI-003 | low | billing | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | web | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
 | OPS-LINT-001 | low | ci-cd | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-UI-006 | low | payment | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
+| SHOP-MIG-001 | low | migration | currently-unreachable | latent | 0135 declares the snapshot table's PRIMARY KEY inline inside create table if not exists, under a comment claiming plain columns only |
 
 ## Verified, but NOT independently (0)
 

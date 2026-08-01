@@ -10708,7 +10708,9 @@ findings:
         - "SHOP-FUL-002"
         - "SHOP-FUL-003"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b483efc7"
+      fixed_at: "2026-08-01"
       proposed_action: "Make the movers report: restockInventory/decrementInventory return or
         surface per-line write failures; the refund path captures them to Sentry with the order id
         and writes an audit row naming what was NOT restocked/released, so the loss is at least
@@ -10731,6 +10733,15 @@ findings:
         action: "opened"
         note: "Partial refutation of SHOP-FUL-002's recoverability claim, recorded by the
           supervisor."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fix in b483efc7, the observability posture (GC8 item 5): both movers now capture
+          per-line PostgREST write failures to Sentry with product/variant ids, and the
+          redemption release captures its delete error with the order id. The proposed
+          audit-row half and the compensating-retry table were deliberately NOT built while the
+          feature is dark: Sentry observability + manual repair is the recorded posture, to
+          revisit at un-park."
 
   - id: "SHOP-DROP-001"
     title: "The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable
@@ -10795,7 +10806,9 @@ findings:
       related_findings:
         - "SHOP-VIS-001"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b483efc7"
+      fixed_at: "2026-08-01"
       proposed_action: "resolveBundleLines resolves each component through productAvailability
         (drop + preorder + stock) and refuses the bundle when any component is not purchasable
         (component_unavailable; sell-short is already forbidden by contract). Mirror the same
@@ -10819,6 +10832,14 @@ findings:
         action: "opened"
         note: "Proven by executing productAvailability and bundlePurchasable on the same
           undropped product."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fix in b483efc7, exactly as proposed: resolveBundleLines resolves every component
+          through productAvailability at one injected instant and refuses the bundle when any
+          component is not purchasable; the page mirrors the rule (undropped products render
+          with disabled steppers, bundle availability applies the component rule). Test with a
+          year-9999 available_from fixture (deterministic against the ambient clock)."
 
   - id: "SHOP-FUL-003"
     title: "Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read
@@ -10875,7 +10896,9 @@ findings:
         - "SHOP-FUL-002"
         - "SHOP-FUL-004"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b483efc7"
+      fixed_at: "2026-08-01"
       proposed_action: "Move the items read + expansion BEFORE the paid flip in
         settleStandaloneGoodsOrder, exactly like the refund side: an expansion failure returns
         false with the flip unconsumed. Update the test at goods-checkout.test.ts:1120 to pin the
@@ -10896,6 +10919,13 @@ findings:
         actor: "track-C adversarial verifier, round 2"
         action: "opened"
         note: "Asymmetry with the refund-side posture, documented by the C4 suite's own test."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fix in b483efc7: settlement reads + expands BEFORE the once-only paid flip, same
+          posture as the refund side; an expansion failure returns false with the gate
+          unconsumed. The test that documented the loss now pins the new posture (flip never
+          issued, no audit, no receipt; order stays pending for redelivery/backstop)."
 
   - id: "SHOP-ORD-002"
     title: "The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and
@@ -10955,7 +10985,9 @@ findings:
       related_findings:
         - "SHOP-ORD-001"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b483efc7"
+      fixed_at: "2026-08-01"
       proposed_action: "The sweep must resolve the INTENT, not just the row: check the intent's
         status first; succeeded -> run settleStandaloneGoodsOrder (converge, a lost-webhook
         recovery for free); otherwise cancel the intent via Stripe and only then cancel the
@@ -10980,6 +11012,17 @@ findings:
         actor: "track-C adversarial verifier, round 2"
         action: "opened"
         note: "Found by following the money past the SHOP-ORD-001 fix's stated scope."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fix in b483efc7: the sweep resolves the INTENT per row exactly as proposed —
+          succeeded runs settleStandaloneGoodsOrder (lost-webhook recovery, pinned: order goes
+          PAID, never cancelled), processing skips the round, cancelable intents are cancelled
+          on Stripe BEFORE the pending-gated row write, Stripe errors skip the row for the next
+          run, no-intent rows cancel directly. The cancel-vs-confirm race rides Stripe's own
+          server-side re-check (a rejected cancel throws to the skip path; the next run sees
+          succeeded). Test-mode Stripe execution of the race remains open per the finding's
+          residual, CI/live-verify time."
 
   - id: "SHOP-MIG-001"
     title: "0135 declares the snapshot table's PRIMARY KEY inline inside create table if not
@@ -11024,7 +11067,9 @@ findings:
       related_findings:
         - "SHOP-MIG-002"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b483efc7"
+      fixed_at: "2026-08-01"
       proposed_action: "Add a guarded do-block restoring the PK by conname, alongside the other
         guards. 0135 is unapplied, so editing it is forward-safe."
     verification:
@@ -11042,6 +11087,11 @@ findings:
         actor: "track-C adversarial verifier, round 2"
         action: "opened"
         note: "Consistency check."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fix in b483efc7: guarded do-block restores the PK by conname alongside the other
+          guards; 0135 is unapplied anywhere, so the edit is forward-safe."
 
   - id: "SHOP-MIG-002"
     title: "order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the
@@ -11168,7 +11218,9 @@ findings:
       related_findings:
         - "SHOP-DROP-001"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b483efc7"
+      fixed_at: "2026-08-01"
       proposed_action: "v1 conservative rule (sell-short is forbidden by contract): the checkout
         refuses a bundle whose component product has active variants (component_unavailable),
         because neither a variant choice nor variant stock can be expressed. Log the decision;
@@ -11189,6 +11241,13 @@ findings:
         actor: "track-C adversarial verifier, round 2"
         action: "opened"
         note: "Gate executed; fulfilment half by reading."
+      - date: "2026-08-01"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Fix in b483efc7 (decision GC7): a component whose product has any ACTIVE variant does
+          not resolve; the bundle is refused at checkout and mirrored unavailable on the page.
+          The editor still allows such bundles (display unaffected). Variant-aware bundles
+          recorded as v2 scope."
 
 patterns:
 
