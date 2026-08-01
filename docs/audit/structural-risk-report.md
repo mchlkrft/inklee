@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `e9ae31798e91`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `5df8d94ad7ca`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-110 recorded finding(s), 3 structural pattern(s), across 78 mapped area(s).
-98 remain open by remediation status. 88 are reachable (directly or conditionally) rather than latent.
-93 have not passed independent verification.
+116 recorded finding(s), 3 structural pattern(s), across 79 mapped area(s).
+96 remain open by remediation status. 90 are reachable (directly or conditionally) rather than latent.
+91 have not passed independent verification.
 176 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 46 |
-| low | 29 |
+| medium | 49 |
+| low | 32 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,19 +37,19 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 32 |
+| fixed-unverified | 24 |
 | mitigated | 1 |
-| open | 62 |
+| open | 68 |
 | risk-accepted | 1 |
-| verified | 11 |
+| verified | 19 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
-| not-started | 91 |
-| partially-verified | 1 |
-| passed | 17 |
+| not-started | 88 |
+| partially-verified | 2 |
+| passed | 25 |
 | pending | 1 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -142,15 +144,15 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | --- | --- |
 | payment | 26 |
 | billing | 13 |
-| jobs | 12 |
-| webhook | 12 |
+| jobs | 13 |
+| webhook | 13 |
 | database | 10 |
+| testing | 7 |
 | authorization | 5 |
 | migration | 4 |
 | public-surface | 4 |
 | web | 4 |
 | production-config | 3 |
-| testing | 3 |
 | ci-cd | 2 |
 | data-retention | 2 |
 | governance | 2 |
@@ -251,6 +253,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-UI-006 | low | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | SHOP-FUL-001 | low | conditionally-reachable | latent | Settlement and refund disagree on which order_items reach inventory: settle passes ALL lines to decrementInventory while refund restocks only type='product' |
 | SHOP-FUL-002 | low | conditionally-reachable | latent | A bundle-snapshot read failure during a FULL goods refund permanently loses the restock, the discount-redemption release and the audit row, because the throw lands after the once-only flip has been consumed and no retry can re-enter |
+| SHOP-FUL-005 | low | conditionally-reachable | latent | A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal falls entirely to the daily sweep: worst case roughly two days with money captured and the order still pending |
+| SHOP-ORD-003 | low | conditionally-reachable | latent | The intent-aware sweep is unbounded and serial inside a cron with no maxDuration, and skipped rows never reach the audit payload |
 | WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | OPS-DOC-001 | informational | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
@@ -267,29 +271,21 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RLS-005 | high | fixed-unverified | not-started | 6fb2eb1 |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
-| SHOP-ORD-002 | high | fixed-unverified | not-started | b483efc7 |
 | BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
-| FEE-DSP-001 | medium | fixed-unverified | not-started | 0adf56ca |
-| FEE-STP-001 | medium | fixed-unverified | not-started | 0adf56ca |
+| FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
 | PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | passed | 6fb2eb1 |
 | PAY-RFD-007 | medium | fixed-unverified | passed | 752e989 |
-| SHOP-DROP-001 | medium | fixed-unverified | not-started | b483efc7 |
-| SHOP-FUL-003 | medium | fixed-unverified | not-started | b483efc7 |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
-| SHOP-GATE-001 | medium | fixed-unverified | not-started | 292c02fb |
-| SHOP-VAR-001 | medium | fixed-unverified | not-started | b483efc7 |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
-| SHOP-MIG-001 | low | fixed-unverified | not-started | b483efc7 |
-| SURF-VIS-001 | low | fixed-unverified | not-started | 292c02fb |
 
 ## Analogous areas flagged but NOT inspected
 
@@ -500,15 +496,14 @@ These are the register's highest-value entries for an auditor: places a recorded
 24. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
 25. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
 26. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
-27. **SHOP-ORD-002** (high, unverified): The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility
-28. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
-29. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
-30. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
-31. **Uninspected**: Mobile client (Expo app) / mobile
-32. **Uninspected**: Background jobs and crons / jobs
-33. **Uninspected**: Dependency security / secops
-34. **Uninspected**: Production configuration / platform
-35. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
+27. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+28. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+29. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+30. **Uninspected**: Mobile client (Expo app) / mobile
+31. **Uninspected**: Background jobs and crons / jobs
+32. **Uninspected**: Dependency security / secops
+33. **Uninspected**: Production configuration / platform
+34. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 

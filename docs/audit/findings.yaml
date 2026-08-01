@@ -10742,6 +10742,14 @@ findings:
           audit-row half and the compensating-retry table were deliberately NOT built while the
           feature is dark: Sentry observability + manual repair is the recorded posture, to
           revisit at un-park."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "evidence-added"
+        note: "Round-3: CANNOT CERTIFY AS VERIFIED. Deleting one of the four capture sites
+          leaves the full suite green at baseline-identical counts (binding canary-proven);
+          a repo-wide grep finds no test referencing reportStockWriteFailure or either
+          Sentry tag. The fix is present by reading; nothing observes the observer. Stays
+          fixed-unverified; test gap opened as TEST-VAC-006."
 
   - id: "SHOP-DROP-001"
     title: "The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable
@@ -10806,7 +10814,7 @@ findings:
       related_findings:
         - "SHOP-VIS-001"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "b483efc7"
       fixed_at: "2026-08-01"
       proposed_action: "resolveBundleLines resolves each component through productAvailability
@@ -10815,15 +10823,18 @@ findings:
         availability rule into the page's bundle availability and select available_from/preorder
         for the product list so undropped products do not render buyable."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "track-C adversarial verifier, round 2"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Both real gates executed side by side on the same fixture product;
-        divergence observed directly."
-      residual_risk: "None on the divergence; the fix needs its own test with a future
-        available_from fixture."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed. Removing the productAvailability call from the bundle component
+        gate reds the named year-9999 drop-fixture test; the gate proved divergent in round 2 now
+        agrees with the direct-purchase gate."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -10840,6 +10851,10 @@ findings:
           component is not purchasable; the page mirrors the rule (undropped products render
           with disabled steppers, bundle availability applies the component rule). Test with a
           year-9999 available_from fixture (deterministic against the ambient clock)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "SHOP-FUL-003"
     title: "Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read
@@ -10896,7 +10911,7 @@ findings:
         - "SHOP-FUL-002"
         - "SHOP-FUL-004"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "b483efc7"
       fixed_at: "2026-08-01"
       proposed_action: "Move the items read + expansion BEFORE the paid flip in
@@ -10904,14 +10919,18 @@ findings:
         false with the flip unconsumed. Update the test at goods-checkout.test.ts:1120 to pin the
         new posture (flip NOT consumed) instead of documenting the loss."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "track-C adversarial verifier, round 2"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Evidenced by the existing passing test that pins the lossy behaviour,
-        plus reading the ordering; no new execution needed."
-      residual_risk: "None on the mechanism."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed. Restoring the pre-fix ordering (expansion after the once-only paid
+        flip) reds the named posture test; the shipped shape returns false with the gate
+        unconsumed."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -10926,6 +10945,10 @@ findings:
           posture as the refund side; an expansion failure returns false with the gate
           unconsumed. The test that documented the loss now pins the new posture (flip never
           issued, no audit, no receipt; order stays pending for redelivery/backstop)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "SHOP-ORD-002"
     title: "The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and
@@ -10985,7 +11008,7 @@ findings:
       related_findings:
         - "SHOP-ORD-001"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "b483efc7"
       fixed_at: "2026-08-01"
       proposed_action: "The sweep must resolve the INTENT, not just the row: check the intent's
@@ -10995,16 +11018,21 @@ findings:
         rechecking the intent on Stripe error. The webhook's canceled-branch path is unaffected
         (there the intent is already dead)."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "track-C adversarial verifier, round 2"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Established by reading the sweep, the flip conditions and the webhook
-        response codes; the late-payment sequence was reasoned end to end but no Stripe call was
-        executed."
-      residual_risk: "The Stripe-side race (confirm racing cancel) needs test-mode execution
-        during the fix."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed. Four sweep mutations, full 162-file suite each: deleting the
+        succeeded-settle and processing-skip branches each red their own named test. TWO
+        unregistered mutations SURVIVED (order row cancelled before the Stripe intent; the
+        cancel-status predicate narrowed) — the shipped code is correct but the intent-before-row
+        ordering the test title claims is not asserted; opened as TEST-VAC-004/005. No Stripe, no
+        database: mocked client, query-shape pins."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11023,6 +11051,10 @@ findings:
           server-side re-check (a rejected cancel throws to the skip path; the next run sees
           succeeded). Test-mode Stripe execution of the race remains open per the finding's
           residual, CI/live-verify time."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "SHOP-MIG-001"
     title: "0135 declares the snapshot table's PRIMARY KEY inline inside create table if not
@@ -11067,19 +11099,25 @@ findings:
       related_findings:
         - "SHOP-MIG-002"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "b483efc7"
       fixed_at: "2026-08-01"
       proposed_action: "Add a guarded do-block restoring the PK by conname, alongside the other
         guards. 0135 is unapplied, so editing it is forward-safe."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "track-C adversarial verifier, round 2"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Read of the migration file against the convergence pattern."
-      residual_risk: "None."
+      verification_commit: "282e0bb0"
+      verification_method: "Verified by READING only: 0135 carries a guarded
+        order_item_bundle_components_pkey restore alongside its other constraint guards, correct
+        against the AGENTS.md convergence rule. No database available; never applied or
+        catalog-checked (CI-pending like the rest of 0135)."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11092,6 +11130,10 @@ findings:
         action: "fix-committed"
         note: "Fix in b483efc7: guarded do-block restores the PK by conname alongside the other
           guards; 0135 is unapplied anywhere, so the edit is forward-safe."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "SHOP-MIG-002"
     title: "order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the
@@ -11218,7 +11260,7 @@ findings:
       related_findings:
         - "SHOP-DROP-001"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "b483efc7"
       fixed_at: "2026-08-01"
       proposed_action: "v1 conservative rule (sell-short is forbidden by contract): the checkout
@@ -11226,14 +11268,17 @@ findings:
         because neither a variant choice nor variant stock can be expressed. Log the decision;
         variant-aware bundles are a v2 scope with a snapshot schema change."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "track-C adversarial verifier, round 2"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "bundlePurchasable executed with a null-stock component at high line
-        quantity; the fulfilment no-op established by reading decrementInventory's branches."
-      residual_risk: "The end-to-end sale was not executed (no DB/Stripe)."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed. Removing the active-variant refusal from the component gate reds
+        the named GC7 test."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11248,6 +11293,10 @@ findings:
           not resolve; the bundle is refused at checkout and mirrored unavailable on the page.
           The editor still allows such bundles (display unaffected). Variant-aware bundles
           recorded as v2 scope."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "FEE-DSP-001"
     title: "The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS
@@ -11345,7 +11394,7 @@ findings:
           (pricingPageClaim 'needs update') and is founder-facing copy, deliberately out of Track
           D's mechanical scope."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "0adf56ca"
       fixed_at: "2026-08-01"
       proposed_action: "Route the display sites through the tiered schedule: widen
@@ -11358,17 +11407,24 @@ findings:
         (the unification test pins that deliberately); strengthen the display==charged test to
         per-tier under v2 via the new display source."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "trackd-fee-recon (read-only) mapped the sites; no fix exists yet"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Static read of all importers of the platform-fee shim (exactly four)
-        plus the tier-aware fifth path, the charge-path contrast, and the pinned identities in
-        appointment-fee-unification.test.ts. Display rendering not executed."
-      residual_risk: "Call-site count rests on import tracing; a display that re-hardcodes '3%'
-        as a literal without importing the module would not be found this way (the known
-        marketing-copy set was enumerated separately)."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed. Replacing appointmentFeeDisplay's null return with a 0-percent
+        object reds two named tests including the v2 Free null-branch pin. Both dispatch
+        constraints held: platformFeeCents is still single-argument, and the unification test
+        diff is purely additive (v1 identity strengthened by a v2 sibling, not replaced). Null
+        branch on the three UI surfaces verified by reading (no component-render harness); the
+        mobile skew logic distinguishes undefined (fall back to the 3-percent constant) from null
+        (suppress) via a strict undefined check, so a v2 Free artist never sees a fabricated
+        3 percent. The only surviving raw PLATFORM_FEE_PERCENT interpolation is that deliberate
+        skew fallback."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11390,6 +11446,10 @@ findings:
           GDPR export prefers the stamped platform_fee_collected_cents (never a live tier).
           platformFeeCents kept single-argument; the display-matches-charged identity
           strengthened per v2 tier instead of deleted."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "FEE-STP-001"
     title: "Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a
@@ -11483,17 +11543,18 @@ findings:
         fallback; appointment settlement stamps both from intent metadata (intent already carries
         the version, gains the tier). fee-savings-query prefers the stored tier when present."
     verification:
-      status: "not-started"
+      status: "partially-verified"
       independent: true
-      verified_by: "trackd-fee-recon (read-only) mapped the columns; no fix exists yet"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Static sweep of every fee-actual write path and every migration for
-        tier-ish columns; the settlement-time-version defect established by contrasting
-        webhook/route.ts:679 with the intent metadata contents at bookings.ts:926-932."
-      residual_risk: "Read-based; no database executed. The claim that no consumer can
-        reconstruct the tier rests on the legacy tier's derivation from an entitlement override,
-        which is code-verified but not exercised."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed for ONE of the six write sites: reverting the
+        appointment-payment-settlement stamp to the active-schedule read reds, identity
+        control green. The FLAGSHIP site — the webhook deposit stamp the fix was written
+        for — SURVIVES the same revert (binding proven by a route canary): only one test
+        file in the repo imports the webhook route at all. Opened as TEST-VAC-007."
+      residual_risk: "The webhook deposit stamp is correct by reading and UNVERIFIED by
+        execution; the migration columns are CI-pending (no database)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11512,6 +11573,12 @@ findings:
           settlement-time active version. payment_requests deliberately NOT stamped (0125
           client-writability residual, as recorded). payment_collections has no drizzle
           mirror at all (pre-existing, now flagged in schema.ts)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict PARTIALLY VERIFIED at 282e0bb0: settlement site proven by mutation,
+          webhook site unpinnable (no route-level coverage; TEST-VAC-007). Remediation stays
+          fixed-unverified until the webhook stamp is behaviourally pinned."
 
   - id: "SURF-VIS-001"
     title: "hidden:['shop'] is a fully built, parser-preserved, renderer-honoured visibility
@@ -11561,21 +11628,27 @@ findings:
       related_findings:
         - "SHOP-GATE-001"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "292c02fb"
       fixed_at: "2026-08-01"
       proposed_action: "C5 decision S2: give hidden:['shop'] a write path (web toggle + mobile
         twin) following the policy toggle's exact shape; the key governs ONLY the booking-page
         teaser (non-cascading, per-surface model)."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "c5-surfaces-recon (read-only)"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Grep for writers of the hidden key across web actions, mobile routes
-        and fixtures; render/parse halves confirmed by reading the cited lines."
-      residual_risk: "None; static property."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed, after a discarded false-pass (the tests import relatively, so the
+        first alias-based rig bound nothing and both canaries proved it; rebound via an
+        importer-scoped resolver). Collapsing the isPublicVisible tri-state reds the named
+        round-trip test; removing the isModuleVisible('shop') cascade from the hub goods block
+        reds its named gate test."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11590,6 +11663,10 @@ findings:
           saveShopVisibilityAction + ShopVisibilityToggle in bookings settings plus the
           mobile twin route, all through the shared parser preserving policy and every
           other key; governs ONLY the booking-page teaser per decision S2 (non-cascading)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
 
   - id: "SHOP-GATE-001"
     title: "The standalone shop checkout ignores the artist's own goods-module switch: neither
@@ -11642,21 +11719,27 @@ findings:
         - "SURF-VIS-001"
         - "SHOP-VIS-001"
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "292c02fb"
       fixed_at: "2026-08-01"
       proposed_action: "C5 decision S2: the standalone shop gets its own features.shop_checkout
         switch (default on while goods_module is on) AND honours canUseGoods, enforced in the
         page AND the money-path core (fail closed on a settings read error)."
     verification:
-      status: "not-started"
+      status: "passed"
       independent: true
-      verified_by: "c5-surfaces-recon (read-only)"
+      verified_by: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
       verified_at: "2026-08-01"
-      verification_commit: "78bcecb8"
-      verification_method: "Negative grep for the gate calls across the three files of the
-        standalone path, contrasted with the booking page's gated read at the cited line."
-      residual_risk: "Read-based; no render executed."
+      verification_commit: "282e0bb0"
+      verification_method: "Executed. Removing the core gate reds the refuses-before-any-order-insert
+        test; flipping the read-error branch open reds the fail-closed test; making a missing
+        settings row fail closed reds 24 tests including the dedicated default-on pin — the
+        24-test blast radius confirms the harness's default null reply routes the existing suite
+        through the default-on branch DELIBERATELY, guarded by its own named test."
+      residual_risk: "No database (0135/0136/0137 never applied; RLS, constraints and
+        backfills CI-pending), no Stripe (intent states mocked; the retrieve/cancel/
+        confirm race reasoned only), no component-render harness (UI null branches and
+        the checkout UI are read-only conclusions)."
     disclosure:
       public_repo_safe: true
     history:
@@ -11674,6 +11757,415 @@ findings:
           to the default (cannot regress artists who never touched the toggle). Toggle UI on
           /goods (no goods_module editor existed anywhere — worker-verified; deviation
           recorded)."
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3 (wrote none of the fixes and none of their tests)"
+        action: "verified"
+        note: "Round-3 verdict CONFIRMED-FIXED at 282e0bb0; method in the verification block."
+
+  - id: "TEST-VAC-004"
+    title: "The sweep test claiming cancelled-on-Stripe-then-the-order-row asserts only existence,
+      not sequence: reversing the order (the exact SHOP-ORD-002 defect ordering) survives
+      the full suite"
+    summary: "Mutation a3 (order row cancelled BEFORE the Stripe intent) survives at 2805+1. The test
+      title and inline comment claim the ordering property; the assertions check only that
+      cancel was called and the update payload says cancelled. The shipped code is correct;
+      the test cannot tell."
+    classification:
+      domain: "testing"
+      category: "untestable-or-vacuous-test"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 3"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "282e0bb0"
+      environment: "local"
+      discovery_context: "Round-3 verification pass over b483efc7 / 0adf56ca /
+        292c02fb."
+    location:
+      files:
+        - "apps/web/src/lib/server/__tests__/goods-checkout.test.ts"
+    evidence:
+      observed_facts:
+        - "Mutation a3 survived; binding canary-proven; identity control restored the baseline
+          exactly."
+      references:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+    assessment:
+      interpretation: "A named invariant with no teeth; the next refactor can silently reopen SHOP-ORD-002's
+        race window."
+      root_cause_hypothesis: "Test coverage lagged the fix batch pace; the gaps
+        cluster where no harness existed before."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future regressions in the named paths would ship
+        undetected."
+      production_exposure: "None today; everything dark."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None on the gap itself."
+    relationships:
+      related_findings:
+        - "SHOP-ORD-002"
+        - "TEST-VAC-005"
+    remediation:
+      status: "open"
+      proposed_action: "Assert the call SEQUENCE (record an ops timeline across the Stripe mock and the recording
+        double, or assert cancel's invocation order against the orders update)."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 3"
+      verified_at: "2026-08-01"
+      verification_commit: "282e0bb0"
+      verification_method: "Mutation survival at baseline-identical counts with
+        canary-proven binding (the TEST-VAC entries), or reading (SHOP-ORD-003,
+        SHOP-FUL-005)."
+      residual_risk: "See the round-3 coverage row bounds."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-3 report."
+
+  - id: "TEST-VAC-005"
+    title: "The sweep's Stripe-cancel status predicate is unpinned: narrowing it strands
+      requires_confirmation / requires_action intents payable while their rows cancel"
+    summary: "Mutation a4 (intent.status !== 'canceled' narrowed to a single status) survives. Only one
+      cancelable status and the already-canceled path are covered; the predicate's breadth
+      is the SHOP-ORD-002 guarantee for every other pre-payment state."
+    classification:
+      domain: "testing"
+      category: "untestable-or-vacuous-test"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 3"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "282e0bb0"
+      environment: "local"
+      discovery_context: "Round-3 verification pass over b483efc7 / 0adf56ca /
+        292c02fb."
+    location:
+      files:
+        - "apps/web/src/lib/server/__tests__/goods-checkout.test.ts"
+    evidence:
+      observed_facts:
+        - "Mutation a4 survived at baseline-identical counts."
+      references:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+    assessment:
+      interpretation: "Predicate breadth is load-bearing and untested."
+      root_cause_hypothesis: "Test coverage lagged the fix batch pace; the gaps
+        cluster where no harness existed before."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future regressions in the named paths would ship
+        undetected."
+      production_exposure: "None today; everything dark."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None on the gap itself."
+    relationships:
+      related_findings:
+        - "SHOP-ORD-002"
+        - "TEST-VAC-004"
+    remediation:
+      status: "open"
+      proposed_action: "Parameterize the cancelable-intent test across requires_payment_method,
+        requires_confirmation and requires_action."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 3"
+      verified_at: "2026-08-01"
+      verification_commit: "282e0bb0"
+      verification_method: "Mutation survival at baseline-identical counts with
+        canary-proven binding (the TEST-VAC entries), or reading (SHOP-ORD-003,
+        SHOP-FUL-005)."
+      residual_risk: "See the round-3 coverage row bounds."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-3 report."
+
+  - id: "TEST-VAC-006"
+    title: "SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full
+      suite green, and no test references reportStockWriteFailure or either Sentry tag"
+    summary: "Mutation a8 (delete the product-level decrement capture) survives; a repo-wide grep for
+      the helper and both tags across test files returns nothing. Nothing observes the
+      observer, which was the finding's whole point."
+    classification:
+      domain: "testing"
+      category: "untestable-or-vacuous-test"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 3"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "282e0bb0"
+      environment: "local"
+      discovery_context: "Round-3 verification pass over b483efc7 / 0adf56ca /
+        292c02fb."
+    location:
+      files:
+        - "apps/web/src/lib/order-fulfillment.ts"
+    evidence:
+      observed_facts:
+        - "Mutation a8 survived; the fulfillment canary loses 75 tests, proving binding."
+      references:
+        - "apps/web/src/lib/order-fulfillment.ts"
+    assessment:
+      interpretation: "The observability fix is present by reading and unguarded by execution; SHOP-FUL-004
+        stays fixed-unverified because of exactly this."
+      root_cause_hypothesis: "Test coverage lagged the fix batch pace; the gaps
+        cluster where no harness existed before."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future regressions in the named paths would ship
+        undetected."
+      production_exposure: "None today; everything dark."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None on the gap itself."
+    relationships:
+      related_findings:
+        - "SHOP-FUL-004"
+    remediation:
+      status: "open"
+      proposed_action: "Tests driving each mover with an erroring update reply and asserting the Sentry capture
+        (tag + ids); then SHOP-FUL-004 can be behaviourally verified."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 3"
+      verified_at: "2026-08-01"
+      verification_commit: "282e0bb0"
+      verification_method: "Mutation survival at baseline-identical counts with
+        canary-proven binding (the TEST-VAC entries), or reading (SHOP-ORD-003,
+        SHOP-FUL-005)."
+      residual_risk: "See the round-3 coverage row bounds."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-3 report."
+
+  - id: "TEST-VAC-007"
+    title: "The webhook deposit fee-schedule/tier stamp, the flagship FEE-STP-001 site, has no
+      route-level coverage: reverting it to the settlement-time ACTIVE read survives"
+    summary: "Mutation b2 survives (binding proven by the route canary). Only one test file in the repo
+      imports the webhook route at all (the canceled-dispatch harness), so most of that
+      route's dispatch and write logic is uncovered."
+    classification:
+      domain: "testing"
+      category: "untestable-or-vacuous-test"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 3"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "282e0bb0"
+      environment: "local"
+      discovery_context: "Round-3 verification pass over b483efc7 / 0adf56ca /
+        292c02fb."
+    location:
+      files:
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+    evidence:
+      observed_facts:
+        - "Mutation b2 survived; grep shows one importing test file (payment-intent-canceled)."
+      references:
+        - "apps/web/src/app/api/stripe/webhook/__tests__/payment-intent-canceled.test.ts"
+    assessment:
+      interpretation: "The single most defect-named site of Track D is the one with no behavioural pin;
+        FEE-STP-001 is partially-verified because of it."
+      root_cause_hypothesis: "Test coverage lagged the fix batch pace; the gaps
+        cluster where no harness existed before."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future regressions in the named paths would ship
+        undetected."
+      production_exposure: "None today; everything dark."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None on the gap itself."
+    relationships:
+      related_findings:
+        - "FEE-STP-001"
+    remediation:
+      status: "open"
+      proposed_action: "Extend the round-1 webhook dispatch harness to payment_intent.succeeded's deposit branch
+        and pin the metadata-sourced stamp (version from intent, fallback ACTIVE, tier null
+        for old intents)."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 3"
+      verified_at: "2026-08-01"
+      verification_commit: "282e0bb0"
+      verification_method: "Mutation survival at baseline-identical counts with
+        canary-proven binding (the TEST-VAC entries), or reading (SHOP-ORD-003,
+        SHOP-FUL-005)."
+      residual_risk: "See the round-3 coverage row bounds."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-3 report."
+
+  - id: "SHOP-ORD-003"
+    title: "The intent-aware sweep is unbounded and serial inside a cron with no maxDuration, and
+      skipped rows never reach the audit payload"
+    summary: "sweepStalePendingStandaloneOrders selects with no limit (PostgREST's default cap silently
+      truncates) and makes 1-2 serial Stripe round-trips per row; the cleanup route sets
+      only runtime nodejs. A timeout mid-loop loses the remaining rows AND the trailing
+      audit write. A run that skips every row writes no audit at all and is visible only
+      per-row in Sentry."
+    classification:
+      domain: "jobs"
+      category: "availability"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 3"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "282e0bb0"
+      environment: "local"
+      discovery_context: "Round-3 verification pass over b483efc7 / 0adf56ca /
+        292c02fb."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/app/api/cron/cleanup/route.ts"
+    evidence:
+      observed_facts:
+        - "No .limit() on the sweep select; no maxDuration export on the route; the audit is written
+          once at the end, gated on cancelled+settled only."
+      references:
+        - "apps/web/src/app/api/cron/cleanup/route.ts"
+    assessment:
+      interpretation: "Fleet growth turns the sweep into a timeout lottery; the audit gap hides it."
+      root_cause_hypothesis: "Test coverage lagged the fix batch pace; the gaps
+        cluster where no harness existed before."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future regressions in the named paths would ship
+        undetected."
+      production_exposure: "None today; everything dark."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None on the gap itself."
+    relationships:
+      related_findings:
+        - "SHOP-ORD-002"
+    remediation:
+      status: "open"
+      proposed_action: "Bound the select (limit, nightly re-runs drain the rest), export maxDuration on the
+        cleanup route, include skipped in the audit payload."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 3"
+      verified_at: "2026-08-01"
+      verification_commit: "282e0bb0"
+      verification_method: "Mutation survival at baseline-identical counts with
+        canary-proven binding (the TEST-VAC entries), or reading (SHOP-ORD-003,
+        SHOP-FUL-005)."
+      residual_risk: "See the round-3 coverage row bounds."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-3 report."
+
+  - id: "SHOP-FUL-005"
+    title: "A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal
+      falls entirely to the daily sweep: worst case roughly two days with money captured
+      and the order still pending"
+    summary: "SHOP-FUL-003's pre-flip refusal is right, but the webhook replies received:true
+      regardless, Stripe stops retrying, and Vercel Hobby crons are daily-only. The
+      route's own pattern for a recoverable money failure is a 500 (the sponsorship
+      release). settle currently cannot distinguish already-settled-by-another-delivery
+      from refused-pre-flip, so a naive 500 would retry forever on settled orders."
+    classification:
+      domain: "webhook"
+      category: "silent-failure"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "track-C adversarial verifier, round 3"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "282e0bb0"
+      environment: "local"
+      discovery_context: "Round-3 verification pass over b483efc7 / 0adf56ca /
+        292c02fb."
+    location:
+      files:
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+    evidence:
+      observed_facts:
+        - "settleStandaloneGoodsOrder returns a boolean; the webhook returns 200 on false; the
+          sweep is the only other settle caller and runs daily."
+      references:
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+    assessment:
+      interpretation: "A deliberate posture decision is needed, not a reflex fix: a tri-state return
+        (settled / already / refused) is the prerequisite for a safe 500."
+      root_cause_hypothesis: "Test coverage lagged the fix batch pace; the gaps
+        cluster where no harness existed before."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Future regressions in the named paths would ship
+        undetected."
+      production_exposure: "None today; everything dark."
+      exploit_preconditions: "Not applicable."
+      remaining_uncertainty: "None on the gap itself."
+    relationships:
+      related_findings:
+        - "SHOP-FUL-003"
+        - "SHOP-ORD-002"
+    remediation:
+      status: "open"
+      proposed_action: "Widen settle's return to distinguish pre-flip refusal from lost-flip; 500 ONLY the
+        refusal case so Stripe's retry ladder recovers in minutes; keep 200 for
+        already-settled. Decide and log."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "track-C adversarial verifier, round 3"
+      verified_at: "2026-08-01"
+      verification_commit: "282e0bb0"
+      verification_method: "Mutation survival at baseline-identical counts with
+        canary-proven binding (the TEST-VAC entries), or reading (SHOP-ORD-003,
+        SHOP-FUL-005)."
+      residual_risk: "See the round-3 coverage row bounds."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "track-C adversarial verifier, round 3"
+        action: "opened"
+        note: "Recorded by the supervisor from the round-3 report."
 
 patterns:
 
@@ -14154,3 +14646,41 @@ coverage:
       guest-artist timeline deliberately excluded from C5 scope (guest_naming_opt_out governs
       naming; it is the studio's surface). Mobile renderers not in scope (public surfaces are
       web-only by decision)."
+
+  - area: "Track C round-3 independent verification: the ten fixed-unverified remediations
+      from b483efc7 (round-2 batch), 0adf56ca (Track D) and 292c02fb (C5), plus targeted
+      new-defect probes"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "282e0bb0"
+    reviewer: "track-C adversarial verifier, round 3; wrote none of the fixes or their
+      tests"
+    evidence: "Baseline reproduced exactly (162 files, 2805 passed + 1 expected fail, tsc
+      exit 0); 24 mutations, one policy each, full suite every run, rigs outside the repo.
+      The rig itself FALSE-PASSED once: relative-importing tests meant an alias-based
+      binding attached to nothing, both canaries proved it, and all three affected results
+      were discarded and re-run through an importer-scoped resolver — the canary-first
+      discipline is what caught it. Eight remediations CONFIRMED-FIXED including both
+      Track D dispatch constraints (platformFeeCents single-argument; unification identity
+      strengthened additively) and the mobile undefined-vs-null skew distinction.
+      FEE-STP-001 PARTIALLY VERIFIED (settlement site red under revert; the flagship
+      webhook site SURVIVES, TEST-VAC-007). SHOP-FUL-004 NOT certified (capture-site
+      deletion survives; no test references the observability, TEST-VAC-006). Four further
+      survivors opened: sweep ordering unpinned (TEST-VAC-004), cancel-predicate breadth
+      unpinned (TEST-VAC-005), sweep unbounded/serial with skipped absent from the audit
+      (SHOP-ORD-003), settle-false answers 200 with recovery on the daily sweep
+      (SHOP-FUL-005). The SHOP-GATE-001 harness-default question was answered in the
+      code favour: 24 tests red when the default-on semantics invert, pinned by a
+      dedicated named test."
+    recommended_next_inspection: "After the round-3 test-gap batch lands: re-verify
+      TEST-VAC-004 through 007 by mutation, decide and log the SHOP-FUL-005 posture, then
+      route SHOP-FUL-004 to behavioural verification. Run 0135/0136/0137 + the db suites
+      in CI."
+    known_exclusions: "No database: migrations 0135/0136/0137 read but never applied
+      (guarded PK restore, fee-tier stamps, trips backfill, RLS and constraints all
+      CI-pending). No Stripe: every intent state mocked; the retrieve/cancel/confirm race
+      reasoned only. No component-render harness: fee-display null branches on the three
+      UI surfaces and the checkout UI are read-only conclusions. Mutants and logs retained
+      outside the repo (session scratchpad trackc/ and A:/WORK/_verify-trackc)."
