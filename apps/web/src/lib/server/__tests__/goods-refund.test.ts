@@ -193,15 +193,15 @@ describe("settleGoodsOrderRefund", () => {
     );
     expect(lineRead).toBeDefined();
     expect(lineRead!.filters.order_id).toBe("o1");
-    // C4 (GC6): the restock read takes product AND bundle lines; bundle lines
-    // expand to their snapshot components via expandInventoryMovements, the
-    // same rule settlement decrements through. Deposit lines stay excluded.
-    // Fails if the read narrows back to product-only (bundle sales would
-    // decrement at settle and never restock on refund) or widens to deposits.
-    expect(lineRead!.inFilter).toEqual({
-      column: "type",
-      values: ["product", "bundle"],
-    });
+    // Round-2 verifier (SHOP-FUL-001 residual): the read carries NO type
+    // filter, deliberately. Refund used to keep a second SQL classifier in
+    // front of the one expansion rule, which settle does not have; a future
+    // inventory-moving type would then be honoured on settle and silently
+    // dropped here. expandInventoryMovements is the ONLY classifier on both
+    // sides (it drops deposit/unknown lines itself — pinned by its own
+    // suite). Fails if a type filter reappears on this read.
+    expect(lineRead!.inFilter).toBeNull();
+    expect(lineRead!.filters.type).toBeUndefined();
     // The queued rows were actually consumed: this is the positive control for
     // the two negative restock tests below, which assert the SAME rows stay
     // unconsumed. Fails if the read moves outside the flip gate and the rows

@@ -8,8 +8,23 @@
 // successful payment, never on selection. Concurrent oversell is possible and
 // accepted for v1 (documented in docs/bio-page-goods-plan.md).
 
+import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { shouldAlertLowStock } from "@inklee/shared/product-availability";
+
+/** A failed stock write is best-effort by design, but it must be OBSERVABLE
+ *  (SHOP-FUL-004): both movers run after a once-only settlement/refund flip,
+ *  so a swallowed failure is a permanent, invisible stock drift. */
+function reportStockWriteFailure(
+  action: "inventory_decrement" | "inventory_restock",
+  error: unknown,
+  extra: Record<string, unknown>,
+): void {
+  Sentry.captureException(
+    error instanceof Error ? error : new Error(JSON.stringify(error)),
+    { tags: { action }, extra },
+  );
+}
 
 export type PaidOrderItem = {
   product_id: string | null;
@@ -154,12 +169,18 @@ export async function decrementInventory(
         .eq("id", item.variant_id)
         .single();
       if (v && v.stock_quantity !== null && v.stock_quantity !== undefined) {
-        await serviceClient
+        const { error } = await serviceClient
           .from("product_variants")
           .update({
             stock_quantity: Math.max(0, Number(v.stock_quantity) - qty),
           })
           .eq("id", item.variant_id);
+        if (error) {
+          reportStockWriteFailure("inventory_decrement", error, {
+            variantId: item.variant_id,
+            qty,
+          });
+        }
       }
     } else if (item.product_id) {
       const { data: p } = await serviceClient
@@ -169,10 +190,16 @@ export async function decrementInventory(
         .single();
       if (p && p.quantity !== null && p.quantity !== undefined) {
         const left = Math.max(0, Number(p.quantity) - qty);
-        await serviceClient
+        const { error } = await serviceClient
           .from("products")
           .update({ quantity: left })
           .eq("id", item.product_id);
+        if (error) {
+          reportStockWriteFailure("inventory_decrement", error, {
+            productId: item.product_id,
+            qty,
+          });
+        }
         const hit = await checkLowStock(item.product_id, left);
         if (hit) lowStock.push(hit);
       }
@@ -207,10 +234,16 @@ export async function restockInventory(items: PaidOrderItem[]): Promise<void> {
         .eq("id", item.variant_id)
         .single();
       if (v && v.stock_quantity !== null && v.stock_quantity !== undefined) {
-        await serviceClient
+        const { error } = await serviceClient
           .from("product_variants")
           .update({ stock_quantity: Number(v.stock_quantity) + qty })
           .eq("id", item.variant_id);
+        if (error) {
+          reportStockWriteFailure("inventory_restock", error, {
+            variantId: item.variant_id,
+            qty,
+          });
+        }
       }
     } else if (item.product_id) {
       const { data: p } = await serviceClient
@@ -219,7 +252,7 @@ export async function restockInventory(items: PaidOrderItem[]): Promise<void> {
         .eq("id", item.product_id)
         .single();
       if (p && p.quantity !== null && p.quantity !== undefined) {
-        await serviceClient
+        const { error } = await serviceClient
           .from("products")
           .update({
             quantity: Number(p.quantity) + qty,
@@ -227,6 +260,12 @@ export async function restockInventory(items: PaidOrderItem[]): Promise<void> {
             low_stock_alerted_at: null,
           })
           .eq("id", item.product_id);
+        if (error) {
+          reportStockWriteFailure("inventory_restock", error, {
+            productId: item.product_id,
+            qty,
+          });
+        }
       }
     }
   }

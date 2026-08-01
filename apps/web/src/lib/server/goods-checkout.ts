@@ -11,6 +11,7 @@ import { isGoodsCommerceEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { goodsBundlesAllowed } from "@/lib/server/entitlement-gates";
+import { productAvailability } from "@inklee/shared/product-availability";
 import { appointmentFeeTier } from "@/lib/server/order-fee-sync";
 import { resolveDiscount } from "@/lib/server/discounts";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
@@ -151,11 +152,25 @@ type ResolvedBundleLine = {
  * with enough stock. The artist's editor legitimately allows hidden or
  * inactive products inside a bundle; the answer here is "refuse", never
  * "sell it short" (bundlePurchasable's contract).
+ *
+ * A component RESOLVES only when all of these hold (else `product: null`):
+ *   - present in the sellable catalog (active + publicly visible + this
+ *     artist);
+ *   - purchasable per productAvailability, the SAME gate the compositor runs
+ *     for direct purchases (SHOP-DROP-001: drops live in the compositor, not
+ *     the catalog query, so a stock-only check sold undropped products
+ *     through bundles that were refused when bought directly);
+ *   - variant-free (SHOP-VAR-001, decision GC7): v1 bundles cannot express a
+ *     variant choice, and a variant-stocked parent has quantity null, which
+ *     reads as unlimited while decrementInventory moves nothing. A product
+ *     that REQUIRES a choice when bought directly must not sell choicelessly
+ *     inside a bundle.
  */
 async function resolveBundleLines(
   artistId: string,
   selections: BundleSelection[],
   sellableCatalog: CatalogRow[],
+  nowMs: number = Date.now(),
 ): Promise<
   { ok: true; lines: ResolvedBundleLine[] } | { ok: false; error: string }
 > {
@@ -231,9 +246,30 @@ async function resolveBundleLines(
       bundle,
       componentRows.map((c) => {
         const product = productById.get(c.product_id as string);
+        if (!product)
+          return { quantity: Number(c.quantity ?? 1), product: null };
+        // The compositor's own gate: drops, preorder and status, evaluated at
+        // the same instant for every component (SHOP-DROP-001).
+        const availability = productAvailability(
+          {
+            status: product.status,
+            availableFrom: product.available_from,
+            preorder: product.preorder === true,
+            stockQuantity:
+              product.quantity === null ? null : Number(product.quantity),
+          },
+          nowMs,
+        );
+        // v1 bundles cannot carry a variant choice (SHOP-VAR-001, GC7).
+        const hasActiveVariants = (product.product_variants ?? []).some(
+          (v) => v.status === "active",
+        );
         return {
           quantity: Number(c.quantity ?? 1),
-          product: product ? { stock: product.quantity } : null,
+          product:
+            availability.purchasable && !hasActiveVariants
+              ? { stock: product.quantity }
+              : null,
         };
       }),
       qty,
@@ -569,6 +605,31 @@ export async function settleStandaloneGoodsOrder(
   const orderId = intent.metadata?.order_id;
   if (!orderId) return false;
 
+  // Read + EXPAND BEFORE the flip (SHOP-FUL-003, same posture as the refund
+  // side's SHOP-FUL-002 fix). The expansion throws on a snapshot read failure
+  // and the flip below is once-only: a throw AFTER it would consume the gate
+  // with the inventory decrement lost permanently (a silent oversell). Reads
+  // are idempotent, so failing HERE returns false with the flip unconsumed,
+  // and a redelivery or the reconciliation backstop can settle the whole
+  // thing later.
+  const { data: itemRows } = await serviceClient
+    .from("order_items")
+    .select(
+      "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
+    )
+    .eq("order_id", orderId);
+  const items = (itemRows ?? []) as InventoryOrderItem[];
+  let movements: Awaited<ReturnType<typeof expandInventoryMovements>>;
+  try {
+    movements = await expandInventoryMovements(items);
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { action: "standalone_goods_inventory" },
+      extra: { orderId },
+    });
+    return false;
+  }
+
   const { data: flipped } = await serviceClient
     .from("orders")
     .update({
@@ -582,27 +643,11 @@ export async function settleStandaloneGoodsOrder(
   if (!flipped || flipped.length === 0) return false;
   const order = flipped[0];
 
-  const { data: itemRows } = await serviceClient
-    .from("order_items")
-    .select(
-      "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
-    )
-    .eq("order_id", orderId);
-  const items = (itemRows ?? []) as InventoryOrderItem[];
-
-  // Inventory moves through the ONE expansion rule (SHOP-FUL-001): product
-  // lines directly, bundle lines via their 0135 snapshot. Best-effort like the
-  // rest of inventory: a failed snapshot read must not fail the settlement
-  // (the paid flip is already consumed; a webhook retry could not redo it).
-  let lowStock: Awaited<ReturnType<typeof decrementInventory>> = [];
-  try {
-    lowStock = await decrementInventory(await expandInventoryMovements(items));
-  } catch (err) {
-    Sentry.captureException(err, {
-      tags: { action: "standalone_goods_inventory" },
-      extra: { orderId },
-    });
-  }
+  // The stock WRITE stays inside the flip gate (decrementInventory is not
+  // internally idempotent; the gate is what makes a redelivered succeeded
+  // event unable to decrement twice). Inventory moves through the ONE
+  // expansion rule (SHOP-FUL-001), already resolved above.
+  const lowStock = await decrementInventory(movements);
   for (const hit of lowStock) {
     await createNotification({
       artistId: order.artist_id as string,
@@ -712,43 +757,120 @@ export async function cancelStandalonePendingOrder(
 }
 
 /**
- * FLEET SWEEP for abandoned standalone checkouts (SHOP-ORD-001 half 2). A
- * buyer who opens the checkout and walks away leaves a `pending` order holding
- * their email, and nothing else could ever touch it: the webhook only fires on
- * payment events, the cleanup cron matched orders through booking ids (NULL
- * here), and ORDER_MONEY_STATES excludes `pending`. Cancels standalone pending
- * orders older than 24 hours (Stripe intents are long dead by then; the paid
- * flip conditions on `pending`, so even a freak late success cannot resurrect
- * a cancelled row into paid — it just no-ops). Run by the cleanup cron.
+ * FLEET SWEEP for abandoned standalone checkouts (SHOP-ORD-001 half 2,
+ * intent-aware since SHOP-ORD-002). A buyer who opens the checkout and walks
+ * away leaves a `pending` order holding their email, and nothing else could
+ * ever touch it: the webhook only fires on payment events, the cleanup cron
+ * matched orders through booking ids (NULL here), and ORDER_MONEY_STATES
+ * excludes `pending`. Run by the cleanup cron, 24 hours by default.
+ *
+ * The sweep resolves the INTENT, never just the row (SHOP-ORD-002): Stripe
+ * PaymentIntents do not expire in 24 hours and the buyer still holds the
+ * client secret, so cancelling only the order would leave a live payable
+ * intent whose late success settles nothing (the paid flip conditions on
+ * `pending`), i.e. money captured against a cancelled order. Per order:
+ *
+ *   intent succeeded            -> settleStandaloneGoodsOrder (a lost-webhook
+ *                                  recovery for free; the order leaves
+ *                                  `pending`, so it exits the sweep's scope)
+ *   intent processing           -> skip this round; a decision either way
+ *                                  races the processor
+ *   intent cancelable / dead    -> cancel the intent FIRST, then the order
+ *   no intent id on the row     -> cancel the order directly
+ *   Stripe error on any step    -> skip the row (captured; next run retries)
  */
 export async function sweepStalePendingStandaloneOrders(
   options: { now?: Date; maxAgeHours?: number } = {},
-): Promise<{ cancelled: number }> {
+): Promise<{ cancelled: number; settled: number; skipped: number }> {
   const now = options.now ?? new Date();
   const cutoff = new Date(
     now.getTime() - (options.maxAgeHours ?? 24) * 60 * 60 * 1000,
   ).toISOString();
-  const { data, error } = await serviceClient
+  const { data: rows, error } = await serviceClient
     .from("orders")
-    .update({ status: "cancelled", updated_at: now.toISOString() })
+    .select("id, stripe_payment_intent_id")
     .eq("status", "pending")
     .is("booking_id", null)
-    .lt("created_at", cutoff)
-    .select("id");
+    .lt("created_at", cutoff);
   if (error) {
     Sentry.captureException(error, {
       tags: { action: "standalone_pending_order_sweep" },
     });
-    return { cancelled: 0 };
+    return { cancelled: 0, settled: 0, skipped: 0 };
   }
-  const cancelled = (data ?? []).length;
-  if (cancelled > 0) {
+
+  let cancelled = 0;
+  let settled = 0;
+  let skipped = 0;
+
+  const cancelOrderRow = async (orderId: string) => {
+    const { data: flipped } = await serviceClient
+      .from("orders")
+      .update({ status: "cancelled", updated_at: now.toISOString() })
+      .eq("id", orderId)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+    if (flipped) cancelled += 1;
+  };
+
+  for (const row of rows ?? []) {
+    const orderId = row.id as string;
+    const intentId = (row.stripe_payment_intent_id as string | null) ?? null;
+
+    // A row that never got its intent linked has nothing payable attached.
+    if (!intentId) {
+      await cancelOrderRow(orderId);
+      continue;
+    }
+    // Stripe unconfigured but an intent id exists: the intent's state is
+    // unknowable, so leave the row alone rather than orphan a payable intent.
+    if (!stripe) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const intent = await stripe.paymentIntents.retrieve(intentId);
+      if (intent.status === "succeeded") {
+        // The webhook was lost; converge instead of cancelling a paid order.
+        const ok = await settleStandaloneGoodsOrder(intent);
+        if (ok) settled += 1;
+        else skipped += 1;
+        continue;
+      }
+      if (intent.status === "processing") {
+        skipped += 1;
+        continue;
+      }
+      if (intent.status !== "canceled") {
+        // cancel() re-checks server-side; if a confirm races us, Stripe
+        // rejects the cancel, we throw to the catch below and the next run
+        // sees `succeeded`.
+        await stripe.paymentIntents.cancel(intentId);
+      }
+      await cancelOrderRow(orderId);
+    } catch (err) {
+      skipped += 1;
+      Sentry.captureException(err, {
+        tags: { action: "standalone_pending_order_sweep" },
+        extra: { orderId, intentId },
+      });
+    }
+  }
+
+  if (cancelled > 0 || settled > 0) {
     void writeAudit({
       action: "goods_orders_expired",
       actor: "system",
       category: "booking",
-      details: { count: cancelled, via: "cron_sweep", standalone: true },
+      details: {
+        count: cancelled,
+        settled_late: settled,
+        via: "cron_sweep",
+        standalone: true,
+      },
     });
   }
-  return { cancelled };
+  return { cancelled, settled, skipped };
 }

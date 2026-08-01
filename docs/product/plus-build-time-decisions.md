@@ -442,3 +442,45 @@ one-product-line rule, at the checkout slice as B2 required).**
   (`settleGoodsOrderRefund`).
 - Reversible? Migration is additive (enum value + nullable column + new
   table); moderate to unwind once orders exist, cheap before un-park.
+
+**GC7 [ENG/product, provisional] — v1 refuses bundles containing
+VARIANT-bearing products at checkout (SHOP-VAR-001).**
+- Decision: a bundle component whose product has any ACTIVE variant does not
+  resolve; the bundle answers "Part of that bundle isn't available right
+  now." The artist editor keeps allowing such bundles (display is fine);
+  only the SALE refuses.
+- Why: v1 bundles cannot express a variant choice (no variant column in
+  product_bundle_items, documented), and a variant-stocked parent has
+  quantity null, which bundlePurchasable reads as unlimited while
+  decrementInventory moves nothing. The same product bought directly
+  REQUIRES a choice. Selling it choicelessly inside a bundle sells ambiguous
+  goods and skips the stock ledger (round-2 verifier executed the gate at
+  line quantity 99 against a null-stock parent: ok).
+- Alternatives: variant-aware bundles (a v2 scope: snapshot schema change +
+  editor + wire types); treating parent-null stock as sellable (rejected:
+  sell-short by another name).
+- Reversible? Cheap (one predicate in the component resolution).
+
+**GC8 [ENG/money] — round-2 verifier postures, applied as one batch.**
+1. Bundle components pass through `productAvailability` — the SAME drop/
+   preorder/status gate the compositor runs for direct purchases
+   (SHOP-DROP-001: drops live in the compositor, not the catalog query, so a
+   stock-only component check made bundles a drop-gate bypass, proven by
+   executing both gates side by side).
+2. The stale-order sweep resolves the INTENT, never just the row
+   (SHOP-ORD-002): succeeded -> settle (lost-webhook recovery), processing ->
+   skip, else cancel the intent FIRST, then the pending-gated row; Stripe
+   error -> skip for the next run. Stripe intents do not expire in 24h and
+   the buyer holds the client secret; cancelling only the row left money
+   capturable against a cancelled order, invisible to everyone.
+3. Settlement reads + expands BEFORE its once-only paid flip (SHOP-FUL-003),
+   the same posture as the refund side's SHOP-FUL-002: an expansion failure
+   returns with the gate unconsumed instead of silently overselling.
+4. ONE classifier: the refund read drops its `.in(type, ...)` filter; which
+   lines move inventory is decided ONLY by expandInventoryMovements, on both
+   sides (the SHOP-FUL-001 structural residual).
+5. Post-flip stock writes are best-effort but OBSERVABLE (SHOP-FUL-004):
+   both movers and the redemption release now capture their PostgREST errors
+   to Sentry. A compensating-retry table was considered and deferred: the
+   feature is dark, and observability + manual repair is proportionate until
+   real volume exists (recorded, not forgotten).

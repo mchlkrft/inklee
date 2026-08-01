@@ -4,6 +4,7 @@ import { isGoodsCommerceEnabled } from "@/lib/features";
 import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { publicBundlesForArtist } from "@/lib/server/bundles";
 import { bundleSavings, bundlePurchasable } from "@inklee/shared/bundles";
+import { productAvailability } from "@inklee/shared/product-availability";
 import {
   ShopCheckout,
   type CheckoutProduct,
@@ -19,6 +20,29 @@ export const metadata = {
   title: "Checkout",
   robots: { index: false, follow: false },
 };
+
+type AvailabilityRow = {
+  status: string;
+  available_from: string | null;
+  preorder: boolean | null;
+  quantity: number | null;
+};
+
+// Same clock pattern as computeAddonLines (orders.ts): the instant is
+// resolved once, outside the component body, so every availability decision
+// on one render agrees and the render itself stays pure.
+function makeAvailabilityResolver(nowMs: number = Date.now()) {
+  return (p: AvailabilityRow) =>
+    productAvailability(
+      {
+        status: p.status,
+        availableFrom: p.available_from,
+        preorder: p.preorder === true,
+        stockQuantity: p.quantity === null ? null : Number(p.quantity),
+      },
+      nowMs,
+    );
+}
 
 export default async function ShopCheckoutPage({
   params,
@@ -48,12 +72,17 @@ export default async function ShopCheckoutPage({
   const { data: rows } = await serviceClient
     .from("products")
     .select(
-      "id, title, price_amount, currency, quantity, image_url, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+      "id, title, price_amount, currency, status, quantity, available_from, preorder, image_url, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", artist.id as string)
     .eq("status", "active")
     .eq("is_public_visible", true)
     .order("created_at", { ascending: false });
+
+  // One instant for every availability decision on this render (captured on
+  // the first call; the same page render never spans a drop boundary in any
+  // way that matters).
+  const availabilityOf = makeAvailabilityResolver();
 
   const products: CheckoutProduct[] = (rows ?? []).map((p) => ({
     id: p.id as string,
@@ -62,6 +91,10 @@ export default async function ShopCheckoutPage({
     currency: (p.currency as string) ?? "eur",
     imageUrl: (p.image_url as string | null) ?? null,
     soldOut: p.quantity !== null && Number(p.quantity) <= 0,
+    // SHOP-DROP-001 display half: an undropped product renders, with its
+    // stepper disabled (the money path refuses it via the compositor either
+    // way; the page must not offer what the server will reject).
+    upcoming: availabilityOf(p as AvailabilityRow).state === "upcoming",
     variants: (
       (p.product_variants ?? []) as {
         id: string;
@@ -102,15 +135,26 @@ export default async function ShopCheckoutPage({
     .map((b) => {
       const components = b.items.map((it) => {
         const p = productRowById.get(it.productId);
+        // Mirror of the money path's component rule (SHOP-DROP-001 /
+        // SHOP-VAR-001): unresolved, undropped or variant-bearing components
+        // make the bundle unavailable, so the page never offers a bundle the
+        // server will refuse.
+        const sellable =
+          p !== undefined &&
+          availabilityOf(p as AvailabilityRow).purchasable &&
+          !((p.product_variants ?? []) as { status: string }[]).some(
+            (v) => v.status === "active",
+          );
         return {
           quantity: it.quantity,
-          product: p
-            ? {
-                stock: p.quantity === null ? null : Number(p.quantity),
-                title: (p.title as string) ?? "",
-                priceAmount: Number(p.price_amount ?? 0),
-              }
-            : null,
+          product:
+            p && sellable
+              ? {
+                  stock: p.quantity === null ? null : Number(p.quantity),
+                  title: (p.title as string) ?? "",
+                  priceAmount: Number(p.price_amount ?? 0),
+                }
+              : null,
         };
       });
       const present = components.filter(

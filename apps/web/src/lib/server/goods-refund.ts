@@ -88,13 +88,18 @@ export async function settleGoodsOrderRefund(
       // order lookup because the row is already `refunded`). Reads are
       // idempotent, so failing HERE returns "none" with the flip unconsumed
       // and a redelivery or manual replay can settle the whole thing later.
+      // Deliberately NO type filter on this read (round-2 verifier, the
+      // SHOP-FUL-001 structural residual): settle reads all lines and refund
+      // used to keep a second SQL classifier in front of the one rule, which
+      // meant a future inventory-moving type would be honoured on settle and
+      // silently dropped here. expandInventoryMovements is the ONLY
+      // classifier on both sides now; it drops deposit/unknown lines itself.
       const { data: itemRows } = await serviceClient
         .from("order_items")
         .select(
           "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
         )
-        .eq("order_id", order.id)
-        .in("type", ["product", "bundle"]);
+        .eq("order_id", order.id);
       const movements = await expandInventoryMovements(
         (itemRows ?? []) as InventoryOrderItem[],
       );
@@ -121,10 +126,19 @@ export async function settleGoodsOrderRefund(
       // unique (code, order) constraint makes a later re-record impossible for
       // this order anyway, since the order can never return to paid).
       if (order.discount_code_id) {
-        await serviceClient
+        // Post-flip write: a swallowed failure here leaves the cap consumed
+        // for an unwound sale with no retry path (the order lookup excludes
+        // 'refunded'), so at minimum it must be OBSERVABLE (SHOP-FUL-004).
+        const { error: releaseErr } = await serviceClient
           .from("discount_redemptions")
           .delete()
           .eq("order_id", order.id);
+        if (releaseErr) {
+          Sentry.captureException(releaseErr, {
+            tags: { action: "goods_refund_redemption_release" },
+            extra: { orderId: order.id },
+          });
+        }
       }
 
       void writeAudit({

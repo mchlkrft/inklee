@@ -23,6 +23,8 @@ export type CheckoutProduct = {
   currency: string;
   imageUrl: string | null;
   soldOut: boolean;
+  /** Announced drop that has not opened yet: rendered, not addable. */
+  upcoming?: boolean;
   variants: {
     id: string;
     name: string;
@@ -340,7 +342,7 @@ export function ShopCheckout({
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatPrice(unit, p.currency)}
-                  {soldOut ? " · sold out" : ""}
+                  {p.upcoming ? " · drops soon" : soldOut ? " · sold out" : ""}
                 </p>
                 {hasVariants && (
                   <select
@@ -379,7 +381,7 @@ export function ShopCheckout({
                 <button
                   type="button"
                   onClick={() => setQty(key, qty + 1)}
-                  disabled={soldOut || qty >= MAX_QTY}
+                  disabled={soldOut || p.upcoming === true || qty >= MAX_QTY}
                   aria-label={`More ${p.title}`}
                   className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground disabled:opacity-40"
                 >

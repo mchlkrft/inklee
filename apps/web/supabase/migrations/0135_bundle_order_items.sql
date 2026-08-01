@@ -26,6 +26,13 @@ alter type order_item_type add value if not exists 'bundle';
 alter table order_items
   add column if not exists bundle_id uuid;
 
+-- DELIBERATE DEVIATION from the composite-FK convention (SHOP-MIG-002,
+-- risk-accepted): 0132's join tables compose (id, artist_id) so a cross-artist
+-- row is unstorable, but order_items carries NO artist column (the artist
+-- lives on orders), so that shape is not expressible here without widening
+-- order_items. The write path is service-role-only and resolveBundleLines
+-- scopes the bundle read by artist_id; revisit only if a client write path to
+-- order_items ever appears.
 do $$
 begin
   if not exists (
@@ -56,6 +63,18 @@ create table if not exists order_item_bundle_components (
 
 do $$
 begin
+  -- The PK is declared inline above (it reads as part of the column), so this
+  -- guard restores it on a re-run the same way as every other constraint in
+  -- this file (SHOP-MIG-001: the inline declaration alone would be skipped
+  -- forever once the table exists).
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'order_item_bundle_components_pkey'
+  ) then
+    alter table order_item_bundle_components
+      add constraint order_item_bundle_components_pkey primary key (id);
+  end if;
+
   if not exists (
     select 1 from pg_constraint
     where conname = 'order_item_bundle_components_order_item_id_fkey'
