@@ -5,7 +5,9 @@
 
 # Structural risk report
 
-**Ledger content hash:** `c5bc3d3c6a41`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `a4004fe8eb2f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
@@ -35,9 +37,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 30 |
+| fixed-unverified | 33 |
 | mitigated | 2 |
-| open | 65 |
+| open | 62 |
 | risk-accepted | 2 |
 | verified | 20 |
 
@@ -278,6 +280,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
+| HUB-GAL-004 | medium | fixed-unverified | not-started | 6bac9914 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | 45a44bee |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
 | PAY-RFD-003 | medium | fixed-unverified | passed | 6fb2eb1 |
@@ -289,6 +292,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | 45a44bee |
+| HUB-GAL-005 | low | fixed-unverified | not-started | 6bac9914 |
+| HUB-GAL-006 | low | fixed-unverified | not-started | 6bac9914 |
 | OPS-LINT-001 | low | fixed-unverified | not-started | 45a44bee |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 | SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |

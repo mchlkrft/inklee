@@ -12625,7 +12625,9 @@ findings:
       related_findings:
         - "HUB-GAL-002"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "6bac9914"
+      fixed_at: "2026-08-01"
       proposed_action: "Conservative fix: refuse ALL IPv6 resolution results for the import fetch (public image
         hosts are IPv4-reachable; failing closed on the whole class removes it), fix the
         fail-open garbage branch, document the bracket accident with a pinning test, and correct
@@ -12646,6 +12648,22 @@ findings:
         actor: "track-C adversarial verifier, round 4"
         action: "opened"
         note: "Recorded by the supervisor from the round-4 report."
+      - date: "2026-08-01"
+        actor: "fd4-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 6bac9914 (fd4-worker; supervisor re-ran both suites 32/32 + read the guard):
+          DEFENSE IN DEPTH, two layers. (1) isPrivateIpv6 now gates on net.isIP(ip) !== 6
+          first, so garbage fails CLOSED as its comment always claimed. (2) The real guard no
+          longer consults it: isPrivateAddress refuses EVERY IPv6 address unconditionally
+          (supervisor-decided policy — public image hosts are IPv4-reachable, so the whole
+          embedding-spelling class disappears instead of being narrowed by more regex). The
+          bracket accident is now PINNED by a named test covering both paths (bracketed ->
+          net.isIP 0 -> DNS fails closed; unbracketed -> net.isIP 6 -> blanket refusal, zero
+          DNS calls), so a future bracket-handling cleanup cannot silently reopen it.
+          isPrivateIpv6 stays exported as an honestly-scoped utility whose comment now lists
+          the forms it does NOT chase. Mutation-proven: removing either layer reds its own
+          named tests (the blanket-refusal revert reds exactly the 4 new tests and nothing
+          else), restores sha256-byte-exact."
 
   - id: "HUB-GAL-005"
     title: "URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted
@@ -12692,7 +12710,9 @@ findings:
       related_findings:
         - "HUB-GAL-004"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "6bac9914"
+      fixed_at: "2026-08-01"
       proposed_action: "Reject any URL whose username or password component is non-empty, with its own named test."
     verification:
       status: "not-started"
@@ -12710,6 +12730,13 @@ findings:
         actor: "track-C adversarial verifier, round 4"
         action: "opened"
         note: "Recorded by the supervisor from the round-4 report."
+      - date: "2026-08-01"
+        actor: "fd4-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 6bac9914: parsed.username/parsed.password refused right after the https-only
+          check and BEFORE any network call, with a copy-rule-clean message. Mutation-proven:
+          removing the check reds both new tests, and the failure output shows the
+          credentialed URL actually being fetched."
 
   - id: "HUB-GAL-006"
     title: "The hosted-logos marker single-sourcing is incomplete: a second literal survives in
@@ -12755,7 +12782,9 @@ findings:
       related_findings:
         - "HUB-GAL-003"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "6bac9914"
+      fixed_at: "2026-08-01"
       proposed_action: "Convert the remaining literal to the shared constant; correct the comment if any other
         copy is discovered."
     verification:
@@ -12774,6 +12803,12 @@ findings:
         actor: "track-C adversarial verifier, round 4"
         action: "opened"
         note: "Recorded by the supervisor from the round-4 report."
+      - date: "2026-08-01"
+        actor: "fd4-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 6bac9914: mobile-goods-server.ts's goodsImagePathFromUrl imports the shared
+          HOSTED_LOGOS_PUBLIC_MARKER; repo re-grepped afterwards, only test fixtures remain,
+          so the bio-page.ts comment is now true of the codebase."
 
 patterns:
 
