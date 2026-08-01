@@ -11810,7 +11810,9 @@ findings:
         - "SHOP-ORD-002"
         - "TEST-VAC-005"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "5fa0110e"
+      fixed_at: "2026-08-01"
       proposed_action: "Assert the call SEQUENCE (record an ops timeline across the Stripe mock and the recording
         double, or assert cancel's invocation order against the orders update)."
     verification:
@@ -11830,6 +11832,13 @@ findings:
         actor: "track-C adversarial verifier, round 3"
         action: "opened"
         note: "Recorded by the supervisor from the round-3 report."
+      - date: "2026-08-01"
+        actor: "supervisor session (source) + round3-tests agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 5fa0110e (round3-tests agent): the cancel-intent test records how many
+          orders updates existed at the moment Stripe cancel was invoked and asserts zero;
+          the round-3 surviving mutant (row cancelled before the intent) now reds exactly
+          the three parameterized rows, on the ordering assertion itself."
 
   - id: "TEST-VAC-005"
     title: "The sweep's Stripe-cancel status predicate is unpinned: narrowing it strands
@@ -11875,7 +11884,9 @@ findings:
         - "SHOP-ORD-002"
         - "TEST-VAC-004"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "5fa0110e"
+      fixed_at: "2026-08-01"
       proposed_action: "Parameterize the cancelable-intent test across requires_payment_method,
         requires_confirmation and requires_action."
     verification:
@@ -11895,6 +11906,12 @@ findings:
         actor: "track-C adversarial verifier, round 3"
         action: "opened"
         note: "Recorded by the supervisor from the round-3 report."
+      - date: "2026-08-01"
+        actor: "supervisor session (source) + round3-tests agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 5fa0110e: the cancelable-intent case is parameterized across
+          requires_payment_method / requires_confirmation / requires_action; narrowing the
+          predicate to one status reds the other two rows (mutation-proven)."
 
   - id: "TEST-VAC-006"
     title: "SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full
@@ -11940,7 +11957,9 @@ findings:
       related_findings:
         - "SHOP-FUL-004"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "5fa0110e"
+      fixed_at: "2026-08-01"
       proposed_action: "Tests driving each mover with an erroring update reply and asserting the Sentry capture
         (tag + ids); then SHOP-FUL-004 can be behaviourally verified."
     verification:
@@ -11960,6 +11979,14 @@ findings:
         actor: "track-C adversarial verifier, round 3"
         action: "opened"
         note: "Recorded by the supervisor from the round-3 report."
+      - date: "2026-08-01"
+        actor: "supervisor session (source) + round3-tests agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 5fa0110e: new order-fulfillment-stock-writes suite drives both movers with
+          erroring update replies on both branches; all four capture-site deletions kill
+          exactly their own test, and an always-capturing mover is killed by the positive
+          control (capture moved outside the error branch reds the reports-nothing test).
+          SHOP-FUL-004 is now behaviourally verifiable by an independent pass."
 
   - id: "TEST-VAC-007"
     title: "The webhook deposit fee-schedule/tier stamp, the flagship FEE-STP-001 site, has no
@@ -12005,7 +12032,9 @@ findings:
       related_findings:
         - "FEE-STP-001"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "5fa0110e"
+      fixed_at: "2026-08-01"
       proposed_action: "Extend the round-1 webhook dispatch harness to payment_intent.succeeded's deposit branch
         and pin the metadata-sourced stamp (version from intent, fallback ACTIVE, tier null
         for old intents)."
@@ -12026,6 +12055,15 @@ findings:
         actor: "track-C adversarial verifier, round 3"
         action: "opened"
         note: "Recorded by the supervisor from the round-3 report."
+      - date: "2026-08-01"
+        actor: "supervisor session (source) + round3-tests agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 5fa0110e: new payment-intent-succeeded route suite (8 tests) pins the
+          deposit stamp reading fee_schedule_version FROM the intent metadata using a value
+          that DIFFERS from ACTIVE (the column is plain text, so the version is asserted
+          directly, no tier-only proxy), plus the ACTIVE/null fallback for pre-G2 intents
+          and the standalone outcome mapping. Round-3's surviving b2 mutant dies on the
+          version assertion."
 
   - id: "SHOP-ORD-003"
     title: "The intent-aware sweep is unbounded and serial inside a cron with no maxDuration, and
@@ -12074,7 +12112,9 @@ findings:
       related_findings:
         - "SHOP-ORD-002"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "5fa0110e"
+      fixed_at: "2026-08-01"
       proposed_action: "Bound the select (limit, nightly re-runs drain the rest), export maxDuration on the
         cleanup route, include skipped in the audit payload."
     verification:
@@ -12094,6 +12134,16 @@ findings:
         actor: "track-C adversarial verifier, round 3"
         action: "opened"
         note: "Recorded by the supervisor from the round-3 report."
+      - date: "2026-08-01"
+        actor: "supervisor session (source) + round3-tests agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 5fa0110e: sweep bounded at 25 rows/run — DERIVED from the time budget (7
+          sequential sweeps under the new maxDuration=60, up to 2 Stripe calls per row; the
+          test agent showed 200 rows could eat ~40s and silently starve the later sweeps —
+          its observation moved the number down from the first draft), oldest first;
+          skipped included in the audit payload and the audit write AWAITED (a voided
+          write is the first casualty of the exact timeout this finding names). Bounded
+          select + audit payload + skip-visibility all mutation-pinned."
 
   - id: "SHOP-FUL-005"
     title: "A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal
@@ -12145,7 +12195,9 @@ findings:
         - "SHOP-FUL-003"
         - "SHOP-ORD-002"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "5fa0110e"
+      fixed_at: "2026-08-01"
       proposed_action: "Widen settle's return to distinguish pre-flip refusal from lost-flip; 500 ONLY the
         refusal case so Stripe's retry ladder recovers in minutes; keep 200 for
         already-settled. Decide and log."
@@ -12166,6 +12218,16 @@ findings:
         actor: "track-C adversarial verifier, round 3"
         action: "opened"
         note: "Recorded by the supervisor from the round-3 report."
+      - date: "2026-08-01"
+        actor: "supervisor session (source) + round3-tests agent (tests)"
+        action: "fix-committed"
+        note: "Fix in 5fa0110e, decision GC9: settleStandaloneGoodsOrder returns settled/already/
+          refused; the webhook 500s ONLY refused (pre-flip failure, gate unconsumed) so
+          Stripe's retry ladder recovers in minutes; already is terminal by construction
+          (lost flip or sweep-owned), preventing the retry-forever failure a naive
+          500-on-false would create. Sweep counts a refused late-settle as skipped, not
+          settled (its own new test). Mapping mutation-pinned (dropping the 500 branch
+          reds the named test)."
 
 patterns:
 
