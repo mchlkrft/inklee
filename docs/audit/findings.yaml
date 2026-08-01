@@ -9039,10 +9039,13 @@ findings:
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Not independently verified. The DB-test gate (apps/web/tests/db) that would
-        assert anon cannot read these tables was not run locally (Docker unavailable this environment);
-        it must run in CI. A dedicated regression test asserting the anon key returns zero rows is
-        recommended before merge."
+      residual_risk: "Not independently verified by execution in this environment. The dedicated
+        regression now EXISTS (752e989): tests/db/appointment-payments-rls.test.ts, describe 'anon
+        role reads nothing (PAY-RLS-005 / 0133)' - a sent request with a token hash, a positive
+        control proving the owner sees it, then anon SELECTs on payment_requests and
+        payment_request_lines asserted silent-empty per the file's own USING-filter gotcha. It could
+        not run locally (no Docker stack); it must run green in CI before this row's verification is
+        upgraded."
     disclosure:
       public_repo_safe: true
     history:
@@ -9056,6 +9059,14 @@ findings:
         action: "fix-committed"
         note: "Migration 0133 drops both policies. Confirmed no anon-key consumer exists (all reads
           via serviceClient). Not in prod; fixed before ship. Verification (CI db-test) pending."
+      - date: "2026-08-01"
+        actor: "no-deferral build directive (main instance), after payments-authz-review re-flagged
+          the residual"
+        action: "evidence-added"
+        note: "Anon-reads-nothing regression written (752e989) in the appointment-payments DB suite,
+          with a positive control. CI-only (no local stack); verification stays not-started until it
+          runs green there. The review also independently confirmed 0133 drops exactly the two 0128
+          policies and that no other 0125-0131 migration grants anon anything."
 
   - id: "PAY-RFD-003"
     title: "Artist refund route lets the artist choose the fee-refund case, controlling Inklee's fee"
@@ -9294,6 +9305,167 @@ findings:
         action: "fix-committed"
         note: "Added the shared save-path gate + wired both call sites + corrected the records; +6 tests,
           full web suite 2610 green. Verification pending (no integration test)."
+
+  - id: "PAY-UI-006"
+    title: "Payments list UI cancel-button state set drifted from the core's authorization constant"
+    summary: "payment-requests-list.tsx hand-duplicated a TERMINAL set instead of deriving cancel
+      visibility from ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES, which is what
+      cancelPaymentRequestCore actually enforces. The sets disagreed both ways: Cancel hidden on
+      `expired` (core allows it) and shown on `payment_processing`/`partially_paid` (core refuses).
+      No security or money impact - the core is authoritative both ways and its refusal is surfaced -
+      but the exact drift shape the constants exist to prevent."
+    classification:
+      domain: "payment"
+      category: "divergent-implementation"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "payments-authz-review (read-only inklee-db-reviewer subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "306ac80"
+      environment: "local"
+      discovery_context: "Targeted review of the new artist payment-requests surface."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/bookings/payments/payment-requests-list.tsx"
+      symbols:
+        - "ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES"
+    evidence:
+      observed_facts:
+        - "Pre-fix TERMINAL set included 'expired' (core-cancellable) and excluded
+          'payment_processing'/'partially_paid' (core-refused)."
+        - "cancelPaymentRequestCore enforces .in('status', ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES)
+          (appointment-payments.ts:1219)."
+      references:
+        - "packages/shared/src/appointment-payments.ts"
+      contradictory_evidence: "The [id] detail page's REFUNDABLE set had NOT drifted (it mirrored the
+        refund core verbatim), so the pattern was one file, not systemic."
+    assessment:
+      interpretation: "A hand-typed complement of an authoritative constant; pure UX/parity gap."
+      root_cause_hypothesis: "The list was written before the constants were surveyed; the complement
+        was typed from memory."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "None (feature dark, branch-only)."
+      remaining_uncertainty: "None."
+    relationships:
+      related_findings:
+        - "PAY-RFD-007"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "752e989"
+      proposed_action: "Cancel visibility now derives from ARTIST_CANCELLABLE_PAYMENT_REQUEST_STATUSES
+        (shared, client-safe); the detail page's REFUNDABLE set now derives from the refund core's
+        exported REFUNDABLE_STATUSES so neither can drift again."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "The derivation is a code read; no render test asserts button visibility per state
+        (no component-render harness exists in this app)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "payments-authz-review"
+        action: "opened"
+        note: "Found as Finding A of the payments-surface review."
+      - date: "2026-08-01"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Both UI sets now derive from the enforcing constants. Full suite 2645 green."
+
+  - id: "PAY-RFD-007"
+    title: "No artist self-serve refund path for money collected on a cancelled/expired/failed request"
+    summary: "refundPaymentRequestCore's REFUNDABLE_STATUSES was paid/partially_paid/partially_refunded
+      only, while the transition matrix (PAYMENT_REQUEST_TRANSITIONS) explicitly documents that
+      cancelled/expired/failed are reachable from partially_paid, can be HOLDING COLLECTED MONEY, and
+      have their own partially_refunded/refunded edges for exactly that reason. A request landing in
+      one of those three states with collected money had no self-service refund path: the UI never
+      showed the refund section and the core's own status gate refused a direct call. The settlement's
+      refund status-update FROM list had the same omission, so even a Stripe-dashboard refund would
+      have left the row parked in `cancelled` with the money silently returned."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-01"
+      detected_by: "payments-authz-review (read-only inklee-db-reviewer subagent)"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "306ac80"
+      environment: "local"
+      discovery_context: "Cross-checking the UI's REFUNDABLE set against the core and the transition
+        matrix; the reviewer flagged it as a question (accepted gap vs oversight) rather than asserting."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts"
+      symbols:
+        - "REFUNDABLE_STATUSES"
+        - "settlePaymentRequestRefund"
+    evidence:
+      observed_facts:
+        - "Pre-fix REFUNDABLE_STATUSES = ['paid','partially_paid','partially_refunded']
+          (appointment-payment-refund.ts:33-37)."
+        - "PAYMENT_REQUEST_TRANSITIONS gives cancelled/expired/failed -> partially_refunded/refunded
+          edges, with a block comment stating those states can hold collected money
+          (appointment-payments.ts:439-518)."
+        - "settlePaymentRequestRefund's status update .in() list omitted the three states, so a refund
+          settle could not move them."
+      references:
+        - "packages/shared/src/appointment-payments.ts"
+      contradictory_evidence: "Feature dark, zero live collections; no client was actually stranded."
+    assessment:
+      interpretation: "The refund core's gate was narrower than the state model it sits on; the model
+        already decided these refunds are legitimate (that is why the edges exist), the gate just never
+        caught up."
+      root_cause_hypothesis: "REFUNDABLE_STATUSES was written for the happy path (A5) before the
+        matrix's reversal-edges rationale (A2 correction) was folded back in."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None (dark, branch-only). Post-launch it would strand client money behind a
+        support ticket whenever a partially-paid request was cancelled or expired."
+      remaining_uncertainty: "Whether artist-initiated refunds from these states should be limited to
+        specific fee cases is a product nuance; the artist-case allowlist already bounds it to
+        voluntary/cancellation cases."
+    relationships:
+      related_findings:
+        - "PAY-UI-006"
+      analogous_uninspected_areas:
+        - "The deposit path's refund gate (refundDepositCore) against booking statuses: whether a
+          cancelled booking with a paid deposit has an equivalent stranded-money state was not checked
+          in this pass."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "752e989"
+      proposed_action: "REFUNDABLE_STATUSES (now exported; the UI derives from it) gains
+        cancelled/expired/failed; the refund-settle FROM list mirrors the matrix's reversal edges.
+        Amounts stay bounded by maxRefundable from real allocations, so nothing-collected states still
+        refuse with 'Nothing to refund.' Tests: refund-from-cancelled succeeds; the settle FROM list is
+        pinned to include the three and exclude 'refunded'."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Fixed by the same instance that built the surface (found independently, fixed
+        non-independently); no end-to-end Stripe-mode test exercises refund-from-cancelled. Queue for
+        the Track A independent verification pass."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "payments-authz-review"
+        action: "opened"
+        note: "Found as Finding B; flagged as a question (accepted gap vs oversight)."
+      - date: "2026-08-01"
+        actor: "no-deferral build directive (main instance)"
+        action: "fix-committed"
+        note: "Classified as a build decision (the matrix already sanctioned these refunds; extending
+          the gate is reversible and bounded by allocations). Core + settlement + UI updated, +3 tests.
+          Full suite 2645 green."
 
 patterns:
   - id: "PAT-001"
@@ -11377,4 +11549,39 @@ coverage:
       order representation + composition snapshot. Get independent verification (different instance or
       CI) for the three defects fixed this pass, especially the PAY-RLS-005 anon-read regression test
       which could not run locally."
+    changed_since_inspection: "yes"
+
+  - area: "Artist payment-requests surface (Track A slices 1-3): read layer, web actions/pages, mobile
+      GET routes, refund-case allowlist wiring, migration 0133"
+    subsystem: "authz"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-01"
+    commit_inspected: "306ac80"
+    reviewer: "payments-authz-review (read-only inklee-db-reviewer subagent; authored none of the code
+      under review)"
+    evidence: "Targeted authorization/RLS/money-input review of the surface built this session, from
+      reading SQL + TS (no execution). VERIFIED SOUND with citations: (1) the read layer is genuinely
+      RLS-scoped - both 0125 SELECT policies exist as claimed (0125:540-543, :852-854), every caller
+      uses the cookie or bearer-JWT client, no serviceClient path exists, fail-loud asserted by tests;
+      (2) all four web actions derive artistId from the session only; the refund action validates the
+      case against the REAL allowlist before the core; refund amounts are bounded by stored
+      allocations (client input can only shrink, never inflate); (3) subject creation is double-gated
+      (0125 INSERT policy WITH CHECK + composite FK, each independently DB-tested); (4) mobile GET
+      routes use requireMobileUser with a uniform 404 (no enumeration oracle); (5) 0133 drops exactly
+      the two 0128 anon policies and nothing in 0125-0131 grants anon anything else. FINDINGS: two,
+      both transcribed and fixed same-day - PAY-UI-006 (low, UI cancel-set drift) and PAY-RFD-007
+      (medium, no self-serve refund path for money held on cancelled/expired/failed). Also re-flagged
+      PAY-RLS-005's missing anon regression, now written (752e989)."
+    known_exclusions: "READING ONLY - the reviewer executed no tests and spun up no local stack, so
+      'sound' means structurally sound, not observed-green. Out of scope by assignment: the older
+      cores' line-by-line internals (requirePaymentEntitlement, A4 webhook/settlement logic,
+      refundDepositCore, validateLines' classification/tax edge cases), production state, and the
+      native app. The two fixes (752e989) were applied by the surface's own author and are
+      fixed-unverified pending the Track A independent verification pass."
+    recommended_next_inspection: "At Track A close: an execution-based verification (inklee-verifier)
+      covering refund-from-cancelled end-to-end, the receipt once-only property under webhook
+      redelivery, the link-delivery fail-soft, and the CI run of the anon regression + the
+      appointment-payments DB suite. Also check refundDepositCore for the deposit-path analogue of
+      PAY-RFD-007 (cancelled booking holding a paid deposit)."
     changed_since_inspection: "yes"

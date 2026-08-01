@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `a073d616fdd1`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `d65c7b4eac5e`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-87 recorded finding(s), 3 structural pattern(s), across 69 mapped area(s).
-82 remain open by remediation status. 69 are reachable (directly or conditionally) rather than latent.
-80 have not passed independent verification.
-157 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+89 recorded finding(s), 3 structural pattern(s), across 70 mapped area(s).
+84 remain open by remediation status. 71 are reachable (directly or conditionally) rather than latent.
+82 have not passed independent verification.
+158 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -27,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 28 |
-| medium | 33 |
-| low | 20 |
+| medium | 34 |
+| low | 21 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -37,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 20 |
+| fixed-unverified | 22 |
 | mitigated | 1 |
 | open | 58 |
 | verified | 5 |
@@ -46,7 +46,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 79 |
+| not-started | 81 |
 | passed | 7 |
 | pending | 1 |
 
@@ -140,7 +140,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 16 |
+| payment | 18 |
 | jobs | 12 |
 | billing | 11 |
 | webhook | 11 |
@@ -210,6 +210,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-CHK-001 | medium | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
 | PAY-RFD-003 | medium | conditionally-reachable | latent | Artist refund route lets the artist choose the fee-refund case, controlling Inklee's fee |
 | PAY-RFD-004 | medium | conditionally-reachable | latent | Refund idempotency key contains Date.now(), so a retry creates a second Stripe refund |
+| PAY-RFD-007 | medium | conditionally-reachable | latent | No artist self-serve refund path for money collected on a cancelled/expired/failed request |
 | SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | WHK-DEA-001 | medium | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |
@@ -231,6 +232,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | OPS-ERR-001 | low | directly-reachable | actively-impacting | Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile JSON API and 31 in web server actions |
 | OPS-LINT-001 | low | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-FEE-003 | low | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
+| PAY-UI-006 | low | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | OPS-DOC-001 | informational | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
@@ -255,9 +257,11 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
 | PAY-RFD-003 | medium | fixed-unverified | not-started | 6fb2eb1 |
 | PAY-RFD-004 | medium | fixed-unverified | not-started | 6fb2eb1 |
+| PAY-RFD-007 | medium | fixed-unverified | not-started | 752e989 |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | unknown |
 | OPS-LINT-001 | low | fixed-unverified | not-started | unknown |
+| PAY-UI-006 | low | fixed-unverified | not-started | 752e989 |
 
 ## Analogous areas flagged but NOT inspected
 
@@ -327,6 +331,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
 - The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.
 - The deposit path's `platform_fee_collected_cents` write, which 0128 cites as the precedent for this shape and which I did not read.
+- The deposit path's refund gate (refundDepositCore) against booking statuses: whether a cancelled booking with a paid deposit has an equivalent stranded-money state was not checked in this pass.
 - The deposit refund path (refundDepositCore) hardcodes refund_application_fee: true and is not wired into fee-refund-policy at all; whether artist-cancellation deposit refunds should retain a non-recoverable cost under v1 was not decided.
 - The deposit webhook's own charge.refunded branch in apps/web/src/app/api/stripe/webhook/route.ts, which has no event-clock guard at all and is imported by no test.
 - The existing deposit flow in booking_requests also has no aggregate ceiling across bookings for the same client — the same pattern at a different layer.

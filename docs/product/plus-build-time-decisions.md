@@ -270,3 +270,23 @@ flat rate on card collection; standard free goods rate (PROVISIONAL).**
 - Reversible? The infra is additive behind the dark gate; the schema change
   (nullable booking_id / standalone order path) is a forward migration, not a
   live-data rewrite. Not activated until the goods-commerce gate is flipped.
+
+**RB1 [ENG/BUILD] — refunds allowed from cancelled/expired/failed when they hold
+collected money (2026-08-01).**
+- Context: authz-review Finding B (`PAY-RFD-007`). The refund core's status gate
+  was `paid/partially_paid/partially_refunded` only, but the transition matrix
+  explicitly gives `cancelled`/`expired`/`failed` their own refund edges BECAUSE
+  all three are reachable from `partially_paid` and can hold collected money. A
+  client whose partially-paid request was cancelled had no self-service path to
+  their money.
+- Decision (build decision, not escalated): widen `REFUNDABLE_STATUSES` (and the
+  refund-settle FROM list) to include the three money-holding states. The state
+  model had already decided these refunds are legitimate; the gate just never
+  caught up. Amounts stay bounded by `maxRefundable` from real allocations, so a
+  nothing-collected request still refuses; the artist-case allowlist still bounds
+  WHY (voluntary/cancellation only).
+- Alternatives: (a) keep the narrow gate + route these through support manually
+  (rejected: strands client money behind a ticket for a case the model designed
+  for); (b) auto-refund on cancellation (rejected: moves money without an
+  explicit artist action, against the money-path rules).
+- Reversible? Yes (narrowing the list back is one edit); nothing live (dark).
