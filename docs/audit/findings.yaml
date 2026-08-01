@@ -11249,6 +11249,270 @@ findings:
           The editor still allows such bundles (display unaffected). Variant-aware bundles
           recorded as v2 scope."
 
+  - id: "FEE-DSP-001"
+    title: "The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS
+      (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the
+      moment fee schedule v2 activates"
+    summary: "Since A3, platform-fee.ts (PLATFORM_FEE_BPS=300) is display-only; the charge comes
+      from the versioned, tier-resolved fee engine. Four display surfaces still render the flat
+      constant: the booking accept dialog (status-actions.tsx), the payouts settings page (four
+      strings), the mobile BookingActions sheet, and the GDPR export's financial snapshot. Under
+      v1 (active) all three tiers charge 300 bps so the display is correct by coincidence. Under
+      v2, Plus is charged 50 bps (display overstates the deduction 6x) and Free cannot transact
+      the lane at all (rate null; a naive schedule lookup renders '0%', the invented-Free-rate
+      failure the engine refuses by design). A fifth, tier-AWARE but tier-WRONG path exists:
+      fee-savings-query.ts uses raw planTier instead of effectivePlanTier/appointmentFeeTier, so
+      an expired comp still counts as plus and a legacy artist maps to free whose v2 rate is null,
+      silently collapsing the counterfactual to zero. The GDPR export site is additionally wrong
+      TODAY for sponsored deposits: it recomputes 3% where the artist was charged 0, while the
+      stored actual (platform_fee_collected_cents, 0116) exists."
+    classification:
+      domain: "billing"
+      category: "divergent-implementation"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "read-only fee recon (recon-money) at e698be7; scoped into an implementable map
+        by a second read-only recon (trackd-fee-recon) at 78bcecb8"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Recorded as prose in the e698be7 coverage row's known_exclusions and
+        never opened as a finding; opened now so the Track D remediation has a real register
+        subject."
+    location:
+      files:
+        - "packages/shared/src/platform-fee.ts"
+        - "apps/web/src/app/(artist)/bookings/requests/[id]/status-actions.tsx"
+        - "apps/web/src/app/(artist)/settings/payouts/page.tsx"
+        - "apps/mobile/src/components/booking/BookingActions.tsx"
+        - "apps/web/src/lib/server/account-deletion-logic.ts"
+        - "apps/web/src/lib/server/fee-savings-query.ts"
+    evidence:
+      observed_facts:
+        - "packages/shared/src/platform-fee.ts:36-62 exports PLATFORM_FEE_BPS=300 and helpers
+          taking ONE argument, no tier, no version; :21-25 the header still claims the rate is
+          flat across all tiers, which v2 (fee-schedule.ts:69, plus: 50) contradicts."
+        - "order-fee-sync.ts:56-59 documents the constant as the ARTIST-FACING DISPLAY number, no
+          longer the source of any charge."
+        - "status-actions.tsx:569-575 renders 'Processing fee (3%)' in a 'use client' component;
+          payouts/page.tsx:21,24,101,232 interpolates PLATFORM_FEE_PERCENT in four strings;
+          BookingActions.tsx:542-544 renders 'Inklee fee (3%)'; account-deletion-logic.ts:110
+          recomputes platformFeeEur(amount) for the GDPR export despite the stored actual."
+        - "fee-savings-query.ts:14 uses overrides.planTier raw, not effectivePlanTier and not the
+          legacy-aware appointmentFeeTier; feeMinorUnits returns 0 for a null rate (:62-67), so a
+          legacy artist's v2 counterfactual computes as zero."
+        - "appointment-fee-unification.test.ts:329-336,365 pin display==charged UNDER V1 ONLY;
+          :609-612 pin that PLATFORM_FEE_BPS diverges from v2.plus and that platformFeeCents takes
+          exactly one argument. Zero tests exist for any display surface itself."
+      references:
+        - "packages/shared/src/fee-schedule.ts"
+        - "apps/web/src/lib/server/deposit-collection.ts"
+      inspected_comparables_without_issue:
+        - "The CHARGE paths are tier-correct: bookings.ts:874, appointment-payment-quote.ts:477
+          and resolveOrderFee all route through appointmentFeeTier + the versioned schedule."
+        - "The new appointment-payments artist UI renders no fee number at all, so it cannot
+          display a WRONG one (recorded separately as a display gap, not a divergence)."
+    assessment:
+      interpretation: "A display layer that is correct only while every tier happens to share one
+        rate. The divergence is invisible under v1 and materializes exactly at the P7 v2 flip,
+        which is the worst possible moment: the number the artist is shown at accept time would
+        overstate the Plus deduction sixfold and print a percentage to Free artists who cannot use
+        the lane."
+      root_cause_hypothesis: "A3 correctly demoted platform-fee.ts to display-only but left the
+        display surfaces on the constant, betting on the v1 identity; the unification test pins
+        that identity under v1 without forcing the surfaces through the schedule."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Every artist surface that states the fee, on web and native,
+        plus the GDPR export (wrong today for sponsored deposits) and the Plus fees-saved panel
+        (wrong today for expired comps and legacy artists)."
+      production_exposure: "Displays are live today but arithmetically correct under active v1
+        (except the sponsored-deposit export case and the fee-savings tier modelling). The 6x
+        divergence activates with ACTIVE_FEE_SCHEDULE_VERSION -> v2."
+      exploit_preconditions: "None; not attacker-driven."
+      remaining_uncertainty: "Whether the '(card processing included)' parenthetical remains a
+        defensible commercial claim at a 0.5% Plus rate is a founder/counsel copy decision, not an
+        engineering fact."
+    relationships:
+      related_findings:
+        - "FEE-STP-001"
+      analogous_uninspected_areas:
+        - "Hardcoded marketing '3%' copy outside the four sites (pricing page, homepage, deposit
+          tool, guide, admin sponsorship panel) is tracked by the capability registry
+          (pricingPageClaim 'needs update') and is founder-facing copy, deliberately out of Track
+          D's mechanical scope."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "0adf56ca"
+      fixed_at: "2026-08-01"
+      proposed_action: "Route the display sites through the tiered schedule: widen
+        getDepositCollection to return the resolved appointment tier + rate (it already fetches
+        the overrides, zero extra reads; web page props and the mobile payouts route both come
+        from it, with an ADDITIVE MobilePayouts field per the version-skew pattern). Displays must
+        branch on rate null (a different sentence, never '0%'). Fix fee-savings-query's tier
+        modelling (effectivePlanTier + legacy resolution). The GDPR export prefers the STORED
+        platform_fee_collected_cents over recomputation. Keep platformFeeCents single-argument
+        (the unification test pins that deliberately); strengthen the display==charged test to
+        per-tier under v2 via the new display source."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "trackd-fee-recon (read-only) mapped the sites; no fix exists yet"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Static read of all importers of the platform-fee shim (exactly four)
+        plus the tier-aware fifth path, the charge-path contrast, and the pinned identities in
+        appointment-fee-unification.test.ts. Display rendering not executed."
+      residual_risk: "Call-site count rests on import tracing; a display that re-hardcodes '3%'
+        as a literal without importing the module would not be found this way (the known
+        marketing-copy set was enumerated separately)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "supervisor session, from trackd-fee-recon's map"
+        action: "opened"
+        note: "Promoted from the e698be7 coverage row's known_exclusions prose (G1) into a real
+          finding at the start of Track D."
+      - date: "2026-08-01"
+        actor: "trackd-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 0adf56ca (trackd-worker; supervisor re-ran the six touched suites, 92/92):
+          appointmentTierFromOverrides shared composition + appointmentFeeDisplay (null when
+          the lane rate is null, never a fabricated 0 percent); getDepositCollection widened
+          (zero extra reads) feeding the accept dialog, the payouts page (the
+          card-processing-included parenthetical now conditional on bps=300, accountant
+          Confirm logged) and the ADDITIVE MobilePayouts fields with old-server fallback;
+          fee-savings-query on the shared composition + per-row stored fee_tier preference;
+          GDPR export prefers the stamped platform_fee_collected_cents (never a live tier).
+          platformFeeCents kept single-argument; the display-matches-charged identity
+          strengthened per v2 tier instead of deleted."
+
+  - id: "FEE-STP-001"
+    title: "Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a
+      stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane
+      stamps the version only into the audit log, and the deposit lane stamps it at settlement
+      time rather than from the intent"
+    summary: "No table has a tier column (grep across all migrations: only the mutable
+      account_overrides.plan_tier, which is current state, not a snapshot, and cannot express the
+      legacy tier, which derives from an entitlement override). booking_requests and orders stamp
+      fee_schedule_version (0116) but no tier; payment_collections stamps a REFUND-POLICY version
+      (0131) but neither a fee-schedule version column nor a tier (the schedule version goes only
+      to audit_log.details). Two adjacent stamping defects ride along: the deposit webhook reads
+      ACTIVE_FEE_SCHEDULE_VERSION at settlement time while the deposit PaymentIntent carries no
+      version in metadata, so a deposit requested under v1 and paid after the flip is stamped v2
+      with a v1 fee actually charged; and fee-savings-query reconstructs counterfactuals from
+      (stored version, base, TODAY'S tier), the biggest consumer of the missing stamp."
+    classification:
+      domain: "billing"
+      category: "schema-drift"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-07-31"
+      detected_by: "read-only fee recon (recon-money) at e698be7; column-level map by
+        trackd-fee-recon at 78bcecb8"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "78bcecb8"
+      environment: "repository-only"
+      discovery_context: "Recorded as prose in the e698be7 coverage row's known_exclusions (G2)
+        and never opened as a finding; opened now for the Track D remediation."
+    location:
+      files:
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/lib/server/bookings.ts"
+      database_objects:
+        - "booking_requests.fee_schedule_version"
+        - "orders.fee_schedule_version"
+        - "payment_collections"
+    evidence:
+      observed_facts:
+        - "webhook/route.ts:678-679 stamps booking_requests.fee_schedule_version from
+          ACTIVE_FEE_SCHEDULE_VERSION read at settlement time; bookings.ts:926-932 puts no version
+          in the deposit intent's metadata."
+        - "appointment-payment-settlement.ts:172-181 writes payment_collections money columns with
+          no fee-schedule version column (audit_log.details only, :222) and no tier."
+        - "No migration creates any tier column; 0116:28,36 and 0131:43-64 are version/actuals
+          only."
+        - "The appointment tier domain is free|plus|legacy where legacy derives from
+          canAccess(card_deposit_collection) on a free plan (order-fee-sync.ts:75-83), so no join
+          against account_overrides.plan_tier can reconstruct it later."
+      references:
+        - "apps/web/supabase/migrations/0116_fee_actuals.sql"
+        - "apps/web/supabase/migrations/0131_payment_collection_processor_cost.sql"
+    assessment:
+      interpretation: "Under v1 the missing tier is harmless (one rate). Under v2 the stored
+        records stop being self-describing: (version, base) has three candidate fees. Every
+        after-the-fact consumer (fee statements for the accountant, the savings panel, disputes)
+        must then guess the tier from mutable current state, which is exactly the class of
+        reconstruction the versioned-fee design exists to prevent."
+      root_cause_hypothesis: "The 0116 stamp was added while v1 was the only schedule and every
+        tier shared one rate; tier identity carried no information at the time."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "All fee actuals written after the v2 flip; the accountant fee
+        statements (Control Tower R-11) and the Plus savings panel read these records."
+      production_exposure: "None today: v1 active, one rate. The stamp must exist BEFORE the flip
+        or the first v2-era rows are permanently ambiguous."
+      exploit_preconditions: "None; not attacker-driven."
+      remaining_uncertainty: "Whether payment_requests should also carry the tier at send was
+        deliberately answered NO for now: 0125:308-313 records that the artist's own client can
+        write fee_schedule_version on that table via PostgREST, and a tier column would inherit
+        that residual; the tier is stamped on service-role-only payment_collections instead."
+    relationships:
+      related_findings:
+        - "FEE-DSP-001"
+      analogous_uninspected_areas:
+        - "Whether any OTHER money table stamps context read at settlement time rather than from
+          the originating intent was not swept beyond the deposit lane."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "0adf56ca"
+      fixed_at: "2026-08-01"
+      proposed_action: "One migration: fee_tier on booking_requests and orders;
+        fee_tier AND fee_schedule_version on payment_collections (guarded checks
+        free|plus|legacy, honest null, NO backfill per the 0116/0131 precedent). Stamp at write:
+        goods paths from the quote's resolved tier; deposit intent gains fee_schedule_version +
+        fee_tier metadata at creation and the webhook stamps FROM THE INTENT with settlement-time
+        fallback; appointment settlement stamps both from intent metadata (intent already carries
+        the version, gains the tier). fee-savings-query prefers the stored tier when present."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "trackd-fee-recon (read-only) mapped the columns; no fix exists yet"
+      verified_at: "2026-08-01"
+      verification_commit: "78bcecb8"
+      verification_method: "Static sweep of every fee-actual write path and every migration for
+        tier-ish columns; the settlement-time-version defect established by contrasting
+        webhook/route.ts:679 with the intent metadata contents at bookings.ts:926-932."
+      residual_risk: "Read-based; no database executed. The claim that no consumer can
+        reconstruct the tier rests on the legacy tier's derivation from an entitlement override,
+        which is code-verified but not exercised."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-01"
+        actor: "supervisor session, from trackd-fee-recon's map"
+        action: "opened"
+        note: "Promoted from the e698be7 coverage row's known_exclusions prose (G2) into a real
+          finding at the start of Track D."
+      - date: "2026-08-01"
+        actor: "trackd-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fix in 0adf56ca: migration 0136 (fee_tier on booking_requests/orders; fee_tier +
+          fee_schedule_version on payment_collections; guarded checks, honest null, no
+          backfill) with stamps at all six write sites, read from the ORIGINATING intent's
+          metadata where one exists — the deposit webhook no longer stamps the
+          settlement-time active version. payment_requests deliberately NOT stamped (0125
+          client-writability residual, as recorded). payment_collections has no drizzle
+          mirror at all (pre-existing, now flagged in schema.ts)."
+
 patterns:
 
   - id: "PAT-001"

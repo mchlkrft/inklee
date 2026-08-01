@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `69f4d29d4a31`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0fdd0878617f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-106 recorded finding(s), 3 structural pattern(s), across 77 mapped area(s).
-94 remain open by remediation status. 85 are reachable (directly or conditionally) rather than latent.
-89 have not passed independent verification.
-174 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+108 recorded finding(s), 3 structural pattern(s), across 77 mapped area(s).
+96 remain open by remediation status. 87 are reachable (directly or conditionally) rather than latent.
+91 have not passed independent verification.
+176 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -27,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 29 |
-| medium | 43 |
+| medium | 45 |
 | low | 28 |
 | informational | 4 |
 
@@ -37,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 28 |
+| fixed-unverified | 30 |
 | mitigated | 1 |
 | open | 62 |
 | risk-accepted | 1 |
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 87 |
+| not-started | 89 |
 | partially-verified | 1 |
 | passed | 17 |
 | pending | 1 |
@@ -143,9 +143,9 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | Domain | Findings |
 | --- | --- |
 | payment | 26 |
+| billing | 13 |
 | jobs | 12 |
 | webhook | 12 |
-| billing | 11 |
 | database | 10 |
 | authorization | 5 |
 | migration | 4 |
@@ -208,6 +208,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-MIG-003 | medium | conditionally-reachable | theoretical | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
 | DRIFT-ACT-001 | medium | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
+| FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
+| FEE-STP-001 | medium | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
 | HUB-GAL-001 | medium | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
@@ -270,6 +272,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-UI-001 | medium | fixed-unverified | not-started | unknown |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
+| FEE-DSP-001 | medium | fixed-unverified | not-started | 0adf56ca |
+| FEE-STP-001 | medium | fixed-unverified | not-started | 0adf56ca |
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | unknown |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |
@@ -317,6 +321,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Every other table created since 0035 with `enable row level security` — I did not enumerate policy-vs-writing-client across the full table set.
 - Every other test file in the repo using this same queue/nextReply recording-double pattern was NOT swept for the same default-reply vacuity. goods-checkout.test.ts uses an identical harness (its :90-94 nextReply is the same code) and was checked only for the mutations in this pass.
 - Fixes that were author-verified and never independently re-examined: the entire 0026-0031 RLS incident response, and effectively all pre-2026-07 history. Absence of later findings there is absence of looking, not absence of defects.
+- Hardcoded marketing '3%' copy outside the four sites (pricing page, homepage, deposit tool, guide, admin sponsorship panel) is tracked by the capability registry (pricingPageClaim 'needs update') and is founder-facing copy, deliberately out of Track D's mechanical scope.
 - I did NOT sweep the codebase for em-dashes in user-visible strings; I verified only the two the plan named. A repo-wide sweep of JSX string literals and apps/web/content/legal was NOT done.
 - I did not check whether any of the 68 tables' inline constraints have actually diverged in production — that needs a live pg_constraint comparison I did not run.
 - I scanned only `create table if not exists` blocks. Sibling non-convergent shapes were NOT scanned: `create index if not exists` where the definition later changed, `create policy` without a preceding `drop policy if exists`, `create trigger` guarded by existence rather than dropped and recreated.
@@ -400,6 +405,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Whether an artist with a nonzero Connect balance at deletion time loses their payout route entirely was not traced; deletion removes the profile that the payout UI reads from.
 - Whether anon can SELECT discount_codes: 0118's policies omit `TO authenticated` so they bind PUBLIC. Table-level GRANTs for anon were NOT checked against any catalog.
 - Whether any OTHER Stripe-object-creating path lacks an entitlement gate (account-link creation, document upload from b5d33bf) — NOT inspected.
+- Whether any OTHER money table stamps context read at settlement time rather than from the originating intent was not swept beyond the deposit lane.
 - Whether any Supabase Edge Function or cron job runs as `authenticated` was not checked.
 - Whether any already-written migration in 0000-0128 attempts a `drop policy if exists` against a name that production spells differently was not checked.
 - Whether any invoice PDF or artifact lives in Supabase Storage under a prefix the purge would delete - artifacts.ts was not read.
