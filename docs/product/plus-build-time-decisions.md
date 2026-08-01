@@ -484,3 +484,107 @@ VARIANT-bearing products at checkout (SHOP-VAR-001).**
    to Sentry. A compensating-retry table was considered and deferred: the
    feature is dark, and observability + manual repair is proportionate until
    real volume exists (recorded, not forgotten).
+
+### 2026-08-01 — Fee display + tier stamp, Track D (G1/G2, FEE-DSP-001/FEE-STP-001)
+
+**D1 [ENG] — the tier-aware fee display is routed through ONE shared helper
+(`appointmentFeeDisplay`), and the composition that resolves the tier moved to
+the PURE package.**
+- Decision: `packages/shared/src/entitlements.ts` gains
+  `appointmentTierFromOverrides` (the exact composition
+  `order-fee-sync.ts:appointmentFeeTier` used to inline: `resolveAppointmentTier`
+  + `effectivePlanTier` + `canAccess("card_deposit_collection")`).
+  `order-fee-sync.ts`'s `appointmentFeeTier` becomes a one-line delegate; every
+  server caller is unchanged. `packages/shared/src/fee-schedule.ts` gains
+  `appointmentFeeDisplay(tier, version?)`, returning `{ bps, percentLabel } |
+  null` (null exactly when the tier cannot transact the appointment lane at
+  all — never a fabricated 0%). `getDepositCollection` (already reading
+  overrides for the entitlement check) resolves both and returns them
+  additively (`feeTier`, `feeDisplay`), so the accept dialog, the payouts
+  page, and the mobile payouts route all read ONE resolution.
+- Why the move to the pure package: the composition needs to run from a
+  CLIENT component (the accept dialog is `"use client"`), and
+  `order-fee-sync.ts` is `server-only`. Duplicating the three-call composition
+  at the display site would have re-created exactly the split A3 closed for
+  the charge path, one layer up, for the display path.
+- `platform-fee.ts`'s header comment corrected: it previously read as a
+  permanent guarantee of a flat 3% across all tiers; it is now stated as the
+  v1 display legacy, with `appointmentFeeDisplay` named as the successor once
+  a schedule other than v1 activates. `PLATFORM_FEE_BPS`/`platformFeeCents`
+  are unchanged in shape (still one argument — pinned by
+  `appointment-fee-unification.test.ts:612`) and still used as the fallback
+  on both request-detail surfaces for an intent-less first render and on
+  mobile for an older server that predates the additive fields.
+- Confirm: no counsel/accountant input needed — this only reroutes a DISPLAY
+  number through a helper that resolves the exact same v1 rate today; no live
+  number moves.
+- Reversible? Cheap (pure functions + additive fields; nothing schema-level).
+
+**D2 [ENG] — the "(card processing included)" parenthetical is conditioned on
+the shown rate being exactly 300 bps, not on any other proxy.**
+- Decision: the payouts settings page keeps the parenthetical only when
+  `feeBps === 300`. When the display is null (a tier that cannot transact the
+  lane at all, unreachable under v1), the fee sentences instead state that
+  card deposit collection isn't part of the current plan.
+- Why: "card processing included" is a COMMERCIAL CLAIM specific to the 3%
+  all-in rate — Custom Connect bills Stripe's processing cost to Inklee's own
+  platform balance, never the artist's, so the full 3% genuinely is the
+  artist's only deduction. At the Plus 0.5% rate that is a different,
+  unconfirmed cost/margin split; carrying the same parenthetical there would
+  assert something nobody has checked. Gating on the number itself (not on
+  "is this v1" or "is this Plus") means the sentence stays correct
+  automatically if a schedule is ever added where 300 bps recurs for a
+  different reason.
+- Confirm (accountant, before P7 activates v2): whether the Plus 0.5% rate's
+  cost/margin split can ever carry the same "processing included" claim, or
+  needs its own wording.
+- Reversible? Cheap (one conditional).
+
+**D3 [ENG] — G2's fee-tier stamp lands on `booking_requests`, `orders`, and
+`payment_collections` (migration 0136); deliberately NOT on `payment_requests`,
+and deliberately NOT backfilled.**
+- Decision: `fee_tier text` (CHECK `in ('free','plus','legacy')` or null) on
+  all three, following each table's existing `fee_schedule_version` shape
+  (0116, 0125). Stamped at the ORIGINATING write: the deposit intent's
+  metadata (`bookings.ts`), the deposit webhook flip
+  (`platform_fee_collected_cents`'s sibling column), the goods add-on order
+  insert (`request/[token]/actions.ts`, from `resolveOrderFee`'s now-widened
+  `FeeSyncOk.tier`), the standalone goods order insert (`goods-checkout.ts`),
+  the appointment-payment intent's metadata (`appointment-payment-intent.ts`,
+  from `PaymentQuote`'s now-widened `feeTier`), and its settlement stamp onto
+  `payment_collections` (`appointment-payment-settlement.ts`, read FROM the
+  intent's metadata, never re-resolved from the artist's current overrides).
+- Why not `payment_requests`: 0125 (:308-313) already records that the
+  artist's OWN client writes `fee_schedule_version` on that table via
+  PostgREST (client-writable pre-payment) — a residual, named there rather
+  than fixed, because it cannot move a real charge, only show up as a
+  reconciliation discrepancy. Adding `fee_tier` to the same writable surface
+  would widen that residual instead of closing it. `payment_collections` is
+  service-role-only (0125's REVOKE), so the settled stamp lives there.
+- Why no backfill: same reasoning as 0116/0131 — an invented tier for a
+  pre-migration row is worse than an honest null, and both consumers
+  (`fee-savings-query.ts`'s hypothetical, `account-deletion-logic.ts`'s GDPR
+  snapshot) already fall back correctly on null.
+- Also fixed as part of this slice, both pre-existing tier-WRONG paths named
+  in the same review: `fee-savings-query.ts` used to flip a raw
+  `overrides.planTier` binary free/plus, which (a) ignored comp expiry and
+  (b) collapsed a grandfathered artist's downgrade counterfactual to `free`,
+  whose v2 appointment rate is null — `feeMinorUnits` reports that as 0, so
+  the "what the other tier would cost" comparison silently priced as nothing
+  owed instead of the historical 3% a legacy artist would actually still owe.
+  Now resolves the current tier via `appointmentTierFromOverrides` and a
+  three-way `fallbackTier` (plus+grandfathered -> legacy, not free), AND
+  prefers each ROW's own stamped `fee_tier` over the artist-level
+  reconstruction where G2 populated it. `account-deletion-logic.ts`'s GDPR
+  financial snapshot used to always recompute the 3% constant, which is wrong
+  for a sponsored deposit (waived to 0 by Stripe) — now prefers the ACTUAL
+  `platform_fee_collected_cents` stamped at settlement (0116) when present,
+  falling back to the computation only for pre-0116 rows.
+- Alternatives: recompute the tier at read time from current overrides
+  (rejected: exactly the defect above — a GDPR export or a savings figure must
+  not change retroactively when an artist's plan changes); a single combined
+  `fee_tier_and_version` column (rejected: the two vary independently and
+  0116/0125 already precedent separate columns).
+- Reversible? Additive migration (nullable columns + guarded CHECK
+  constraints); cheap to unwind before any row is written, moderate after
+  (dropping a stamped, reconciliation-relevant column).

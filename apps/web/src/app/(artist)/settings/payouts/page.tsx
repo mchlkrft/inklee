@@ -4,7 +4,7 @@ import {
   getConnectRequirementState,
   type ConnectStatus,
 } from "@/lib/stripe-connect";
-import { PLATFORM_FEE_PERCENT } from "@/lib/platform-fee";
+import { getDepositCollection } from "@/lib/server/deposit-collection";
 import PayoutsControls from "./payouts-controls";
 import ConnectKycForm from "./connect-kyc-form";
 import VerificationDocumentForm from "./verification-document-form";
@@ -17,16 +17,45 @@ const STATUS_LABEL: Record<ConnectStatus, string> = {
   disabled: "Disabled by Stripe",
 };
 
-const STATUS_DESCRIPTION: Record<ConnectStatus, string> = {
-  unset: `Optional. Set this up only if you want clients to pay deposits by card here. You enter your details below, Inklee verifies you with Stripe, and deposits land in your own account. A ${PLATFORM_FEE_PERCENT}% processing fee is deducted per deposit (card processing included); Inklee never holds your money.`,
-  pending:
-    "Stripe is verifying your details. Use Refresh status to check, or update your details below if something was off.",
-  active: `You're verified. Clients can now pay deposits by card, each deposit lands in your account, with a ${PLATFORM_FEE_PERCENT}% processing fee deducted (card processing included).`,
-  restricted:
-    "Stripe needs a bit more before you can take payments. Update your details below.",
-  disabled:
-    "Stripe disabled this account. Contact Stripe support for next steps.",
-};
+// G1 (FEE-DSP-001): the fee sentence is now a FUNCTION of the artist's
+// resolved appointment-lane tier (getDepositCollection -> appointmentFeeDisplay),
+// not a flat PLATFORM_FEE_PERCENT constant baked in at module load. `feePercentLabel`
+// is null when the tier cannot transact the lane at all (v2 Free, unreachable
+// while v1 is active) — the sentence then says collection isn't part of the
+// plan rather than printing a fabricated 0%.
+//
+// The "(card processing included)" parenthetical is a COMMERCIAL CLAIM tied to
+// the all-in 3% rate (Custom Connect bills Stripe's processing cost to
+// Inklee's own balance, never the artist's, so the full 3% IS the artist's
+// only deduction). At the Plus 0.5% rate that claim is not the same statement
+// (a different, TBD cost/margin split) and would need re-confirming with the
+// accountant, so it is included ONLY when the shown rate is exactly the
+// historical 300 bps (today: always, since v1 is active for every tier).
+function statusDescription(
+  status: ConnectStatus,
+  feePercentLabel: string | null,
+  feeBps: number | null,
+): string {
+  const cardProcessingNote =
+    feeBps === 300 ? " (card processing included)" : "";
+  const feeClause = feePercentLabel
+    ? ` A ${feePercentLabel}% processing fee is deducted per deposit${cardProcessingNote}.`
+    : " Card deposit collection isn't part of your current plan.";
+  switch (status) {
+    case "unset":
+      return `Optional. Set this up only if you want clients to pay deposits by card here. You enter your details below, Inklee verifies you with Stripe, and deposits land in your own account.${feeClause} Inklee never holds your money.`;
+    case "pending":
+      return "Stripe is verifying your details. Use Refresh status to check, or update your details below if something was off.";
+    case "active":
+      return feePercentLabel
+        ? `You're verified. Clients can now pay deposits by card, each deposit lands in your account.${feeClause}`
+        : "You're verified with Stripe, but card deposit collection isn't part of your current plan.";
+    case "restricted":
+      return "Stripe needs a bit more before you can take payments. Update your details below.";
+    case "disabled":
+      return "Stripe disabled this account. Contact Stripe support for next steps.";
+  }
+}
 
 export default async function PayoutsSettingsPage() {
   const supabase = await createClient();
@@ -51,6 +80,14 @@ export default async function PayoutsSettingsPage() {
   const payoutsEnabled = !!profile?.stripe_payouts_enabled;
   const country = profile?.stripe_account_country as string | null;
   const updatedAt = profile?.stripe_account_updated_at as string | null;
+
+  // G1 (FEE-DSP-001): the resolved appointment-lane fee display for THIS
+  // artist. Independent of Connect `status` above (that is Stripe's onboarding
+  // state; this is the plan-tier rate), so the two combine in `statusDescription`
+  // rather than either being derived from the other.
+  const depositCollection = await getDepositCollection(user!.id);
+  const feePercentLabel = depositCollection.feeDisplay?.percentLabel ?? null;
+  const feeBps = depositCollection.feeDisplay?.bps ?? null;
 
   // P0-3: fetch what Stripe still needs so the form can show it on load (the
   // artist can only self-resolve if we tell them). Fetched for every live
@@ -97,9 +134,11 @@ export default async function PayoutsSettingsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Optional. Set this up only if you want clients to pay deposits by card
-          here. Each deposit lands in your own account with a{" "}
-          {PLATFORM_FEE_PERCENT}% processing fee deducted (card processing
-          included). Without it, you can still collect deposits manually.
+          here.{" "}
+          {feePercentLabel
+            ? `Each deposit lands in your own account with a ${feePercentLabel}% processing fee deducted${feeBps === 300 ? " (card processing included)" : ""}.`
+            : "Card deposit collection isn't part of your current plan."}{" "}
+          Without it, you can still collect deposits manually.
         </p>
       </div>
 
@@ -112,7 +151,7 @@ export default async function PayoutsSettingsPage() {
         </div>
         <p className="text-sm text-foreground">{STATUS_LABEL[status]}</p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          {STATUS_DESCRIPTION[status]}
+          {statusDescription(status, feePercentLabel, feeBps)}
         </p>
 
         {(status === "active" ||
@@ -228,9 +267,10 @@ export default async function PayoutsSettingsPage() {
       <PayoutsControls hasAccount={accountId !== null} />
 
       <p className="text-xs text-muted-foreground">
-        Setting up payouts is optional and reversible. Deposits you collect this
-        way land in your own account, with a {PLATFORM_FEE_PERCENT}% processing
-        fee deducted (card processing included).
+        Setting up payouts is optional and reversible.{" "}
+        {feePercentLabel
+          ? `Deposits you collect this way land in your own account, with a ${feePercentLabel}% processing fee deducted${feeBps === 300 ? " (card processing included)" : ""}.`
+          : "Card deposit collection isn't part of your current plan."}
       </p>
     </div>
   );

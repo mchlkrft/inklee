@@ -14,6 +14,13 @@ export type DepositBookingRow = {
   deposit_paid_at: string | null;
   deposit_amount: string | number | null;
   deposit_currency: string | null;
+  // G2 (FEE-STP-001): the ACTUAL fee Stripe took on this deposit, in cents
+  // (migration 0116, stamped at settlement). Preferred in `buildFinancialSnapshot`
+  // over recomputing the 3% constant, which is wrong for a sponsored deposit
+  // (waived to 0) and for anything settled at a tier other than the flat v1
+  // rate. Optional: rows settled before 0116 (or a select that omits it)
+  // carry no stamp, and the snapshot falls back to the computation for those.
+  platform_fee_collected_cents?: number | null;
 };
 
 /**
@@ -101,13 +108,23 @@ export function buildFinancialSnapshot(
     schemaVersion: 2,
     deposits: paidDeposits.map((d) => {
       const amount = d.deposit_amount != null ? Number(d.deposit_amount) : null;
+      // G2 (FEE-STP-001): prefer the ACTUAL fee Stripe took (stamped at
+      // settlement, migration 0116) over recomputing the 3% constant, which is
+      // wrong whenever the deposit was sponsored (waived to 0) or settled
+      // under a tier/schedule other than v1's flat rate. Only rows with no
+      // stamp (pre-0116, or a caller that selected fewer columns) fall back to
+      // the computation, which is a genuine approximation for those.
+      const platformFeeAmount =
+        typeof d.platform_fee_collected_cents === "number"
+          ? d.platform_fee_collected_cents / 100
+          : amount != null
+            ? platformFeeEur(amount)
+            : null;
       return {
         bookingId: d.id,
         paymentIntentId: d.deposit_payment_intent_id,
         amount,
-        // Standard 3% Platform Fee on the deposit basis — Inklee's retained
-        // revenue record. Stripe holds the authoritative (incl. sponsored) figure.
-        platformFeeAmount: amount != null ? platformFeeEur(amount) : null,
+        platformFeeAmount,
         currency: d.deposit_currency,
         paidAt: d.deposit_paid_at,
         // Resolved = refunded/forfeited at deletion time. An unresolved deposit's

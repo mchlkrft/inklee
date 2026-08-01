@@ -90,7 +90,10 @@ export async function deleteOwnAccountCore(
   const { data: depositRows } = await serviceClient
     .from("booking_requests")
     .select(
-      "id, deposit_payment_intent_id, deposit_paid_at, deposit_amount, deposit_currency",
+      // G2 (FEE-STP-001): platform_fee_collected_cents widened in so the
+      // retained financial snapshot uses the ACTUAL settled fee rather than
+      // recomputing the 3% constant (buildFinancialSnapshot).
+      "id, deposit_payment_intent_id, deposit_paid_at, deposit_amount, deposit_currency, platform_fee_collected_cents",
     )
     .eq("artist_id", userId)
     .not("deposit_payment_intent_id", "is", null);

@@ -178,3 +178,34 @@ export function feeMinorUnits(input: {
   if (bps === null || bps <= 0) return 0;
   return Math.round((input.baseMinor * bps) / 10000);
 }
+
+/** `bps` as a trimmed percent string for copy: 300 -> "3", 50 -> "0.5",
+ *  167 -> "1.67". Two decimal places max, trailing zeros (and a trailing
+ *  decimal point) dropped. */
+function formatFeePercentLabel(bps: number): string {
+  const percent = bps / 100;
+  const fixed = percent.toFixed(2);
+  return fixed.includes(".")
+    ? fixed.replace(/0+$/, "").replace(/\.$/, "")
+    : fixed;
+}
+
+/**
+ * The APPOINTMENT-lane fee, as an artist-facing display value: the bps and a
+ * trimmed percent label, or `null` when the tier cannot transact the lane at
+ * all under `version` (G1, FEE-DSP-001).
+ *
+ * PRESENCE, NOT MAGNITUDE, same discipline as `canTransactLane`: a Free
+ * artist's v2 appointment rate is `null`, meaning "not applicable", and a
+ * caller that read that as a 0% rate would show a real fee percentage for a
+ * lane the artist cannot use at all. Every display call site MUST branch on
+ * this returning `null` and show a different sentence, never "0%".
+ */
+export function appointmentFeeDisplay(
+  tier: PaymentTier,
+  version?: string,
+): { bps: number; percentLabel: string } | null {
+  const bps = laneRateBps("appointment_payment", tier, version);
+  if (bps === null) return null;
+  return { bps, percentLabel: formatFeePercentLabel(bps) };
+}

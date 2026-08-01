@@ -108,6 +108,13 @@ vi.mock("@/lib/entitlements", () => ({
   // Default false: resolveOrderFee's Free tier stays `free`, so block 3's v1
   // literals are unchanged.
   canAccess: (...a: unknown[]) => canAccess(...a),
+  // order-fee-sync's `appointmentFeeTier` now delegates to this (G1); wired
+  // through the same two mocks + the real composition so nothing below moves.
+  appointmentTierFromOverrides: (o: unknown) =>
+    resolveAppointmentTier({
+      planTier: effectivePlanTier(o),
+      grandfatheredAppointmentAccess: canAccess(o, "card_deposit_collection"),
+    }),
 }));
 
 import {
@@ -123,6 +130,9 @@ import {
   ACTIVE_FEE_SCHEDULE_VERSION,
   FEE_SCHEDULE_V1,
   FEE_SCHEDULE_V2,
+  appointmentFeeDisplay,
+  feeMinorUnits,
+  resolveAppointmentTier,
 } from "@inklee/shared/fee-schedule";
 
 // ---------------------------------------------------------------------------
@@ -376,6 +386,48 @@ describe("V1 INVARIANT: the hardcode and the schedule are the same rate", () => 
       }
     }
     expect(drifted).toEqual([]);
+  });
+
+  // STRENGTHENED, NOT A REPLACEMENT (G1, FEE-DSP-001): the pinned literals
+  // above are v1-only, because `platformFeeCents` takes no tier and v1 charges
+  // every tier the same 300 bps. `appointmentFeeDisplay` is the tier-aware
+  // display helper G1 adds for the surfaces that must show a DIFFERENT number
+  // once v2 activates. This holds IT to the same "display matches charged"
+  // identity, per v2 tier, so the same class of drift is caught on the
+  // successor as on the constant it succeeds.
+  it("appointmentFeeDisplay's bps matches feeMinorUnits' charged rate, per v2 tier", () => {
+    const baseMinor = 20000;
+    for (const tier of ["free", "plus", "legacy"] as const) {
+      const display = appointmentFeeDisplay(tier, FEE_SCHEDULE_V2.version);
+      const charged = feeMinorUnits({
+        baseMinor,
+        lane: "appointment_payment",
+        tier,
+        version: FEE_SCHEDULE_V2.version,
+      });
+      if (tier === "free") {
+        // v2 Free cannot transact the lane at all: the display must say so
+        // (null), never a fabricated 0%, even though feeMinorUnits reports
+        // the same absence as an arithmetic 0 (laneRateBps' documented
+        // "presence, not magnitude" split).
+        expect(display).toBeNull();
+        expect(charged).toBe(0);
+      } else {
+        expect(display).not.toBeNull();
+        const fromDisplay = Math.round((baseMinor * display!.bps) / 10000);
+        expect(fromDisplay).toBe(charged);
+      }
+    }
+    // The concrete labels, so a rounding-mode change in the trim helper is
+    // caught alongside the rate identity above.
+    expect(appointmentFeeDisplay("plus", FEE_SCHEDULE_V2.version)).toEqual({
+      bps: 50,
+      percentLabel: "0.5",
+    });
+    expect(appointmentFeeDisplay("legacy", FEE_SCHEDULE_V2.version)).toEqual({
+      bps: 300,
+      percentLabel: "3",
+    });
   });
 
   it("both refuse a non-positive or non-finite base rather than signing it", () => {

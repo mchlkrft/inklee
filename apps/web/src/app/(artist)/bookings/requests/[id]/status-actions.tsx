@@ -20,11 +20,6 @@ import {
   type DepositDefaults,
   type StripeMode,
 } from "@/lib/deposit-settings";
-import {
-  PLATFORM_FEE_PERCENT,
-  platformFeeEur,
-  artistNetEur,
-} from "@/lib/platform-fee";
 import { formatPrice } from "@/lib/goods";
 
 type Booking = {
@@ -52,6 +47,8 @@ export default function StatusActions({
   depositDefaults = DEPOSIT_DEFAULTS_FALLBACK,
   stripeMode = "missing",
   canCollectInApp = true,
+  feePercentLabel = null,
+  feeBps = null,
   hasDepositIntent = false,
   confirmStudio = null,
   pendingInterests = [],
@@ -66,6 +63,14 @@ export default function StatusActions({
   // deposit creates a MANUAL deposit — the client pays the artist directly
   // and the artist marks it received (no money flows through Inklee).
   canCollectInApp?: boolean;
+  // G1 (FEE-DSP-001): the tier-aware appointment-lane fee display for the fee
+  // breakdown below (getDepositCollection -> appointmentFeeDisplay), never the
+  // flat PLATFORM_FEE_PERCENT constant. null when the resolved tier cannot
+  // transact the lane at all (v2 Free) — the breakdown does not render rather
+  // than showing a fabricated 0%. Unreachable today (v1 prices every tier),
+  // so defaults keep any other caller compiling.
+  feePercentLabel?: string | null;
+  feeBps?: number | null;
   // RS-6/F7: true when THIS booking's deposit is a live in-app card intent
   // (set at request time). Distinct from canCollectInApp, which reflects the
   // artist's CURRENT Connect state. Drives the deposit_pending UI: an in-app
@@ -564,17 +569,27 @@ export default function StatusActions({
                       className="flex-1 bg-transparent text-foreground focus:outline-none"
                     />
                   </div>
-                  {showFeeBreakdown && (
-                    <p className="text-xs text-muted-foreground">
-                      Processing fee ({PLATFORM_FEE_PERCENT}%): −
-                      {formatPrice(
-                        platformFeeEur(parsedDepositAmount),
-                        currency,
-                      )}{" "}
-                      · You receive{" "}
-                      {formatPrice(artistNetEur(parsedDepositAmount), currency)}
-                    </p>
-                  )}
+                  {showFeeBreakdown &&
+                    feeBps !== null &&
+                    feePercentLabel !== null &&
+                    (() => {
+                      const depositCents = Math.round(
+                        parsedDepositAmount * 100,
+                      );
+                      const feeCents = Math.round(
+                        (depositCents * feeBps) / 10000,
+                      );
+                      return (
+                        <p className="text-xs text-muted-foreground">
+                          Processing fee ({feePercentLabel}%): −
+                          {formatPrice(feeCents / 100, currency)} · You receive{" "}
+                          {formatPrice(
+                            (depositCents - feeCents) / 100,
+                            currency,
+                          )}
+                        </p>
+                      );
+                    })()}
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">

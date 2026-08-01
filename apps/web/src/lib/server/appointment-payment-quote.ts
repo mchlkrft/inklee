@@ -20,6 +20,7 @@ import {
   appointmentApplicationFee,
   appointmentFeeTier,
 } from "./order-fee-sync";
+import type { PaymentTier } from "@inklee/shared/fee-schedule";
 
 // THE SERVER-AUTHORITATIVE QUOTE (Plus build P9, slice A3).
 //
@@ -160,6 +161,9 @@ export type PaymentQuote = {
    *  only: a waiver is released against what settlement booked, never this. */
   appointmentFeeBeforeSponsorshipMinor: number;
   feeScheduleVersion: string;
+  /** The tier this fee was priced at (G2, FEE-STP-001), so the intent's
+   *  metadata can stamp it alongside `feeScheduleVersion`. */
+  feeTier: PaymentTier;
   /** The lower of the ceilings that exist. */
   maxCollectibleMinor: number;
   requestBalance: OutstandingBalance;
@@ -474,11 +478,14 @@ export async function buildPaymentQuote(
 
   // --- The fee, through the ONE unified path. -------------------------------
   const bases = splitFeeBases(lines);
+  // Grandfather-aware (legacy_free_v1 -> legacy 3% under v2); v1-invisible.
+  // Captured once so the quote both prices at this tier AND stamps it (G2,
+  // FEE-STP-001) — never a second, potentially-disagreeing resolution.
+  const tier = appointmentFeeTier(overrides);
   const fee = appointmentApplicationFee({
     appointmentBaseMinor: bases.appointmentBaseMinor,
     goodsBaseMinor: bases.goodsBaseMinor,
-    // Grandfather-aware (legacy_free_v1 -> legacy 3% under v2); v1-invisible.
-    tier: appointmentFeeTier(overrides),
+    tier,
     // Fee sponsorship is a DEPOSIT-path onboarding subsidy on
     // `booking_requests`, and no payment request carries one. Passed explicitly
     // as false rather than omitted, so a future sponsorship on this lane is a
@@ -526,6 +533,7 @@ export async function buildPaymentQuote(
       appointmentFeeBeforeSponsorshipMinor:
         fee.appointmentFeeBeforeSponsorshipMinor,
       feeScheduleVersion: fee.scheduleVersion,
+      feeTier: tier,
       maxCollectibleMinor,
       requestBalance,
       subjectBalance,

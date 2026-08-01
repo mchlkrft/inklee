@@ -18,13 +18,23 @@
 // fee was set to `3% − Stripe fee` because the artist's account bore Stripe's
 // cut; under Custom that cut is on Inklee's balance, so the full 3% is set.)
 //
-// Rate = 3% (D-b), flat across ALL artists and tiers — RATIFIED by the founder
-// 2026-07-25 (pricing-model.md OQ-7: no Plus discount; the subscription covers
-// the Connect account cost, this fee IS the margin). Revisit only with G-5 +
-// D21 margin data; every computation routes through here so a future change
-// stays one function.
-// The fee only applies to deposits collected THROUGH Inklee (active Connect);
-// manual deposits paid directly to the artist carry no fee.
+// Rate = 3% (D-b), flat across ALL artists and tiers under fee schedule v1 —
+// RATIFIED by the founder 2026-07-25 (pricing-model.md OQ-7: no Plus discount;
+// the subscription covers the Connect account cost, this fee IS the margin).
+//
+// CORRECTED 2026-08-01 (FEE-DSP-001/G1): this comment used to say the flat
+// rate was permanent. It is not. `packages/shared/src/fee-schedule.ts` defines
+// an APPROVED v2 schedule (plus=50bps, legacy=300bps, free=null — cannot
+// transact) that P7 activates with accountant sign-off; this file is the v1
+// DISPLAY legacy, not a promise about every future tier. Since A3
+// (order-fee-sync.ts:56-59) nothing here is charged: every `application_fee_
+// amount` comes from `appointmentApplicationFee`, which reads the tier and the
+// active schedule. `PLATFORM_FEE_BPS`/`platformFeeCents` stay live ONLY as the
+// artist-facing display number on surfaces that quote the deduction before v2
+// activates; `appointmentFeeDisplay` (fee-schedule.ts) is the tier-aware
+// successor those surfaces should read once a schedule other than v1 is
+// active. The fee only applies to deposits collected THROUGH Inklee (active
+// Connect); manual deposits paid directly to the artist carry no fee.
 
 /**
  * Platform fee in basis points (100 bps = 1%). 3% = 300 bps. This is BOTH the

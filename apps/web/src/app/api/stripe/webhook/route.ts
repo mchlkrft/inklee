@@ -676,7 +676,18 @@ export async function POST(request: Request) {
           // both lanes; the goods half is separately recorded on the order row
           // by the prepare step, so the appointment half stays derivable.
           platform_fee_collected_cents: intent.application_fee_amount ?? 0,
-          fee_schedule_version: ACTIVE_FEE_SCHEDULE_VERSION,
+          // G2 (FEE-STP-001): read the version + tier the intent was actually
+          // QUOTED at (bookings.ts stamps both in its metadata at request
+          // time), falling back to the active schedule / null only for an
+          // older intent created before this stamp existed. Reading the
+          // ACTIVE schedule here unconditionally (the previous behaviour) is
+          // the defect this closes: a schedule flip between request and
+          // settlement would silently misattribute the version on every
+          // intent in flight at the moment of the flip.
+          fee_schedule_version:
+            intent.metadata?.fee_schedule_version ??
+            ACTIVE_FEE_SCHEDULE_VERSION,
+          fee_tier: intent.metadata?.fee_tier ?? null,
         })
         .eq("id", bookingId)
         .eq("status", "deposit_pending")

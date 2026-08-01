@@ -35,6 +35,8 @@ describe("getDepositCollection (BM-2.0 slice 1b predictor)", () => {
     expect(await getDepositCollection("a", { routing: routes })).toEqual({
       canCollectByCard: true,
       reason: "ok",
+      feeTier: "plus",
+      feeDisplay: { bps: 300, percentLabel: "3" },
     });
   });
 
@@ -53,6 +55,12 @@ describe("getDepositCollection (BM-2.0 slice 1b predictor)", () => {
     expect(await getDepositCollection("a", { routing: routes })).toEqual({
       canCollectByCard: false,
       reason: "not_entitled",
+      // G1: still resolved on the not_entitled branch (the payouts settings
+      // page describes what THIS artist would pay if they connected, not
+      // only artists who already can). Plain Free (no grandfather) under the
+      // ACTIVE v1 schedule still prices at the flat 3%.
+      feeTier: "free",
+      feeDisplay: { bps: 300, percentLabel: "3" },
     });
   });
 
@@ -60,6 +68,8 @@ describe("getDepositCollection (BM-2.0 slice 1b predictor)", () => {
     expect(await getDepositCollection("a", { routing: noRoutes })).toEqual({
       canCollectByCard: false,
       reason: "not_connected",
+      feeTier: "plus",
+      feeDisplay: { bps: 300, percentLabel: "3" },
     });
   });
 
@@ -68,8 +78,25 @@ describe("getDepositCollection (BM-2.0 slice 1b predictor)", () => {
     expect(await getDepositCollection("a")).toEqual({
       canCollectByCard: true,
       reason: "ok",
+      feeTier: "plus",
+      feeDisplay: { bps: 300, percentLabel: "3" },
     });
     expect(getConnectRoutingForArtist).toHaveBeenCalledWith("a");
+  });
+
+  // G1: a grandfathered Free artist (holds card_deposit_collection) resolves
+  // to `legacy`, not `free` — the distinction the payouts page's fee
+  // sentence depends on once v2 activates (legacy keeps the historical 3%;
+  // plain free would show null / "not part of your plan").
+  it("a grandfathered Free artist resolves feeTier to legacy, not free", async () => {
+    vi.mocked(getAccountOverrides).mockResolvedValue({
+      ...free,
+      entitlementOverrides: { card_deposit_collection: true },
+    });
+    const result = await getDepositCollection("a", { routing: routes });
+    expect(result.canCollectByCard).toBe(true);
+    expect(result.feeTier).toBe("legacy");
+    expect(result.feeDisplay).toEqual({ bps: 300, percentLabel: "3" });
   });
 
   it("propagates a fail-loud entitlement read error (never resolves to free)", async () => {

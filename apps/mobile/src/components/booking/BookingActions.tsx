@@ -25,11 +25,7 @@ import {
   DEPOSIT_DEFAULTS_FALLBACK,
   type DepositDefaults,
 } from "@inklee/shared/deposit-settings";
-import {
-  PLATFORM_FEE_PERCENT,
-  artistNetEur,
-  platformFeeEur,
-} from "@inklee/shared/platform-fee";
+import { PLATFORM_FEE_PERCENT } from "@inklee/shared/platform-fee";
 import {
   addDaysToDateKey,
   isDateKey,
@@ -393,6 +389,20 @@ function DepositRequestForm({
     : !payouts.data?.routeCharges;
   const currency =
     booking.deposit?.currency ?? artistDepositCurrency(payouts.data?.country);
+  // G1 (FEE-DSP-001): the tier-aware fee, mirroring web's status-actions.tsx.
+  // Falls back to the flat PLATFORM_FEE_PERCENT/platformFeeEur constants only
+  // when an OLDER SERVER omits the fields (version skew, same pattern as
+  // canCollectByCard above) — never as a general default, since a server that
+  // DOES send the fields may legitimately send null (v2 Free: the lane cannot
+  // be transacted at all, and the constants would print a fabricated 3%).
+  const feeBps =
+    payouts.data?.appointmentFeeBps !== undefined
+      ? payouts.data.appointmentFeeBps
+      : PLATFORM_FEE_PERCENT * 100;
+  const feePercentLabel =
+    payouts.data?.appointmentFeePercentLabel !== undefined
+      ? payouts.data.appointmentFeePercentLabel
+      : String(PLATFORM_FEE_PERCENT);
 
   // Unsaved inputs ride the draft store keyed per booking (ME-15): a window
   // resize/rotation can remount this form mid-edit (detail pane <-> pushed
@@ -461,7 +471,9 @@ function DepositRequestForm({
     payoutsReady &&
     canCollectInApp &&
     Number.isFinite(parsedAmount) &&
-    parsedAmount > 0;
+    parsedAmount > 0 &&
+    feeBps !== null &&
+    feePercentLabel !== null;
 
   async function submit() {
     const value = parseFloat(amount.replace(",", "."));
@@ -537,12 +549,18 @@ function DepositRequestForm({
             className="flex-1 text-foreground"
           />
         </View>
-        {showFee ? (
-          <Text className="text-xs text-shell-dim">
-            Inklee fee ({PLATFORM_FEE_PERCENT}%): −
-            {formatMoney(platformFeeEur(parsedAmount), currency)} · You receive{" "}
-            {formatMoney(artistNetEur(parsedAmount), currency)}
-          </Text>
+        {showFee && feeBps !== null && feePercentLabel !== null ? (
+          (() => {
+            const depositCents = Math.round(parsedAmount * 100);
+            const feeCents = Math.round((depositCents * feeBps) / 10000);
+            return (
+              <Text className="text-xs text-shell-dim">
+                Inklee fee ({feePercentLabel}%): −
+                {formatMoney(feeCents / 100, currency)} · You receive{" "}
+                {formatMoney((depositCents - feeCents) / 100, currency)}
+              </Text>
+            );
+          })()
         ) : null}
       </View>
 

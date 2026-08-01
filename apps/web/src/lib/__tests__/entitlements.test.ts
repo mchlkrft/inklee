@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  appointmentTierFromOverrides,
   canAccess,
   canSponsorFeeCents,
   daysUntilPlanExpiry,
@@ -16,6 +17,7 @@ import {
   DEFAULT_OVERRIDES,
   type AccountOverrides,
 } from "../entitlements";
+import { resolveAppointmentTier } from "@inklee/shared/fee-schedule";
 
 const base = (o: Partial<AccountOverrides> = {}): AccountOverrides => ({
   ...DEFAULT_OVERRIDES,
@@ -369,5 +371,59 @@ describe("daysUntilPlanExpiry", () => {
     expect(
       daysUntilPlanExpiry(base({ planTier: "plus", planExpiresAt: in10Days })),
     ).toBe(10);
+  });
+});
+
+describe("appointmentTierFromOverrides (G1, FEE-DSP-001)", () => {
+  it("Plus is always plus, regardless of grandfathering", () => {
+    expect(appointmentTierFromOverrides(base({ planTier: "plus" }))).toBe(
+      "plus",
+    );
+  });
+
+  it("a plain Free artist (no card_deposit_collection override) is free", () => {
+    expect(appointmentTierFromOverrides(base({ planTier: "free" }))).toBe(
+      "free",
+    );
+  });
+
+  it("a grandfathered Free artist (holds card_deposit_collection) is legacy", () => {
+    expect(
+      appointmentTierFromOverrides(
+        base({
+          planTier: "free",
+          entitlementOverrides: { card_deposit_collection: true },
+        }),
+      ),
+    ).toBe("legacy");
+  });
+
+  it("an EXPIRED Plus comp resolves through effectivePlanTier, not the raw planTier", () => {
+    // Same composition an expired-comp bug would slip past if this read
+    // `o.planTier` directly instead of `effectivePlanTier(o)`.
+    expect(
+      appointmentTierFromOverrides(
+        base({ planTier: "plus", planExpiresAt: past }),
+      ),
+    ).toBe("free");
+  });
+
+  it("is the same composition order-fee-sync's appointmentFeeTier delegates to", () => {
+    // Exercised end-to-end via order-fee-sync.test.ts / appointment-fee-
+    // unification.test.ts; this pins the shared primitive directly so a
+    // regression here is attributed to the right module.
+    const overrides = base({
+      planTier: "free",
+      entitlementOverrides: { card_deposit_collection: true },
+    });
+    expect(appointmentTierFromOverrides(overrides)).toBe(
+      resolveAppointmentTier({
+        planTier: effectivePlanTier(overrides),
+        grandfatheredAppointmentAccess: canAccess(
+          overrides,
+          "card_deposit_collection",
+        ),
+      }),
+    );
   });
 });

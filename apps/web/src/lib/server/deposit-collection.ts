@@ -15,13 +15,29 @@ import {
   type ConnectRouting,
 } from "@/lib/stripe-connect";
 import { getAccountOverrides } from "@/lib/entitlements-server";
-import { canAccess } from "@/lib/entitlements";
+import { appointmentTierFromOverrides, canAccess } from "@/lib/entitlements";
 import { isCapabilityDisabled } from "@/lib/server/app-config";
+import {
+  appointmentFeeDisplay,
+  type PaymentTier,
+} from "@inklee/shared/fee-schedule";
 import type { DepositCollectionReason } from "@inklee/shared/mobile-api";
 
 export type DepositCollection = {
   canCollectByCard: boolean;
   reason: DepositCollectionReason;
+  /** The artist's resolved appointment-lane fee tier (G1, FEE-DSP-001/
+   *  FEE-STP-001). Absent only on the `capability_paused` refusal, which
+   *  returns before the overrides read that resolves it — every other
+   *  branch already reads overrides, so this costs no extra query. */
+  feeTier?: PaymentTier;
+  /** The lane's bps + trimmed percent label for `feeTier`, or `null` when
+   *  that tier cannot transact the appointment lane at all under the active
+   *  schedule (v2 Free) — NEVER a fabricated 0%. Same availability as
+   *  `feeTier`. Powers the fee line on the request-detail accept dialog and
+   *  the payouts settings page, so both read ONE resolution instead of
+   *  re-deriving it. */
+  feeDisplay?: { bps: number; percentLabel: string } | null;
 };
 
 /**
@@ -48,12 +64,29 @@ export async function getDepositCollection(
     return { canCollectByCard: false, reason: "capability_paused" };
   }
   const overrides = await getAccountOverrides(artistId);
+  // G1: resolved from the SAME read the entitlement check below already
+  // requires, so this is not an extra query. Computed regardless of the
+  // entitlement/routing outcome (not only on the `ok` branch): the payouts
+  // settings page describes the fee an artist WOULD pay if they connected,
+  // which is exactly the `not_entitled` / `not_connected` cases too.
+  const feeTier = appointmentTierFromOverrides(overrides);
+  const feeDisplay = appointmentFeeDisplay(feeTier);
   if (!canAccess(overrides, "card_deposit_collection")) {
-    return { canCollectByCard: false, reason: "not_entitled" };
+    return {
+      canCollectByCard: false,
+      reason: "not_entitled",
+      feeTier,
+      feeDisplay,
+    };
   }
   const routing = opts?.routing ?? (await getConnectRoutingForArtist(artistId));
   if (!routing.routeCharges) {
-    return { canCollectByCard: false, reason: "not_connected" };
+    return {
+      canCollectByCard: false,
+      reason: "not_connected",
+      feeTier,
+      feeDisplay,
+    };
   }
-  return { canCollectByCard: true, reason: "ok" };
+  return { canCollectByCard: true, reason: "ok", feeTier, feeDisplay };
 }

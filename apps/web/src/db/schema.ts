@@ -158,6 +158,11 @@ export const bookingRequests = pgTable("booking_requests", {
   // Editable source is profiles.settings.deposit_policy.
   depositPolicy: jsonb("deposit_policy"),
   depositPolicySnapshot: text("deposit_policy_snapshot"),
+  // Migration 0136 (G2, FEE-STP-001): the appointment-lane fee tier this
+  // deposit was actually priced at, alongside `fee_schedule_version` (0116,
+  // also unmirrored here — pre-existing drizzle drift, not introduced by this
+  // change; targeted-drift pattern, see the orders table below).
+  feeTier: text("fee_tier"),
   // Flash — set when a booking originates from a flash item
   flashItemId: uuid("flash_item_id").references(() => flashItems.id, {
     onDelete: "set null",
@@ -627,6 +632,9 @@ export const orders = pgTable("orders", {
   // Fee actuals (0116) + discounts (0118); these existed in the database but
   // were missing here (recon-flagged drizzle drift, closed 2026-08-01).
   feeScheduleVersion: text("fee_schedule_version"),
+  // Migration 0136 (G2, FEE-STP-001): the appointment/goods fee tier this
+  // order was actually priced at.
+  feeTier: text("fee_tier"),
   goodsFeeAmount: numeric("goods_fee_amount", { precision: 10, scale: 2 }),
   discountCodeId: uuid("discount_code_id"),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }),
@@ -708,6 +716,14 @@ export const orderItemBundleComponents = pgTable(
       .defaultNow(),
   },
 );
+
+// NOTE: `payment_collections` (migration 0125, widened by 0131 and 0136 with
+// processor-cost/fee-tier/fee-schedule-version columns) has NO drizzle mirror
+// anywhere in this file. That gap predates this change (0131's own columns
+// were never mirrored either) — flagged here rather than silently carried
+// forward, targeted-drift pattern per the comments above. This file is read by
+// exactly one dev-only route (app/dev/ping); no production code path depends
+// on it staying in sync with the real schema.
 
 // Booking interests (commerce-layer extension, 2026-06-01) — what the client
 // marked they'd like to buy when submitting the booking request. The artist

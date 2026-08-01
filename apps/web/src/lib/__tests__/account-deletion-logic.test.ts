@@ -130,6 +130,34 @@ describe("buildFinancialSnapshot", () => {
     expect(snap.deposits[1].resolved).toBe(false);
   });
 
+  // G2 (FEE-STP-001): the retained snapshot must use what Stripe ACTUALLY
+  // took, not a recomputation, because the two disagree whenever the deposit
+  // was sponsored (waived to 0) or settled at a tier other than v1's flat 3%.
+  it("prefers the ACTUAL settled fee over the 3% computation when stamped", () => {
+    const snap = buildFinancialSnapshot(
+      [
+        row({
+          id: "b1",
+          deposit_amount: "200.00",
+          // Sponsored: Stripe actually took 0, not the computed 3% (6.00).
+          platform_fee_collected_cents: 0,
+        }),
+      ],
+      new Set(),
+      [],
+    );
+    expect(snap.deposits[0].platformFeeAmount).toBe(0);
+  });
+
+  it("falls back to the 3% computation when no fee was stamped (pre-0116 row)", () => {
+    const snap = buildFinancialSnapshot(
+      [row({ id: "b1", deposit_amount: "200.00" })],
+      new Set(),
+      [],
+    );
+    expect(snap.deposits[0].platformFeeAmount).toBe(6);
+  });
+
   it("coerces a numeric-string amount and tolerates a null amount", () => {
     const snap = buildFinancialSnapshot(
       [

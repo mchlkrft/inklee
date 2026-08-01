@@ -1,13 +1,9 @@
 import "server-only";
 import type Stripe from "stripe";
 import { computeOrderFees } from "@inklee/shared/order-fees";
+import { type PaymentTier } from "@inklee/shared/fee-schedule";
 import {
-  resolveAppointmentTier,
-  type PaymentTier,
-} from "@inklee/shared/fee-schedule";
-import {
-  canAccess,
-  effectivePlanTier,
+  appointmentTierFromOverrides,
   type AccountOverrides,
 } from "@/lib/entitlements";
 import { getAccountOverrides } from "@/lib/entitlements-server";
@@ -63,23 +59,15 @@ import { getAccountOverrides } from "@/lib/entitlements-server";
  * tier. Every appointment `application_fee_amount` uses this so the grandfather
  * rule is one decision, not three.
  *
- * Plus is `plus`. A Free artist who holds `card_deposit_collection` is the
- * grandfathered `legacy_free_v1` cohort: they kept card collection when it
- * became Plus-only, so they resolve to `legacy` (the historical 3% on the
- * appointment lane under v2, rather than being refused for having no Free rate).
- * A Free artist without that entitlement is `free`, which under v2 cannot
- * transact the lane at all, which is correct: they were never sold card
- * collection. Invisible under the active schedule (v1 prices every tier at
- * 300 bps); it only changes an answer once v2 is active.
+ * A THIN DELEGATE (G1, FEE-DSP-001): the composition itself moved to
+ * `@inklee/shared/entitlements` (`appointmentTierFromOverrides`) because it is
+ * PURE and this module is `server-only` — a client component pricing a
+ * display (the accept dialog, the payouts page) needs the same resolution
+ * without importing a server module. Kept here, unchanged in shape, because
+ * every server call site already imports it from `order-fee-sync`.
  */
 export function appointmentFeeTier(overrides: AccountOverrides): PaymentTier {
-  return resolveAppointmentTier({
-    planTier: effectivePlanTier(overrides),
-    grandfatheredAppointmentAccess: canAccess(
-      overrides,
-      "card_deposit_collection",
-    ),
-  });
+  return appointmentTierFromOverrides(overrides);
 }
 
 /** A re-prepare that produced a fee. The only shape carrying a number. */
@@ -90,6 +78,11 @@ export type FeeSyncOk = {
   appointmentFeeMinor: number;
   goodsFeeMinor: number;
   scheduleVersion: string;
+  /** The tier this fee was priced at (G2, FEE-STP-001), so a caller writing
+   *  an order row can stamp `fee_tier` alongside `fee_schedule_version`
+   *  without re-resolving it from the artist's (possibly since-changed)
+   *  overrides. */
+  tier: PaymentTier;
 };
 
 /**
@@ -302,5 +295,6 @@ export async function resolveOrderFee(args: {
     appointmentFeeMinor: fees.appointmentFeeMinor,
     goodsFeeMinor: fees.goodsFeeMinor,
     scheduleVersion: fees.scheduleVersion,
+    tier,
   };
 }

@@ -26,6 +26,7 @@ import {
   computeOrderFees,
   goodsBaseMinorFromLines,
 } from "@inklee/shared/order-fees";
+import type { PaymentTier } from "@inklee/shared/fee-schedule";
 import {
   bundlePurchasable,
   bundlePriceMinor,
@@ -389,8 +390,12 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   // and shipping — neither exists yet). Tier resolution is fail-loud: a plan
   // read failure refuses rather than guessing (money rule).
   let fee;
+  // Hoisted out of the try block (G2, FEE-STP-001): the order insert below
+  // stamps `fee_tier` from the SAME resolution `fee` was priced at, not a
+  // second read of the artist's (possibly since-changed) overrides.
+  let tier: PaymentTier;
   try {
-    const tier = appointmentFeeTier(await getAccountOverrides(input.artistId));
+    tier = appointmentFeeTier(await getAccountOverrides(input.artistId));
     const goodsBaseMinor = goodsBaseMinorFromLines(
       [
         ...computed.lines.map((l) => ({
@@ -437,6 +442,8 @@ export async function createStandaloneGoodsCheckoutCore(input: {
       subtotal_amount: totalMinor / 100,
       platform_fee_amount: fee.totalMinor / 100,
       fee_schedule_version: fee.scheduleVersion,
+      // G2 (FEE-STP-001): the tier this order's fee was actually priced at.
+      fee_tier: tier,
       goods_fee_amount: fee.goodsFeeMinor / 100,
       discount_code_id: discount.codeId,
       discount_amount: discount.discountMinor / 100,

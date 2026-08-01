@@ -1635,6 +1635,9 @@ describe("8. spec section 12: duplicate charge, already-paid balance, obsolete r
       appointment_base_minor: "20000",
       goods_base_minor: "0",
       fee_schedule_version: "fees-v1-2026-07-04",
+      // G2 (FEE-STP-001): the tier this quote priced at. PLUS's overrides
+      // (this test's default) resolves to "plus" regardless of grandfathering.
+      fee_tier: "plus",
     });
     // Destination charge, artist as merchant of record, same shape as the
     // deposit path. `on_behalf_of` and `transfer_data` must both name the

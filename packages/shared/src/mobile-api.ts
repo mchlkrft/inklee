@@ -131,6 +131,16 @@ export type MobilePayouts = {
   /** Why card collection is unavailable, for the form's copy (`ok`/absent when
    *  canCollectByCard is true). Optional for version skew. */
   depositCollectionReason?: DepositCollectionReason;
+  /** G1 (FEE-DSP-001): the tier-aware appointment-lane fee, mirroring web's
+   *  `getDepositCollection().feeDisplay`. `appointmentFeeBps` is the raw basis
+   *  points, `appointmentFeePercentLabel` the trimmed display string ("3",
+   *  "0.5"). Both null when the resolved tier cannot transact the lane at all
+   *  (v2 Free) — the app must show a different sentence, never a fabricated
+   *  0%. Optional/absent for an OLDER SERVER that predates this field; the
+   *  client falls back to the shared PLATFORM_FEE_PERCENT constant, same
+   *  version-skew pattern as `canCollectByCard`/`depositCollectionReason`. */
+  appointmentFeeBps?: number | null;
+  appointmentFeePercentLabel?: string | null;
   /** Classification of the deployment's Stripe publishable key (the key itself
    *  never ships to the device); "test" drives the test-mode deposits banner. */
   stripeMode: StripeMode;

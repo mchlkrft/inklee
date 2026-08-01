@@ -24,10 +24,23 @@ vi.mock("@/lib/entitlements", () => ({
   // The grandfather signal for the legacy appointment tier. Default false, so a
   // plain Free artist stays `free`; a test sets it true to exercise legacy_free_v1.
   canAccess: (...a: unknown[]) => canAccess(...a),
+  // order-fee-sync's `appointmentFeeTier` now delegates to this (G1). Wired
+  // through the SAME two mocked primitives + the REAL composition, so every
+  // existing test below still drives the outcome via effectivePlanTier/
+  // canAccess exactly as before the delegation existed.
+  appointmentTierFromOverrides: (o: unknown) =>
+    resolveAppointmentTier({
+      planTier: effectivePlanTier(o),
+      grandfatheredAppointmentAccess: canAccess(o, "card_deposit_collection"),
+    }),
 }));
 
 import { resolveOrderFee } from "@/lib/server/order-fee-sync";
-import { FEE_SCHEDULE_V1, FEE_SCHEDULE_V2 } from "@inklee/shared/fee-schedule";
+import {
+  FEE_SCHEDULE_V1,
+  FEE_SCHEDULE_V2,
+  resolveAppointmentTier,
+} from "@inklee/shared/fee-schedule";
 
 const intent = (metadata: Record<string, string> = {}) =>
   ({ metadata, application_fee_amount: 600 }) as never;

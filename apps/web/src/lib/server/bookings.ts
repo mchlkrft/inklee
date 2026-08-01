@@ -35,6 +35,7 @@ import {
   appointmentApplicationFee,
   appointmentFeeTier,
 } from "@/lib/server/order-fee-sync";
+import { ACTIVE_FEE_SCHEDULE_VERSION } from "@inklee/shared/fee-schedule";
 import { resolveDepositRefundAmountMinor } from "@/lib/server/goods-refund";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { isCapabilityDisabled } from "@/lib/server/app-config";
@@ -871,13 +872,17 @@ export async function requestDepositCore(
   // arithmetic `platformFeeCents` performs, with the same rounding mode.
   // `__tests__/appointment-fee-unification.test.ts` pins it at 21 amounts and
   // sweeps every minor unit from 1 to 3000 on both tiers.
+  // Grandfather-aware: a legacy_free_v1 artist (Free + card_deposit_collection)
+  // prices at the legacy 3% under v2 rather than being refused. No live number
+  // moves under v1, where every tier is 300 bps. Captured once so the same
+  // resolved tier both prices the intent AND stamps its metadata (G2,
+  // FEE-STP-001) — a second call could theoretically disagree with itself if
+  // the composition ever became time-dependent.
+  const tier = appointmentFeeTier(overrides);
   const feeQuote = appointmentApplicationFee({
     appointmentBaseMinor: amountCents,
     goodsBaseMinor: 0,
-    // Grandfather-aware: a legacy_free_v1 artist (Free + card_deposit_collection)
-    // prices at the legacy 3% under v2 rather than being refused. No live number
-    // moves under v1, where every tier is 300 bps.
-    tier: appointmentFeeTier(overrides),
+    tier,
   });
 
   // A TIER WITH NO RATE MUST REFUSE, NOT CHARGE ZERO. Under v2 the Free
@@ -923,13 +928,21 @@ export async function requestDepositCore(
   const feeSponsored =
     depositsEntitled && canSponsorFeeCents(overrides, standardFeeCents);
   const appFeeCents = feeSponsored ? 0 : standardFeeCents;
-  const depositMetadata: Record<string, string> = feeSponsored
-    ? {
-        booking_id: id,
-        artist_id: userId,
-        sponsored_fee_cents: String(standardFeeCents),
-      }
-    : { booking_id: id, artist_id: userId };
+  // G2 (FEE-STP-001): stamp the resolved tier + schedule version onto the
+  // intent's OWN metadata, the same place `sponsored_fee_cents` already lives
+  // as evidence of a request-time decision. `fee_schedule_version` falls back
+  // to the active schedule when the quote refused (feeQuote.ok===false — only
+  // reachable for a non-entitled artist, whose deposit takes the manual path
+  // and never reaches Stripe, so this value is never actually charged against).
+  const depositMetadata: Record<string, string> = {
+    booking_id: id,
+    artist_id: userId,
+    fee_schedule_version: feeQuote.ok
+      ? feeQuote.scheduleVersion
+      : ACTIVE_FEE_SCHEDULE_VERSION,
+    fee_tier: tier,
+    ...(feeSponsored ? { sponsored_fee_cents: String(standardFeeCents) } : {}),
+  };
 
   const decidedAt = new Date().toISOString();
   const { data: fresh } = await supabase

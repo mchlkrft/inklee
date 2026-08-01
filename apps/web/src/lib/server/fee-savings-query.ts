@@ -1,8 +1,30 @@
 import { serviceClient } from "@/lib/supabase/service";
 import { getAccountOverrides } from "@/lib/entitlements-server";
+import {
+  appointmentTierFromOverrides,
+  isGrandfathered,
+} from "@/lib/entitlements";
 import { canSeeAdvancedAnalytics } from "@/lib/server/entitlement-gates";
-import { feeMinorUnits, type FeeLane } from "@inklee/shared/fee-schedule";
+import {
+  feeMinorUnits,
+  type FeeLane,
+  type PaymentTier,
+} from "@inklee/shared/fee-schedule";
 import type { FeeSavingsResult } from "@inklee/shared/fee-savings";
+
+// The tier this artist would resolve to on the OTHER side of a plan change
+// (G1, FEE-DSP-001): a Plus artist without a grandfather falls to `free`; one
+// who holds the `legacy_free_v1` grant falls to `legacy`, never `free`. Never
+// collapse a grandfathered downgrade to `free`: under v2 the Free appointment
+// rate is null (cannot transact the lane at all), so `feeMinorUnits` reports 0
+// for it, and a legacy artist's real downgrade fallback (the historical 3%)
+// would silently price as nothing owed.
+export function fallbackTier(
+  tier: PaymentTier,
+  grandfathered: boolean,
+): PaymentTier {
+  return tier === "plus" ? (grandfathered ? "legacy" : "free") : "plus";
+}
 
 export async function getArtistFeeSavings(
   artistId: string,
@@ -11,8 +33,14 @@ export async function getArtistFeeSavings(
   const overrides = await getAccountOverrides(artistId);
   if (!canSeeAdvancedAnalytics(overrides)) return null;
 
-  const tier = overrides.planTier;
-  const otherTier = tier === "plus" ? "free" : "plus";
+  // G1: the artist's CURRENT resolved appointment tier, not the raw stored
+  // `planTier`. A raw read ignores comp expiry (an expired Plus comp reads
+  // `planTier: "plus"` long after `effectivePlanTier` has fallen back to
+  // free) and, combined with the old binary free/plus flip below, collapsed a
+  // grandfathered artist's downgrade counterfactual to the v2 Free rate
+  // (null -> 0) instead of the historical 3% they would actually still owe.
+  const tier = appointmentTierFromOverrides(overrides);
+  const grandfathered = isGrandfathered(overrides);
 
   const now = new Date();
   const to = now.toISOString().slice(0, 10);
@@ -25,7 +53,7 @@ export async function getArtistFeeSavings(
   let depositQuery = serviceClient
     .from("booking_requests")
     .select(
-      "deposit_amount, platform_fee_collected_cents, fee_schedule_version",
+      "deposit_amount, platform_fee_collected_cents, fee_schedule_version, fee_tier",
     )
     .eq("artist_id", artistId)
     .not("platform_fee_collected_cents", "is", null);
@@ -38,7 +66,7 @@ export async function getArtistFeeSavings(
 
   let goodsQuery = serviceClient
     .from("orders")
-    .select("subtotal, platform_fee_amount, fee_schedule_version")
+    .select("subtotal, platform_fee_amount, fee_schedule_version, fee_tier")
     .eq("artist_id", artistId)
     .eq("status", "paid")
     .not("platform_fee_amount", "is", null);
@@ -58,11 +86,16 @@ export async function getArtistFeeSavings(
     depositFeesPaid += fee;
     depositTxCount++;
 
+    // G2: prefer the tier actually STAMPED on the row at settlement over the
+    // artist's current reconstruction (`tier`), so a row settled under a
+    // different plan than the artist holds today still gets the right
+    // counterfactual. Falls back to `tier` for pre-G2 rows (fee_tier null).
+    const rowTier = (d.fee_tier as PaymentTier | null) ?? tier;
     const base = ((d.deposit_amount as number) ?? 0) * 100;
     depositHypothetical += feeMinorUnits({
       baseMinor: base,
       lane: "appointment_payment" as FeeLane,
-      tier: otherTier,
+      tier: fallbackTier(rowTier, grandfathered),
       version: (d.fee_schedule_version as string) ?? undefined,
     });
   }
@@ -76,11 +109,12 @@ export async function getArtistFeeSavings(
     goodsFeesPaid += fee;
     goodsTxCount++;
 
+    const rowTier = (g.fee_tier as PaymentTier | null) ?? tier;
     const base = Math.round(((g.subtotal as number) ?? 0) * 100);
     goodsHypothetical += feeMinorUnits({
       baseMinor: base,
       lane: "goods" as FeeLane,
-      tier: otherTier,
+      tier: fallbackTier(rowTier, grandfathered),
       version: (g.fee_schedule_version as string) ?? undefined,
     });
   }

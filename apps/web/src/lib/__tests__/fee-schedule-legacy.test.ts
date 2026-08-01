@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   FEE_SCHEDULE_V1,
   FEE_SCHEDULE_V2,
+  appointmentFeeDisplay,
   canTransactLane,
   feeMinorUnits,
   laneRateBps,
@@ -136,5 +137,45 @@ describe("computeOrderFees carries the legacy tier through both lanes", () => {
       expect(Number.isFinite(r.appointmentFeeMinor)).toBe(true);
       expect(r.appointmentLaneAvailable).toBe(tier !== "free");
     }
+  });
+});
+
+// G1 (FEE-DSP-001): the tier-aware display helper the artist-facing surfaces
+// read once a schedule other than v1 is active. Pure, so tested here directly
+// rather than only through a call site.
+describe("appointmentFeeDisplay", () => {
+  it("under v1, every tier shows the flat 3% (matches PLATFORM_FEE_PERCENT)", () => {
+    for (const tier of ["free", "plus", "legacy"] as const) {
+      expect(appointmentFeeDisplay(tier, V1)).toEqual({
+        bps: 300,
+        percentLabel: "3",
+      });
+    }
+  });
+
+  it("under v2, Plus shows 0.5% and legacy shows the historical 3%", () => {
+    expect(appointmentFeeDisplay("plus", V2)).toEqual({
+      bps: 50,
+      percentLabel: "0.5",
+    });
+    expect(appointmentFeeDisplay("legacy", V2)).toEqual({
+      bps: 300,
+      percentLabel: "3",
+    });
+  });
+
+  // THE CASE THIS FUNCTION EXISTS FOR: v2 Free has no appointment rate at all.
+  // Returning null (never a fabricated "0%") is the whole point — a caller
+  // that read a 0% here would show a real percentage for a lane the artist
+  // cannot use.
+  it("under v2, Free returns null rather than a 0% label", () => {
+    expect(appointmentFeeDisplay("free", V2)).toBeNull();
+  });
+
+  it("defaults to the ACTIVE schedule when no version is passed", () => {
+    expect(appointmentFeeDisplay("free")).toEqual({
+      bps: 300,
+      percentLabel: "3",
+    });
   });
 });

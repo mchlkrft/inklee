@@ -551,6 +551,8 @@ export async function prepareCheckoutAction(
       subtotal_amount: subtotal,
       platform_fee_amount: fee.applicationFeeMinor / 100,
       fee_schedule_version: fee.scheduleVersion,
+      // G2 (FEE-STP-001): the tier `fee` was actually priced at.
+      fee_tier: fee.tier,
       goods_fee_amount: fee.goodsFeeMinor / 100,
       discount_code_id: discount.codeId,
       discount_amount: discount.discountMinor / 100,

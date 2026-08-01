@@ -57,6 +57,7 @@ no decision against it), ~ = partial.
 | Ordinary cancellation, § 312k | ✅ settings/account (next to delete) | ✅ settings/plan Subscription card + POST /billing/cancel (next build) | ✅ |
 | Account deletion (+ re-auth) | ✅ | ✅ shared deleteOwnAccountCore | ✅ |
 | Deposit card-vs-manual predictor | getDepositCollection | SAME server predictor via /settings/payouts (D19 fixed in 8c07894) | ✅ |
+| Tier-aware appointment-fee display (G1, FEE-DSP-001) | request-detail accept dialog + /settings/payouts read `getDepositCollection().feeDisplay` (appointmentFeeDisplay, tier-resolved bps/percentLabel); flat PLATFORM_FEE_PERCENT constant retired from both | `appointmentFeeBps`/`appointmentFeePercentLabel` ADDITIVE on GET/POST `/api/mobile/settings/payouts` (MobilePayouts); BookingActions.tsx reads them with a fallback to the shared PLATFORM_FEE_PERCENT constant for an older server that predates the fields (version-skew pattern) | ✅ |
 | Entitlement caps on create paths (fields/trips/studios/legs) | ✅ | ✅ capState on all 4 mobile routes | ✅ |
 | Payouts / Connect onboarding + ID document | ✅ | ✅ (connect-link via in-app browser) | ✅ |
 | Data export | ✅ /settings/export | — | ⬜ (low priority; web download) |

@@ -11,6 +11,8 @@
 // rather than a silent downgrade. Storage for per-account limit overrides and
 // studio-scoped holders is a later phase; the engine is ready for them.
 
+import { resolveAppointmentTier, type PaymentTier } from "./fee-schedule";
+
 export type PlanTier = "free" | "plus";
 
 // The known plan tiers, so wire/boundary code can detect an UNKNOWN (future)
@@ -263,6 +265,32 @@ export function canAccess(
   const override = o.entitlementOverrides[feature];
   if (typeof override === "boolean") return override;
   return PLAN_FEATURES[effectivePlanTier(o)].includes(feature);
+}
+
+/**
+ * THE ONE composition that turns an artist's overrides into the appointment-
+ * lane fee tier (G1, FEE-DSP-001/FEE-STP-001). Moved here from
+ * `apps/web/src/lib/server/order-fee-sync.ts` (which now delegates to this)
+ * because it is server-only and this module is PURE: a client component
+ * pricing a display (the request-detail accept dialog, the payouts settings
+ * page) needs the same composition without importing a server-only module.
+ *
+ * Plus is always `plus`. A Free artist who holds `card_deposit_collection` is
+ * the grandfathered `legacy_free_v1` cohort: they kept card collection when it
+ * became Plus-only, so they resolve to `legacy` (the historical 3% on the
+ * appointment lane under v2, rather than being refused for having no Free
+ * rate). A Free artist without that entitlement is `free`, which under v2
+ * cannot transact the lane at all — correct, since they were never sold card
+ * collection. Invisible under the active schedule (v1 prices every tier at
+ * 300 bps); it only changes an answer once v2 is active.
+ */
+export function appointmentTierFromOverrides(
+  o: AccountOverrides,
+): PaymentTier {
+  return resolveAppointmentTier({
+    planTier: effectivePlanTier(o),
+    grandfatheredAppointmentAccess: canAccess(o, "card_deposit_collection"),
+  });
 }
 
 /** The numeric cap for a limited feature (null = unlimited). A per-account

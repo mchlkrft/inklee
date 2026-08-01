@@ -200,6 +200,8 @@ function makeIntent(overrides?: Partial<Stripe.PaymentIntent>) {
       appointment_base_minor: "13000",
       goods_base_minor: "2000",
       fee_schedule_version: "fees-v2-plus-payments",
+      // G2 (FEE-STP-001): the tier this intent was quoted at.
+      fee_tier: "plus",
     },
     ...overrides,
   } as unknown as Stripe.PaymentIntent;
@@ -299,6 +301,19 @@ describe("settlePaymentRequestSuccess", () => {
       }),
     );
 
+    // G2 (FEE-STP-001): the collection is stamped with the tier + schedule
+    // version FROM THE INTENT'S metadata (quote-time facts), not the active
+    // schedule or a re-resolved tier.
+    const collectionOp = ops.find(
+      (o) => o.table === "payment_collections" && o.verb === "update",
+    );
+    expect(collectionOp).toBeDefined();
+    expect(collectionOp!.payload).toMatchObject({
+      application_fee_minor: 75,
+      fee_schedule_version: "fees-v2-plus-payments",
+      fee_tier: "plus",
+    });
+
     // Client receipt sent ONCE, inside the claim gate, with the settled facts
     // (Track A slice 4).
     expect(mockReceipt).toHaveBeenCalledTimes(1);
@@ -312,6 +327,32 @@ describe("settlePaymentRequestSuccess", () => {
         currency: "eur",
       }),
     );
+  });
+
+  // G2 (FEE-STP-001), NO-BACKFILL PRECEDENT (0116/0131): an intent created
+  // before the fee_tier stamp existed carries no `fee_tier` metadata key. The
+  // settlement must record an honest null rather than inventing one (e.g. by
+  // re-resolving the artist's CURRENT overrides, which would silently attach
+  // today's tier to a historically-priced collection).
+  it("stamps fee_tier as null for a pre-G2 intent that carries no fee_tier metadata", async () => {
+    queue("payment_requests:update", { data: { id: "req_1" } });
+    queue("payment_request_lines:select", { data: LINES });
+    queue("payment_allocations:upsert", { data: null });
+
+    const intent = makeIntent();
+    const meta = { ...(intent.metadata as Record<string, string>) };
+    delete meta.fee_tier;
+    (intent as unknown as { metadata: Record<string, string> }).metadata = meta;
+
+    await settlePaymentRequestSuccess(intent);
+
+    const collectionOp = ops.find(
+      (o) => o.table === "payment_collections" && o.verb === "update",
+    );
+    expect(collectionOp).toBeDefined();
+    expect(
+      (collectionOp!.payload as Record<string, unknown>).fee_tier,
+    ).toBeNull();
   });
 
   it("maps tattoo_service to deposit when collects=deposit", async () => {

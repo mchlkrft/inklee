@@ -683,6 +683,10 @@ function intentMetadata(quote: PaymentQuote): Record<string, string> {
     appointment_base_minor: String(quote.appointmentBaseMinor),
     goods_base_minor: String(quote.goodsBaseMinor),
     fee_schedule_version: quote.feeScheduleVersion,
+    // G2 (FEE-STP-001): the tier this fee was priced at, read at settlement
+    // (appointment-payment-settlement.ts) so the collection stamp doesn't
+    // depend on the artist's CURRENT overrides, which may have changed since.
+    fee_tier: quote.feeTier,
   };
 }
 

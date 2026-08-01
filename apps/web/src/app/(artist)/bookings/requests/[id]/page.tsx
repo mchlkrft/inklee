@@ -78,8 +78,15 @@ export default async function RequestDetailPage({
   // capability-pause check). An un-entitled/un-connected/paused artist falls to
   // a manual deposit, so the UI must not promise "client pays by card" or the
   // fee preview.
-  const canCollectInApp = (await getDepositCollection(user!.id))
-    .canCollectByCard;
+  const depositCollection = await getDepositCollection(user!.id);
+  const canCollectInApp = depositCollection.canCollectByCard;
+  // G1 (FEE-DSP-001): the tier-aware fee display, threaded to the accept
+  // dialog instead of the flat PLATFORM_FEE_PERCENT constant it used to read.
+  // null when the resolved tier cannot transact the appointment lane at all
+  // (unreachable while a card deposit is actually in flight, since that
+  // requires canCollectInApp; kept null-safe rather than assumed).
+  const feePercentLabel = depositCollection.feeDisplay?.percentLabel ?? null;
+  const feeBps = depositCollection.feeDisplay?.bps ?? null;
   const slotInfo =
     booking.slot_id && booking.slots
       ? formatSlotDisplay(
@@ -311,6 +318,8 @@ export default async function RequestDetailPage({
           depositDefaults={depositDefaults}
           stripeMode={stripeMode}
           canCollectInApp={canCollectInApp}
+          feePercentLabel={feePercentLabel}
+          feeBps={feeBps}
           currency={artistCurrency}
           hasDepositIntent={!!booking.deposit_payment_intent_id}
           confirmStudio={confirmStudio}

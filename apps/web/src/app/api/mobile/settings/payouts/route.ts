@@ -54,6 +54,10 @@ async function withDepositCollection(
       ...payouts,
       canCollectByCard: collection.canCollectByCard,
       depositCollectionReason: collection.reason,
+      // G1: additive fee-display fields (see mobile-api.ts). Both null when
+      // the resolved tier cannot transact the lane at all (v2 Free).
+      appointmentFeeBps: collection.feeDisplay?.bps ?? null,
+      appointmentFeePercentLabel: collection.feeDisplay?.percentLabel ?? null,
     };
   } catch {
     return payouts;

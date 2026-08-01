@@ -65,6 +65,10 @@ export async function settlePaymentRequestSuccess(
   const quotedAmountMinor = parseInt(meta.quoted_amount_minor ?? "0", 10);
   const applicationFeeMinor = parseInt(meta.application_fee_minor ?? "0", 10);
   const feeScheduleVersion = meta.fee_schedule_version ?? null;
+  // G2 (FEE-STP-001): the tier stamped on the intent at quote time
+  // (appointment-payment-intent.ts). Null for an intent created before this
+  // stamp existed — no invented value (0116/0131 no-backfill precedent).
+  const feeTier = meta.fee_tier ?? null;
   const currency = intent.currency ?? "eur";
   const collectedTotalMinor =
     intent.amount_received ?? intent.amount ?? quotedAmountMinor;
@@ -177,6 +181,12 @@ export async function settlePaymentRequestSuccess(
         processor_cost_minor: processorCostMinor,
         processor_cost_source: costSource,
         processor_cost_status: costStatus,
+        // G2 (FEE-STP-001): stamped from the intent's OWN metadata, not the
+        // active schedule / a re-resolved tier, so (version, tier) together
+        // reproduce the fee actually charged even if the schedule or the
+        // artist's plan moved between quote and settlement.
+        fee_schedule_version: feeScheduleVersion,
+        fee_tier: feeTier,
       })
       .eq("payment_intent_id", intent.id);
 
