@@ -4,10 +4,14 @@ import {
   isProductStatus,
   type ProductStatus,
 } from "@/lib/goods";
-import { shopCheckoutEnabled } from "@/lib/features";
+import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
+import { parseBioPageSettings } from "@/lib/bio-page-settings";
+import { deriveConnectRouting } from "@/lib/stripe-connect";
+import { deriveGoodsVisibilitySummary } from "@/lib/goods-visibility-summary";
 import GoodsNewButton from "./goods-new-button";
 import GoodsTile, { type GoodsTileItem } from "./goods-tile";
 import ShopCheckoutToggle from "./shop-checkout-toggle";
+import GoodsVisibilitySummaryCard from "./goods-visibility-summary-card";
 
 type RawRow = {
   id: string;
@@ -28,7 +32,9 @@ export default async function GoodsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("settings")
+    .select(
+      "settings, stripe_account_id, stripe_account_status, stripe_charges_enabled",
+    )
     .eq("id", user!.id)
     .single();
 
@@ -64,6 +70,24 @@ export default async function GoodsPage() {
     },
   );
 
+  // FD7 (founder ruling, 2026-08-01): a per-surface visibility summary,
+  // derived once here from the same settings + Connect state every
+  // individual toggle on this page already reads.
+  const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+  const bioPage = parseBioPageSettings(settings.bio_page);
+  const connectRouting = deriveConnectRouting({
+    stripe_account_id: profile?.stripe_account_id ?? null,
+    stripe_account_status: profile?.stripe_account_status ?? null,
+    stripe_charges_enabled: profile?.stripe_charges_enabled ?? null,
+  });
+  const visibilitySummary = deriveGoodsVisibilitySummary({
+    settings,
+    bioPage,
+    blocks: bioPage.blocks,
+    goodsCommerceEnabled: isGoodsCommerceEnabled(),
+    connectReady: connectRouting.routeCharges,
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -80,9 +104,9 @@ export default async function GoodsPage() {
         {products.length > 0 && <GoodsNewButton />}
       </div>
 
-      <ShopCheckoutToggle
-        enabled={shopCheckoutEnabled(profile?.settings ?? {})}
-      />
+      <GoodsVisibilitySummaryCard summary={visibilitySummary} />
+
+      <ShopCheckoutToggle enabled={shopCheckoutEnabled(settings)} />
 
       {products.length === 0 ? (
         <div className="space-y-4 rounded-[20px] border border-dashed border-border px-6 py-12 text-center">

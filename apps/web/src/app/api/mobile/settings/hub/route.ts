@@ -5,11 +5,15 @@ import {
   mobileError,
 } from "@/lib/server/mobile-auth";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
-import { gateMediaBlocksForSave } from "@inklee/shared/bio-page";
+import {
+  gateMediaBlocksForSave,
+  preserveGoodsDestinationOnSave,
+} from "@inklee/shared/bio-page";
 import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
+import { goodsDestinationAvailability } from "@/lib/goods-visibility";
 import { removeDroppedHubImages } from "@/lib/server/hub-images";
 
 export const runtime = "nodejs";
@@ -52,10 +56,18 @@ export async function GET(req: Request) {
     await getAccountOverrides(userId),
   );
 
+  // ADDITIVE (FD8, 2026-08-01): per-destination availability for the goods
+  // block's picker, so the native editor can warn on an unavailable saved
+  // selection instead of silently offering a dead end. An older build
+  // ignores the extra key.
+  const bioPage = parseBioPageSettings(settings.bio_page);
+  const goodsAvailability = goodsDestinationAvailability(settings, bioPage);
+
   return mobileOk({
-    ...parseBioPageSettings(settings.bio_page),
+    ...bioPage,
     collections,
     richBlocksAllowed,
+    goodsAvailability,
   });
 }
 
@@ -106,6 +118,15 @@ export async function POST(req: Request) {
     socials: body.socials,
   });
 
+  // FD8 WIRE-SAFETY, identical reasoning to the web action: an old app build
+  // that predates the goods block's destination field must not reset an
+  // artist's existing explicit choice merely by resaving an unrelated field.
+  const goodsSafeBlocks = preserveGoodsDestinationOnSave(
+    Array.isArray(body.blocks) ? body.blocks : [],
+    parsed.blocks,
+    currentBio.blocks,
+  );
+
   // SAVE-PATH ENTITLEMENT GATE, identical to the web action: a NEW or CHANGED
   // image_gallery block is refused for an artist without rich_content_blocks
   // (founder ruling FD1, 2026-08-01, SUPERSEDES the earlier appearance_custom
@@ -118,7 +139,7 @@ export async function POST(req: Request) {
     entitled = false;
   }
   const { blocks: gatedBlocks } = gateMediaBlocksForSave(
-    parsed.blocks,
+    goodsSafeBlocks,
     currentBio.blocks,
     entitled,
   );

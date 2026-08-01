@@ -6,6 +6,7 @@ import { listCollectionsForArtist } from "@/lib/server/collections";
 import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
+import { goodsDestinationAvailability } from "@/lib/goods-visibility";
 import BioPageForm from "./bio-page-form";
 
 export default async function BioPageSettingsPage() {
@@ -38,6 +39,11 @@ export default async function BioPageSettingsPage() {
     await getAccountOverrides(user!.id),
   );
 
+  // FD8: whether each of the goods block's possible destinations could
+  // currently take a visitor, so the picker can warn on an unavailable
+  // selection instead of silently offering a dead end.
+  const goodsAvailability = goodsDestinationAvailability(settings, bioPage);
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -67,6 +73,7 @@ export default async function BioPageSettingsPage() {
         bioPage={bioPage}
         collections={collections}
         richBlocksAllowed={richBlocksAllowed}
+        goodsAvailability={goodsAvailability}
       />
     </div>
   );

@@ -1888,3 +1888,120 @@ guard's DNS-rebinding residual risk, self-flagged) and `HUB-GAL-003` (an
 earlier draft's byte cap buffered the whole response via `res.arrayBuffer()`
 before checking length; found and fixed in the same slice, mutation-proven
 via a streaming running-total abort) plus coverage rows.
+
+---
+
+**2026-08-01 — FD7 (visibility summary) + FD8 (goods Hub block destination,
+SUPERSEDES S4).** Founder rulings (`plus-build-time-decisions.md`, FD rulings
+section): FD7 "CONFIRMS S2 and adds required UX: a clear per-surface
+visibility summary"; FD8 "the hub goods block gets an EXPLICIT destination
+setting... SUPERSEDES S4."
+
+**FD8 — what shipped.** The `goods` feature block (`packages/shared/src/
+bio-page.ts`) gained a `destination: "standalone_shop" | "booking_page"`
+field — the first field any feature block has ever carried (every other one
+is still pure presence-and-position). The block type carved into its own
+`BioGoodsBlock` shape; `isFeatureBlock` no longer narrows to it (a real
+behaviour change, pinned by a test), `isGoodsBlock` narrows it separately.
+The web editor (`link-hub/bio-page-form.tsx`) and the native editor
+(`apps/mobile/app/settings/link-hub.tsx`) both gained a destination picker
+(a `<select>` on web, `FilterChip`s on native) that warns, rather than
+blocks, when the artist's saved selection is currently unreachable — the
+selection is preserved either way, never silently swapped for the other
+destination. Public render (`hub-feature-data.ts`) resolves visibility +
+href server-side into one `{ visible, href }` shape consumed by a new
+`HubGoodsBlock` component, so the destination-vs-availability decision lives
+in a file this project's vitest actually covers (`src/**/*.test.ts` does not
+run `.tsx`), not in JSX.
+
+**The missing-destination judgement call (asked for explicitly).** A goods
+block with no `destination` key at all resolves to `"booking_page"`, NOT the
+ruling's plain `"standalone_shop"` default for new configs. Reasoning: every
+goods block in production today has always deep-linked to the booking page
+(pre-FD8 S4 behaviour), and the standalone shop is separately dark
+(`GOODS_COMMERCE_ENABLED` off) while the artist's `shop_checkout` toggle
+defaults ON — so defaulting a missing key to `"standalone_shop"` would, on
+deploy day alone with no re-save and no client update, silently turn every
+existing artist's working Hub shop link into a link to a page that 404s.
+There is no version marker on stored `bio_page` JSON to distinguish
+"genuinely new" from "existing, never touched since this shipped" — a
+missing key looks identical either way — so `parseGoodsDestination`
+(bio-page.ts) picks the one outcome that cannot regress a live page. An
+EXPLICIT but unrecognised value (something wrote a value and got it wrong)
+still falls back to the ruling's stated default, `"standalone_shop"`. Full
+reasoning is in the function's own comment, since that is where a later
+reader will look.
+
+**Wire safety, separate from the above.** An old app build that predates
+this field re-submits a goods block as a bare `{id,type:"goods"}` on ANY
+unrelated save (reordering a link, editing a headline) — identical to a
+genuinely untouched legacy row, which the parser default above handles. What
+the parser CANNOT handle is an artist who already chose `"standalone_shop"`
+through an entitled client having that choice silently reverted to
+`"booking_page"` by that old-client resave. `preserveGoodsDestinationOnSave`
+(bio-page.ts) fixes this as a second pass, mirroring `gateMediaBlocksForSave`'s
+shape: compare the incoming RAW payload (did it carry the key at all) against
+the CURRENT stored settings, and if the key was omitted, keep whatever was
+already stored. Wired into both save paths (`link-hub/actions.ts` and
+`POST /api/mobile/settings/hub`) in the same place `gateMediaBlocksForSave`
+already runs. The mobile GET route also gained an ADDITIVE `goodsAvailability`
+key so the native picker can warn; an older build ignores it.
+
+**FD7 — what shipped.** A visibility summary at `/goods`
+(`goods-visibility-summary-card.tsx`), fed by a pure derivation function
+(`goods-visibility-summary.ts`) so the state logic is covered by vitest
+independent of the copy. Reports, in one place with a link to each control:
+the booking-page shop teaser (`hidden:["shop"]` + `canUseGoods`), the
+standalone shop (the artist's `shop_checkout` toggle, the platform-wide
+`GOODS_COMMERCE_ENABLED` dark flag reported PLAINLY as not the artist's
+fault, and Stripe Connect charge-readiness via `deriveConnectRouting`), and
+the Hub block (present, its destination, and whether that destination is
+currently reachable) — plus an explicit "not published anywhere" state when
+none of the three would show a visitor anything. `goods-visibility.ts`'s
+`goodsDestinationAvailability` is the ONE place both FD7's summary, FD8's
+render gate, and FD8's editor warning read the two availability ANDs from,
+so they cannot drift apart.
+
+**A gap noticed, not fixed — flagged for the register.** FD8's own
+availability formula for the Hub block ("standalone_shop is available when
+shopCheckoutEnabled AND goods_module is on") is deliberately narrower than
+what actually makes the standalone shop page functional: it does not include
+`GOODS_COMMERCE_ENABLED` (the platform dark flag) or Stripe Connect
+readiness, both of which the FD7 summary DOES report, separately, under
+`standaloneShop`. This is not an oversight in this slice — it matches the
+ruling's literal formula — but the practical consequence is real: while
+`GOODS_COMMERCE_ENABLED` stays off (the current state), a NEWLY added goods
+block defaults to `"standalone_shop"` (FD8's stated default for new blocks)
+and reads as "available" to both the render gate and the editor (no
+warning), yet its target page 404s for every visitor
+(`shop/checkout/page.tsx`: `if (!isGoodsCommerceEnabled()) notFound()`).
+`deriveGoodsVisibilitySummary`'s `publishedNowhere` inherits the same gap: it
+can read `false` (something IS "published") purely because of an
+available-per-formula Hub block pointing at a destination that would 404.
+Proven in `goods-visibility-summary.test.ts` ("false when only an AVAILABLE
+hub block is present, everything else hidden" — the test asserts today's
+actual behaviour and documents the tension in a comment rather than
+asserting around it). Not fixed in this slice because the ruling's formula
+is explicit and narrower gating would be a scope decision, not a bug fix;
+recording it here since the supervisor owns `docs/audit/findings.yaml` for
+this task.
+
+**Records.** `docs/web-native-parity.md`: new table row ("Goods Hub block
+destination") + a narrative entry marking the prior S4 entry superseded.
+Decision-log implementation note under the FD rulings section in
+`plus-build-time-decisions.md`.
+
+**Validation.** `npx tsc --noEmit` clean (web + mobile), `pnpm --filter
+@inklee/mobile typecheck` clean (incl. the lucide-icon check), `eslint` 0
+errors on every touched file (one pre-existing-pattern warning fixed inline:
+an unused `tpl` prop on the new `HubGoodsBlock`, removed rather than
+suppressed). Full `npx vitest run`: 168 files, 2910 passed + 1 expected fail
+(2911 total) — up from the 2876-passed/1-expected-fail baseline (commit
+`6bac9914`) by exactly the 34 tests this slice added: 9 in
+`bio-page-settings.test.ts` (5 destination-parsing + 4
+`preserveGoodsDestinationOnSave`), 7 in new `goods-visibility.test.ts`, 14 in
+new `goods-visibility-summary.test.ts`, and a net +4 in
+`hub-feature-data.test.ts` (3 pre-existing S4 tests updated to carry an
+explicit `destination` and extended with `result.goods` assertions, plus 4
+new: standalone-shop-toggle-off, standalone-available-with-teaser-hidden,
+empty-shop-still-hidden, never-re-routes). Zero regressions.

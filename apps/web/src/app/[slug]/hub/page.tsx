@@ -14,6 +14,7 @@ import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import {
   HubFeatureBlock,
+  HubGoodsBlock,
   HubFeaturedCollectionBlock,
   HubImageGalleryBlock,
 } from "./feature-blocks";
@@ -117,6 +118,11 @@ export default async function ArtistHubPage({
     settings,
     blocks,
     bookingUrl,
+    // FD8: the goods block's "standalone_shop" destination needs the same
+    // host-aware URL builder bookingUrl already uses, resolved here (not
+    // inside the loader) so the loader stays a plain string in, string out
+    // — easy to unit test without touching public-url.ts's env/header reads.
+    standaloneShopUrl: publicArtistUrl(slug, { subpath: "/shop/checkout" }),
   });
 
   // Rich blocks (image_gallery, Stage 3) are Plus, gated on their OWN
@@ -270,6 +276,14 @@ export default async function ArtistHubPage({
                   shopUrl={bookingUrl}
                 />
               );
+            }
+            // The "goods" block is its own component (FD8, 2026-08-01): its
+            // destination-vs-availability decision is resolved server-side
+            // in loadHubFeatureData, not here, so it is matched before the
+            // payload-free feature family rather than inside it (isFeatureBlock
+            // no longer narrows to "goods" — see bio-page.ts).
+            if (block.type === "goods") {
+              return <HubGoodsBlock key={block.id} data={featureData} />;
             }
             if (isFeatureBlock(block)) {
               return (

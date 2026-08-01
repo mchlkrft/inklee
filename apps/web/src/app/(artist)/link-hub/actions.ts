@@ -8,6 +8,7 @@ import {
 } from "@/lib/bio-page-settings";
 import {
   gateMediaBlocksForSave,
+  preserveGoodsDestinationOnSave,
   MAX_BLOCKS_PER_TYPE,
   MAX_GALLERY_IMAGES,
 } from "@inklee/shared/bio-page";
@@ -74,6 +75,16 @@ export async function saveBioPageAction(
     socials: socialsInput.value,
   });
 
+  // FD8 WIRE-SAFETY: an old client that predates the goods block's
+  // destination field must not reset an artist's existing explicit choice
+  // merely by resaving an unrelated field (e.g. reordering a link). See
+  // preserveGoodsDestinationOnSave's own comment for the full reasoning.
+  const goodsSafeBlocks = preserveGoodsDestinationOnSave(
+    blocksInput.value,
+    parsed.blocks,
+    currentBio.blocks,
+  );
+
   // SAVE-PATH ENTITLEMENT GATE (image_gallery is a Plus rich block). The parser
   // keeps gallery blocks regardless of plan; the write is refused here for an
   // artist without rich_content_blocks (founder ruling FD1, 2026-08-01,
@@ -89,7 +100,7 @@ export async function saveBioPageAction(
     entitled = false;
   }
   const gated = gateMediaBlocksForSave(
-    parsed.blocks,
+    goodsSafeBlocks,
     currentBio.blocks,
     entitled,
   );

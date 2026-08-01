@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { CalendarCheck, Plane, Sparkles, ShoppingBag } from "lucide-react";
 import type {
-  BioFeatureBlockType,
+  BioPlainFeatureBlockType,
   BioGalleryImage,
 } from "@/lib/bio-page-settings";
 import type { TemplateStyles } from "@inklee/shared/page-template-styles";
@@ -30,6 +30,13 @@ export type HubFeatureData = {
     string,
     { name: string; productCount: number; thumbs: string[] }
   >;
+  /** Resolved outcome for the hub's "goods" block (founder ruling FD8,
+   *  2026-08-01): whether it should render at all, and where it links. Both
+   *  fields are pre-resolved in hub-feature-data.ts (never re-derived here),
+   *  so an unavailable SELECTED destination renders nothing rather than
+   *  silently falling back to the other one. `href` is only meaningful when
+   *  `visible` is true. */
+  goods: { visible: boolean; href: string | null };
 };
 
 function SectionHeading({
@@ -154,12 +161,51 @@ export function HubImageGalleryBlock({
   );
 }
 
+/** The hub's "goods" block (founder ruling FD8, 2026-08-01, SUPERSEDES S4).
+ *  `data.goods` is fully pre-resolved by hub-feature-data.ts: this component
+ *  only renders it, so the destination-vs-availability decision stays
+ *  covered by that module's tests rather than living untested in this JSX
+ *  (vitest's include, src/**\/*.test.ts, does not run .tsx render logic in
+ *  this project). Renders nothing when the selected destination is
+ *  unavailable — never silently falls back to the other destination. */
+export function HubGoodsBlock({ data }: { data: HubFeatureData }) {
+  if (!data.goods.visible || !data.goods.href) return null;
+  return (
+    <a
+      href={data.goods.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block rounded-2xl border border-brand-bone/20 p-4 transition-colors hover:border-brand-bone/40"
+    >
+      <span className="flex items-center gap-2 text-sm font-medium text-brand-bone">
+        <ShoppingBag className="h-4 w-4" aria-hidden />
+        Shop
+      </span>
+      {data.productThumbs.length > 0 && (
+        <span className="mt-3 flex gap-2">
+          {data.productThumbs.map((src) => (
+            <span
+              key={src}
+              className="relative h-14 w-14 overflow-hidden rounded-md bg-brand-bone/10"
+            >
+              <Image src={src} alt="" fill className="object-cover" />
+            </span>
+          ))}
+        </span>
+      )}
+      <span className="mt-2 block text-xs text-brand-bone/60">
+        {data.productCount === 1 ? "1 item" : `${data.productCount} items`}
+      </span>
+    </a>
+  );
+}
+
 export function HubFeatureBlock({
   type,
   data,
   tpl,
 }: {
-  type: BioFeatureBlockType;
+  type: BioPlainFeatureBlockType;
   data: HubFeatureData;
   tpl: TemplateStyles;
 }) {
@@ -192,38 +238,6 @@ export function HubFeatureBlock({
         />
         {data.booksOpen ? "Books are open" : "Books are closed"}
       </div>
-    );
-  }
-
-  if (type === "goods") {
-    if (data.productCount === 0) return null;
-    return (
-      <a
-        href={data.bookingUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block rounded-2xl border border-brand-bone/20 p-4 transition-colors hover:border-brand-bone/40"
-      >
-        <span className="flex items-center gap-2 text-sm font-medium text-brand-bone">
-          <ShoppingBag className="h-4 w-4" aria-hidden />
-          Shop
-        </span>
-        {data.productThumbs.length > 0 && (
-          <span className="mt-3 flex gap-2">
-            {data.productThumbs.map((src) => (
-              <span
-                key={src}
-                className="relative h-14 w-14 overflow-hidden rounded-md bg-brand-bone/10"
-              >
-                <Image src={src} alt="" fill className="object-cover" />
-              </span>
-            ))}
-          </span>
-        )}
-        <span className="mt-2 block text-xs text-brand-bone/60">
-          {data.productCount === 1 ? "1 item" : `${data.productCount} items`}
-        </span>
-      </a>
     );
   }
 

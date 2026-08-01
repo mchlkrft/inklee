@@ -62,51 +62,111 @@ beforeEach(() => {
 const BASE_INPUT = {
   artistId: "a1",
   bookingUrl: "https://inkl.ee/mika",
+  standaloneShopUrl: "https://inkl.ee/mika/shop/checkout",
   timezone: "Europe/Berlin",
 };
 
-describe("loadHubFeatureData: goods block gate (decision S4)", () => {
-  it("does not query products when the booking-page shop teaser is hidden, even with the goods module on", async () => {
+describe("loadHubFeatureData: goods block destination gate (founder ruling FD8, 2026-08-01, SUPERSEDES S4)", () => {
+  it("does not query products when the SELECTED destination is booking_page and the shop teaser is hidden", async () => {
     const result = await loadHubFeatureData({
       ...BASE_INPUT,
       settings: {
         features: { goods_module: true },
         bio_page: { hidden: ["shop"] },
       },
-      blocks: [{ id: "g1", type: "goods" }],
+      blocks: [{ id: "g1", type: "goods", destination: "booking_page" }],
     });
-
     expect(result.productCount).toBe(0);
     expect(result.productThumbs).toEqual([]);
-    // Fails if the S4 gate is deleted: the goods block would query products
-    // (canUseGoods alone is true) even though the surface it deep-links to is
-    // hidden, offering a broken link on the Hub.
+    expect(result.goods).toEqual({ visible: false, href: null });
+    // Fails if the FD8/S4 gate is deleted: the goods block would query
+    // products (canUseGoods alone is true) even though the surface it
+    // deep-links to is hidden, offering a broken link on the Hub.
     expect(calls.find((c) => c.table === "products")).toBeUndefined();
   });
 
-  it("does not query products when the goods module itself is off, shop visibility aside", async () => {
+  it("does not query products when destination is booking_page and the goods module itself is off, shop visibility aside", async () => {
     const result = await loadHubFeatureData({
       ...BASE_INPUT,
       settings: { features: { goods_module: false } },
-      blocks: [{ id: "g1", type: "goods" }],
+      blocks: [{ id: "g1", type: "goods", destination: "booking_page" }],
     });
     expect(result.productCount).toBe(0);
+    expect(result.goods).toEqual({ visible: false, href: null });
     expect(calls.find((c) => c.table === "products")).toBeUndefined();
   });
 
-  it("queries products when the goods module is on AND the shop teaser is visible", async () => {
+  it("queries products and links to bookingUrl when destination is booking_page, the module is on, and the teaser is visible", async () => {
     repliesByTable["products"] = {
       data: [{ image_url: "https://x/1.webp", image_urls: null }],
     };
     const result = await loadHubFeatureData({
       ...BASE_INPUT,
       settings: { features: { goods_module: true } }, // hidden absent = visible
-      blocks: [{ id: "g1", type: "goods" }],
+      blocks: [{ id: "g1", type: "goods", destination: "booking_page" }],
     });
     expect(result.productCount).toBe(1);
     const productsCall = calls.find((c) => c.table === "products");
     expect(productsCall).toBeDefined();
     expect(productsCall!.filters.is_public_visible).toBe(true);
+    expect(result.goods).toEqual({
+      visible: true,
+      href: BASE_INPUT.bookingUrl,
+    });
+  });
+
+  it("does not query products when destination is standalone_shop and the artist's shop_checkout toggle is off", async () => {
+    const result = await loadHubFeatureData({
+      ...BASE_INPUT,
+      settings: { features: { shop_checkout: false } },
+      blocks: [{ id: "g1", type: "goods", destination: "standalone_shop" }],
+    });
+    expect(result.productCount).toBe(0);
+    expect(result.goods).toEqual({ visible: false, href: null });
+    expect(calls.find((c) => c.table === "products")).toBeUndefined();
+  });
+
+  it("queries products and links to standaloneShopUrl when destination is standalone_shop and the toggle is on, even with the booking-page teaser hidden", async () => {
+    repliesByTable["products"] = {
+      data: [{ image_url: "https://x/1.webp", image_urls: null }],
+    };
+    const result = await loadHubFeatureData({
+      ...BASE_INPUT,
+      // Booking-page teaser hidden AND goods module irrelevant to this
+      // destination — proves the two destinations are independent (FD7's
+      // non-cascading model), not just that standalone_shop CAN work.
+      settings: { bio_page: { hidden: ["shop"] } },
+      blocks: [{ id: "g1", type: "goods", destination: "standalone_shop" }],
+    });
+    expect(result.productCount).toBe(1);
+    expect(calls.find((c) => c.table === "products")).toBeDefined();
+    expect(result.goods).toEqual({
+      visible: true,
+      href: BASE_INPUT.standaloneShopUrl,
+    });
+  });
+
+  it("is hidden (visible: false) when the destination is available but the artist has no products at all", async () => {
+    repliesByTable["products"] = { data: [] };
+    const result = await loadHubFeatureData({
+      ...BASE_INPUT,
+      settings: {},
+      blocks: [{ id: "g1", type: "goods", destination: "standalone_shop" }],
+    });
+    expect(result.productCount).toBe(0);
+    expect(result.goods.visible).toBe(false);
+  });
+
+  it("never re-routes to the other destination's URL when the selected one is unavailable", async () => {
+    const result = await loadHubFeatureData({
+      ...BASE_INPUT,
+      settings: {
+        features: { shop_checkout: false }, // standalone_shop unavailable
+      },
+      blocks: [{ id: "g1", type: "goods", destination: "standalone_shop" }],
+    });
+    expect(result.goods.href).toBeNull();
+    expect(result.goods.href).not.toBe(BASE_INPUT.bookingUrl);
   });
 });
 

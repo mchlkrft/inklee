@@ -7,9 +7,12 @@ import {
   countBlocksByType,
   canAddBlock,
   isFeatureBlock,
+  isGoodsBlock,
+  preserveGoodsDestinationOnSave,
   BIO_FEATURE_BLOCK_TYPES,
   BIO_BLOCK_TYPES,
   BIO_BLOCK_META,
+  BIO_GOODS_DESTINATIONS,
   DEFAULT_BIO_PAGE,
   MAX_BOOKING_POLICY,
   MAX_HEADLINE,
@@ -19,6 +22,7 @@ import {
   sanitizeHostedGalleryImageUrl,
   MAX_GALLERY_IMAGES,
   MAX_GALLERY_CAPTION,
+  type BioGoodsBlock,
 } from "../bio-page-settings";
 
 describe("sanitizeBioLinkUrl", () => {
@@ -357,12 +361,18 @@ describe("feature blocks (Plus build P2b)", () => {
 
   it("caps feature blocks at ONE each, enforced in the PARSER", () => {
     // Not just the editor: a stale client or a hand-edited payload must not be
-    // able to store two shop sections.
+    // able to store two shop sections. The FIRST block's own destination is
+    // the one kept (FD8): capping does not fall back to the parser default.
     const { blocks } = parseBioPageSettings({
-      blocks: [{ type: "goods" }, { type: "goods" }, { type: "goods" }],
+      blocks: [
+        { type: "goods", destination: "booking_page" },
+        { type: "goods", destination: "standalone_shop" },
+        { type: "goods" },
+      ],
     });
     expect(blocks).toHaveLength(1);
     expect(canAddBlock(blocks, "goods")).toBe(false);
+    expect((blocks[0] as BioGoodsBlock).destination).toBe("booking_page");
   });
 
   it("still allows ten content blocks per type", () => {
@@ -400,18 +410,115 @@ describe("feature blocks (Plus build P2b)", () => {
     const { blocks } = parseBioPageSettings({
       blocks: [
         { type: "flash" },
+        { type: "goods" },
         { type: "link", label: "x", url: "https://example.com" },
       ],
     });
+    // "goods" is EXCLUDED from isFeatureBlock (FD8: it carries a field, so it
+    // is narrowed separately with isGoodsBlock) — a real behaviour change
+    // from before FD8, when isFeatureBlock covered all five types.
     const feature = blocks.filter(isFeatureBlock);
     expect(feature).toHaveLength(1);
     expect(feature[0].type).toBe("flash");
+    expect(blocks.filter(isGoodsBlock)).toHaveLength(1);
   });
 
   it("drops an unknown block type", () => {
     expect(
       parseBioPageSettings({ blocks: [{ type: "carousel" }] }).blocks,
     ).toHaveLength(0);
+  });
+});
+
+describe("goods block destination (founder ruling FD8, 2026-08-01)", () => {
+  const parseGoods = (raw: Record<string, unknown>) =>
+    parseBioPageSettings({ blocks: [{ type: "goods", ...raw }] })
+      .blocks[0] as BioGoodsBlock;
+
+  it("round-trips an explicit valid destination", () => {
+    expect(parseGoods({ destination: "standalone_shop" }).destination).toBe(
+      "standalone_shop",
+    );
+    expect(parseGoods({ destination: "booking_page" }).destination).toBe(
+      "booking_page",
+    );
+  });
+
+  it("falls back an unrecognised (present but invalid) value to the ruling's default", () => {
+    expect(parseGoods({ destination: "carrier_pigeon" }).destination).toBe(
+      "standalone_shop",
+    );
+    expect(parseGoods({ destination: 42 }).destination).toBe("standalone_shop");
+    expect(parseGoods({ destination: null }).destination).toBe(
+      "standalone_shop",
+    );
+  });
+
+  it("follows the documented rule for a genuinely MISSING key: booking_page, not the ruling's plain default", () => {
+    // Preserves today's honest behaviour for a legacy row that predates this
+    // field, rather than the ruling's "standalone_shop for new configs"
+    // default — see parseGoodsDestination's own comment for why a missing
+    // key cannot be told apart from a genuinely new block, and why
+    // "booking_page" is the one outcome that cannot regress a live page.
+    expect(parseGoods({}).destination).toBe("booking_page");
+  });
+
+  it("does not have a destination key when the type is anything else", () => {
+    const { blocks } = parseBioPageSettings({
+      blocks: [{ type: "flash" }],
+    });
+    expect(blocks[0]).not.toHaveProperty("destination");
+  });
+
+  it("still enforces the one-goods-block cap with destinations attached", () => {
+    const { blocks } = parseBioPageSettings({
+      blocks: BIO_GOODS_DESTINATIONS.map((destination) => ({
+        type: "goods",
+        destination,
+      })),
+    });
+    expect(blocks).toHaveLength(1);
+    expect(canAddBlock(blocks, "goods")).toBe(false);
+  });
+});
+
+describe("preserveGoodsDestinationOnSave (FD8 wire-safety)", () => {
+  const goods = (
+    destination: "standalone_shop" | "booking_page",
+  ): BioGoodsBlock => ({
+    id: "g1",
+    type: "goods",
+    destination,
+  });
+
+  it("keeps the stored destination when the client omits the key (old-client resave)", () => {
+    const raw = [{ id: "g1", type: "goods" }]; // no destination key at all
+    const parsed = [goods("booking_page")]; // what the bare parser resolved it to
+    const current = [goods("standalone_shop")]; // what was actually stored
+    const result = preserveGoodsDestinationOnSave(raw, parsed, current);
+    expect((result[0] as BioGoodsBlock).destination).toBe("standalone_shop");
+  });
+
+  it("uses the freshly parsed value when the client sends an explicit destination", () => {
+    const raw = [{ id: "g1", type: "goods", destination: "booking_page" }];
+    const parsed = [goods("booking_page")];
+    const current = [goods("standalone_shop")];
+    const result = preserveGoodsDestinationOnSave(raw, parsed, current);
+    expect((result[0] as BioGoodsBlock).destination).toBe("booking_page");
+  });
+
+  it("leaves the parser's default alone when there is nothing stored yet (genuinely new)", () => {
+    const raw = [{ id: "g1", type: "goods" }];
+    const parsed = [goods("booking_page")];
+    const result = preserveGoodsDestinationOnSave(raw, parsed, []);
+    expect((result[0] as BioGoodsBlock).destination).toBe("booking_page");
+  });
+
+  it("is a no-op when there is no goods block in the save at all", () => {
+    const raw = [{ id: "h1", type: "headline", text: "hi" }];
+    const parsed = parseBioPageSettings({ blocks: raw }).blocks;
+    const result = preserveGoodsDestinationOnSave(raw, parsed, []);
+    expect(result).toEqual(parsed);
   });
 });
 

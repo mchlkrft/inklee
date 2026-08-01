@@ -40,6 +40,8 @@ import {
   BIO_SOCIAL_PLATFORMS,
   BIO_BLOCK_TYPES,
   BIO_BLOCK_META,
+  BIO_GOODS_DESTINATIONS,
+  DEFAULT_GOODS_DESTINATION,
   MAX_HEADLINE,
   MAX_TEXT,
   MAX_LINK_LABEL,
@@ -48,6 +50,7 @@ import {
   isFeatureBlockType,
   type BioBlock,
   type BioBlockType,
+  type BioGoodsDestination,
   type BioPageSettings,
   type BioSocial,
   type BioSocialPlatform,
@@ -100,6 +103,10 @@ type HubResponse = BioPageSettings & {
    *  from the route. Gates the rich blocks (image gallery) in the add
    *  palette. Optional so an older response (no key) reads as false. */
   richBlocksAllowed?: boolean;
+  /** Per-destination availability for the goods block's picker (founder
+   *  ruling FD8, 2026-08-01). Optional so an older response (no key) shows
+   *  no warning rather than crashing. */
+  goodsAvailability?: Record<BioGoodsDestination, boolean>;
 };
 
 type BlockPatch = Partial<{
@@ -108,7 +115,14 @@ type BlockPatch = Partial<{
   label: string;
   url: string;
   isActive: boolean;
+  destination: BioGoodsDestination;
 }>;
+
+/** Short chip labels for the goods block's destination picker (FD8). */
+const GOODS_DESTINATION_LABEL: Record<BioGoodsDestination, string> = {
+  standalone_shop: "Standalone shop",
+  booking_page: "Booking page section",
+};
 
 /** What each feature block will show. Kept in step with the web editor's copy
  *  so an artist sees the same explanation on both platforms. */
@@ -127,7 +141,11 @@ const FEATURE_BLOCK_HINTS: Record<string, string> = {
 function makeBlock(type: BioBlockType, firstCollectionId?: string): BioBlock {
   // Any non-empty id works: the server keeps it, else derives a stable fallback.
   const id = `${type}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  // Feature blocks (P2b) carry no content.
+  // "goods" carries a destination (FD8) — checked first since it is also a
+  // feature-block type. Every other feature block (P2b) carries no content.
+  if (type === "goods") {
+    return { id, type: "goods", destination: DEFAULT_GOODS_DESTINATION };
+  }
   if (isFeatureBlockType(type)) return { id, type };
   // A featured collection is seeded with a real one (P5d): the parser drops a
   // block naming nothing, so an empty one would vanish on save.
@@ -195,6 +213,7 @@ function HubForm({
   const [blocks, setBlocks] = useState<BioBlock[]>(initial.blocks);
   const collections = initial.collections ?? [];
   const richBlocksAllowed = initial.richBlocksAllowed ?? false;
+  const goodsAvailability = initial.goodsAvailability;
   const [socials, setSocials] = useState<BioSocial[]>(initial.socials);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -466,6 +485,31 @@ function HubForm({
                     placeholder="e.g. Fine-line tattoos in Berlin"
                     accessibilityLabel="Headline"
                   />
+                ) : null}
+
+                {block.type === "goods" ? (
+                  <View className="mt-2">
+                    <View className="flex-row flex-wrap gap-2">
+                      {BIO_GOODS_DESTINATIONS.map((d) => (
+                        <FilterChip
+                          key={d}
+                          label={GOODS_DESTINATION_LABEL[d]}
+                          selected={block.destination === d}
+                          onPress={() => patchBlock(block.id, { destination: d })}
+                        />
+                      ))}
+                    </View>
+                    {/* Unavailable is a WARNING, not a block: the selection
+                        is preserved even while unavailable (FD8), never
+                        silently swapped for the other destination. */}
+                    {goodsAvailability && !goodsAvailability[block.destination] ? (
+                      <Text className="mt-2 text-xs text-shell-dim">
+                        {block.destination === "standalone_shop"
+                          ? "Your standalone shop is off right now, so this block won't show on your public Hub."
+                          : "Your booking page's shop section is hidden right now, so this block won't show on your public Hub."}
+                      </Text>
+                    ) : null}
+                  </View>
                 ) : null}
 
                 {block.type === "featured_collection" ? (

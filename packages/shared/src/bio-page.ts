@@ -41,7 +41,10 @@ export type BioBlockType =
   | "featured_collection"
   | "image_gallery";
 
-/** Blocks that render the artist's existing data and hold no content. */
+/** Blocks that render the artist's existing data and hold no content, WITH
+ *  ONE EXCEPTION: "goods" gained a `destination` field (founder ruling FD8,
+ *  2026-08-01, SUPERSEDES S4) — see BioGoodsBlock below. It keeps the
+ *  family's other discipline (cap of one, enforced in the parser). */
 export const BIO_FEATURE_BLOCK_TYPES = [
   "booking_form",
   "goods",
@@ -57,6 +60,10 @@ export function isFeatureBlockType(v: unknown): v is BioFeatureBlockType {
     (BIO_FEATURE_BLOCK_TYPES as readonly string[]).includes(v)
   );
 }
+
+/** The four feature block types that are STILL pure presence-and-position —
+ *  every BIO_FEATURE_BLOCK_TYPES entry except "goods". */
+export type BioPlainFeatureBlockType = Exclude<BioFeatureBlockType, "goods">;
 
 // A THIRD family, and the only one that carries a reference rather than
 // content: `featured_collection` names one shop collection to surface on the
@@ -120,8 +127,41 @@ export type BioLinkBlock = {
 };
 
 /** One arrangeable item on the Hub body. */
-/** A content-free block that renders the artist's existing data. */
-export type BioFeatureBlock = { id: string; type: BioFeatureBlockType };
+/** A content-free block that renders the artist's existing data. Excludes
+ *  "goods" — see BioGoodsBlock, the family's one block with a field. */
+export type BioFeatureBlock = { id: string; type: BioPlainFeatureBlockType };
+
+/** Where the hub's "goods" block sends a visitor (founder ruling FD8,
+ *  2026-08-01, SUPERSEDES S4's hidden coupling to the booking-page teaser).
+ *  Closed enum — see parseGoodsDestination for the fallback rules at parse
+ *  time, and preserveGoodsDestinationOnSave for the save-path wire-safety
+ *  rule that sits alongside it. */
+export type BioGoodsDestination = "standalone_shop" | "booking_page";
+
+export const BIO_GOODS_DESTINATIONS: readonly BioGoodsDestination[] = [
+  "standalone_shop",
+  "booking_page",
+];
+
+/** The ruling's stated default for a brand-new block (what the web + native
+ *  editors seed on "Add shop") and for an explicit-but-unrecognised stored
+ *  value. NOT what a block with a genuinely MISSING destination key resolves
+ *  to when READ — see parseGoodsDestination's comment for why those differ. */
+export const DEFAULT_GOODS_DESTINATION: BioGoodsDestination = "standalone_shop";
+
+export function isBioGoodsDestination(v: unknown): v is BioGoodsDestination {
+  return v === "standalone_shop" || v === "booking_page";
+}
+
+/** The hub's "goods" feature block. The FIRST feature block to carry a field
+ *  (FD8): still shows only the artist's existing products (nothing typed in
+ *  here), but now also stores which surface it should send a visitor to.
+ *  Still capped at one, via BIO_FEATURE_BLOCK_TYPES / isFeatureBlockType. */
+export type BioGoodsBlock = {
+  id: string;
+  type: "goods";
+  destination: BioGoodsDestination;
+};
 
 /** Names one collection to surface on the Hub. Holds the reference only: the
  *  name, the products and their order are read live, so renaming a collection
@@ -158,13 +198,65 @@ export type BioBlock =
   | BioTextBlock
   | BioLinkBlock
   | BioFeatureBlock
+  | BioGoodsBlock
   | BioFeaturedCollectionBlock
   | BioImageGalleryBlock;
 
-/** Narrow a block to the feature family. Takes the BLOCK (not its type) so
- *  callers keep discriminated-union narrowing on the else branch. */
+/** Narrow a block to the PAYLOAD-FREE feature family — every
+ *  BIO_FEATURE_BLOCK_TYPES type EXCEPT "goods", which carries a destination
+ *  field and is narrowed separately with isGoodsBlock (FD8). Takes the BLOCK
+ *  (not its type) so callers keep discriminated-union narrowing on the else
+ *  branch. */
 export function isFeatureBlock(block: BioBlock): block is BioFeatureBlock {
-  return isFeatureBlockType(block.type);
+  return block.type !== "goods" && isFeatureBlockType(block.type);
+}
+
+/** Narrow a block to the hub's "goods" block (FD8). */
+export function isGoodsBlock(block: BioBlock): block is BioGoodsBlock {
+  return block.type === "goods";
+}
+
+/**
+ * SAVE-PATH wire-safety for the goods block's destination (founder ruling
+ * FD8, 2026-08-01). Tri-state, mirroring the trips precedent
+ * (mobile-travel.ts's `normalizeTripInput`): the client sending NO
+ * `destination` key at all on the goods block = omitted = keep whatever is
+ * already stored; sending an explicit value (valid or not — parseOneBlock
+ * has already resolved it into `parsedBlocks` by the time this runs) = set,
+ * use the freshly parsed result as-is.
+ *
+ * Needed because the pure parser's own missing-key default
+ * (parseGoodsDestination, above) cannot tell "an app build older than this
+ * field is re-submitting a block it cannot see the field on" apart from
+ * "this row has never been saved since the field existed" — both arrive
+ * identically, as a bare `{id,type:"goods"}`. The parser's default is the
+ * right answer for the SECOND case; for the FIRST, an artist who already
+ * chose "standalone_shop" through an entitled client must not have that
+ * choice silently reverted to "booking_page" by an unrelated save (e.g.
+ * reordering a link) from a stale build. Telling them apart needs the
+ * CURRENT stored value, which the pure parser never sees — so, like
+ * gateMediaBlocksForSave just above, this runs as a second pass AFTER both
+ * the incoming payload and the current stored settings have been parsed.
+ *
+ * `rawBlocks` is the UNPARSED incoming array (JSON.parse'd request body /
+ * form field), read only to check whether the goods entry carried the key
+ * at all — parsedBlocks already reflects its resolved value either way.
+ */
+export function preserveGoodsDestinationOnSave(
+  rawBlocks: unknown[],
+  parsedBlocks: BioBlock[],
+  currentBlocks: BioBlock[],
+): BioBlock[] {
+  const rawGoods = rawBlocks.find(
+    (b): b is Record<string, unknown> =>
+      !!b && typeof b === "object" && (b as Record<string, unknown>).type === "goods",
+  );
+  if (!rawGoods || rawGoods.destination !== undefined) return parsedBlocks;
+  const currentGoods = currentBlocks.find(isGoodsBlock);
+  if (!currentGoods) return parsedBlocks;
+  return parsedBlocks.map((b) =>
+    isGoodsBlock(b) ? { ...b, destination: currentGoods.destination } : b,
+  );
 }
 
 /**
@@ -470,12 +562,64 @@ function blockId(raw: Record<string, unknown>, fallback: string): string {
   return typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallback;
 }
 
+/**
+ * The goods block's destination fallback rules (founder ruling FD8,
+ * 2026-08-01). Closed enum, both failure modes fall back rather than ever
+ * leaving the field unset — but the two failure modes fall back to
+ * DIFFERENT values, which is the one judgement call the ruling asked to
+ * think through:
+ *
+ * A genuinely MISSING key (`raw === undefined`, no `destination` property at
+ * all) resolves to "booking_page", NOT the ruling's plain "standalone_shop"
+ * default for new configs. Reasoning: every goods block in production today
+ * has always deep-linked to the booking page's shop teaser (the pre-FD8 S4
+ * behaviour), and the standalone shop is separately dark
+ * (`GOODS_COMMERCE_ENABLED` off, apps/web/src/lib/features.ts) while an
+ * artist's `shop_checkout` toggle defaults ON — so defaulting a missing key
+ * to "standalone_shop" would, on deploy day alone (no re-save, no client
+ * update needed), silently turn every existing artist's working Hub shop
+ * link into a link to a 404 page. There is no version marker on stored
+ * `bio_page` JSON to tell "genuinely new" apart from "existing, never
+ * touched since this shipped" — a missing key looks identical either way —
+ * so this picks the one outcome that cannot regress a live public page.
+ * Every editor that knows this field (web + native `makeBlock`) sets it
+ * EXPLICITLY on creation, so in practice a bare `{id,type:"goods"}` reaching
+ * this parser is always either legacy data or an old client's save, never a
+ * deliberate fresh choice this parser invented.
+ *
+ * An EXPLICIT but INVALID value (present, but garbage or unrecognised) is a
+ * different situation — something actually wrote a value and got it wrong —
+ * and falls back to the ruling's stated plain default, "standalone_shop".
+ *
+ * The wire hazard this default alone does NOT fix — an OLD CLIENT silently
+ * resetting an artist's explicit "standalone_shop" choice back to
+ * "booking_page" merely by resaving an unrelated field on the same Hub — is
+ * handled at the SAVE PATH by preserveGoodsDestinationOnSave below, not
+ * here: this function has no access to what was already stored.
+ */
+function parseGoodsDestination(raw: unknown): BioGoodsDestination {
+  if (raw === undefined) return "booking_page";
+  return isBioGoodsDestination(raw) ? raw : DEFAULT_GOODS_DESTINATION;
+}
+
 /** Parse one block; returns null to DROP it (empty headline/text, unsafe URL,
  *  or an unknown type). The index gives a stable fallback id for legacy rows. */
 function parseOneBlock(raw: unknown, index: number): BioBlock | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   if (!isBioBlockType(o.type)) return null;
+
+  // The hub's "goods" block is the ONE exception in the feature-block
+  // family: it carries a `destination` field (founder ruling FD8,
+  // 2026-08-01, SUPERSEDES S4). Checked before the generic feature-block
+  // branch below, which would otherwise return a payload-free shape for it.
+  if (o.type === "goods") {
+    return {
+      id: blockId(o, `${o.type}-${index}`),
+      type: "goods",
+      destination: parseGoodsDestination(o.destination),
+    };
+  }
 
   // Feature blocks hold no content: presence and position are the whole
   // payload, so there is nothing to sanitize and nothing that can be empty.

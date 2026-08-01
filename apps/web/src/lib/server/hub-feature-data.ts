@@ -3,12 +3,9 @@ import { serviceClient } from "@/lib/supabase/service";
 import { parseBooksSettings, deriveBooksOpen } from "@/lib/books-settings";
 import { todayInTimeZone } from "@/lib/date-utils";
 import { canUseGoods } from "@/lib/features";
+import { goodsDestinationAvailability } from "@/lib/goods-visibility";
 import { publicCollectionsForArtist } from "./collections";
-import {
-  parseBioPageSettings,
-  isModuleVisible,
-  type BioBlock,
-} from "@/lib/bio-page-settings";
+import { parseBioPageSettings, type BioBlock } from "@/lib/bio-page-settings";
 import type { HubFeatureData } from "@/app/[slug]/hub/feature-blocks";
 
 // Data loader for the hub's feature blocks (Plus build P2b).
@@ -24,6 +21,11 @@ export async function loadHubFeatureData(input: {
   settings: Record<string, unknown>;
   blocks: BioBlock[];
   bookingUrl: string;
+  /** Host-aware standalone shop checkout URL (publicArtistUrl(slug, {
+   *  subpath: "/shop/checkout" })), computed by the caller exactly like
+   *  bookingUrl already is — needed only when a goods block's destination
+   *  resolves to "standalone_shop" (FD8). */
+  standaloneShopUrl: string;
   timezone?: string | null;
 }): Promise<HubFeatureData> {
   const types = new Set(input.blocks.map((b) => b.type));
@@ -36,6 +38,7 @@ export async function loadHubFeatureData(input: {
     nextTripLabel: null,
     flashCount: 0,
     featuredCollections: {},
+    goods: { visible: false, href: null },
   };
 
   // Books state is settings-only (no query), and two blocks read it.
@@ -49,17 +52,23 @@ export async function loadHubFeatureData(input: {
 
   const jobs: Promise<void>[] = [];
 
-  // The "goods" feature block deep-links to the booking page's shop teaser
-  // (feature-blocks.tsx: href={data.bookingUrl}), so it is gated on that
-  // teaser's OWN visibility (decision S4) — a narrow, deliberate cascade that
-  // suppresses a broken link, not a surface. When goods-commerce un-parks and
-  // this block links to the standalone shop instead, this dependency should
-  // be dropped.
+  // The "goods" feature block now carries an explicit destination (founder
+  // ruling FD8, 2026-08-01, SUPERSEDES S4's hidden coupling to the booking
+  // page teaser): standalone shop, or the booking page's own shop teaser.
+  // Per-destination availability is shared with the editor's warning state
+  // and the /goods visibility summary (goods-visibility.ts) — one source of
+  // truth for the two ANDs. If the SELECTED destination is unavailable the
+  // block is HIDDEN, never silently re-routed to the other one.
   const bioPage = parseBioPageSettings(input.settings.bio_page);
-  const goodsBlockAllowed =
-    canUseGoods(input.settings) && isModuleVisible(bioPage, "shop");
+  const goodsBlock = input.blocks.find(
+    (b): b is Extract<BioBlock, { type: "goods" }> => b.type === "goods",
+  );
+  const availability = goodsDestinationAvailability(input.settings, bioPage);
+  const goodsAvailable = goodsBlock
+    ? availability[goodsBlock.destination]
+    : false;
 
-  if (types.has("goods") && goodsBlockAllowed) {
+  if (types.has("goods") && goodsAvailable) {
     jobs.push(
       (async () => {
         const { data } = await serviceClient
@@ -208,5 +217,26 @@ export async function loadHubFeatureData(input: {
   }
 
   await Promise.all(jobs);
+
+  // Resolved AFTER the jobs settle: productCount is only known once the
+  // query above (if it ran) has completed. `visible` folds BOTH gates the
+  // public render needs — the selected destination must be available (never
+  // silently re-routed), AND the artist must actually have products (an
+  // available destination with an empty shop is still nothing to show, the
+  // same rule this block always had). Resolved here rather than in
+  // feature-blocks.tsx's JSX so the decision is covered by this module's
+  // tests: vitest's include (src/**/*.test.ts) does not run .tsx render
+  // logic in this project.
+  if (goodsBlock) {
+    empty.goods = {
+      visible: goodsAvailable && empty.productCount > 0,
+      href: goodsAvailable
+        ? goodsBlock.destination === "standalone_shop"
+          ? input.standaloneShopUrl
+          : input.bookingUrl
+        : null,
+    };
+  }
+
   return empty;
 }

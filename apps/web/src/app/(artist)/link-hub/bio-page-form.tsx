@@ -19,11 +19,15 @@ import {
   BIO_SOCIAL_META,
   BIO_BLOCK_TYPES,
   BIO_BLOCK_META,
+  BIO_GOODS_DESTINATIONS,
+  DEFAULT_GOODS_DESTINATION,
   canAddBlock,
   isFeatureBlockType,
+  isBioGoodsDestination,
   type BioBlock,
   type BioBlockType,
   type BioGalleryImage,
+  type BioGoodsDestination,
   type BioSocial,
   type BioSocialPlatform,
   type BioPageSettings,
@@ -44,7 +48,15 @@ type BlockPatch = Partial<{
   isActive: boolean;
   images: BioGalleryImage[];
   layout: "grid" | "carousel";
+  destination: BioGoodsDestination;
 }>;
+
+/** Copy for the goods block's destination picker (FD8). Shared by the
+ *  <select> options and the unavailable-state warning below it. */
+const GOODS_DESTINATION_LABEL: Record<BioGoodsDestination, string> = {
+  standalone_shop: "Your standalone shop",
+  booking_page: "Your booking page's shop section",
+};
 
 const INPUT =
   "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring";
@@ -73,8 +85,13 @@ const FEATURE_BLOCK_HINTS: Record<string, string> = {
 
 function makeBlock(type: BioBlockType, firstCollectionId?: string): BioBlock {
   const id = newId();
-  // Feature blocks (P2b) carry no content: presence and position are the whole
-  // payload, so there is nothing to seed and nothing for the artist to fill in.
+  // "goods" carries a destination (FD8) — checked first since it is also a
+  // feature-block type. Every OTHER feature block (P2b) still carries no
+  // content: presence and position are the whole payload, so there is
+  // nothing to seed and nothing for the artist to fill in.
+  if (type === "goods") {
+    return { id, type: "goods", destination: DEFAULT_GOODS_DESTINATION };
+  }
   if (isFeatureBlockType(type)) return { id, type };
   // A featured collection is seeded with a real one (P5d). A block added empty
   // would be dropped by the parser on save, so the artist would add it, save,
@@ -103,6 +120,7 @@ export default function BioPageForm({
   bioPage,
   collections = [],
   richBlocksAllowed = false,
+  goodsAvailability,
 }: {
   bioPage: BioPageSettings;
   /** The artist's LIVE collections, for the featured-collection picker. */
@@ -112,6 +130,11 @@ export default function BioPageForm({
    *  + save) is the real gate; this only keeps a Free artist from adding a
    *  block that would not render. */
   richBlocksAllowed?: boolean;
+  /** Per-destination availability for the goods block (FD8), so the picker
+   *  can warn when the artist's saved selection is currently a dead end. The
+   *  server always computes this (goods-visibility.ts); optional only so a
+   *  missing prop fails open (no false warning) rather than crashing. */
+  goodsAvailability?: Record<BioGoodsDestination, boolean>;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveBioPageAction,
@@ -434,6 +457,40 @@ export default function BioPageForm({
                 <p className="text-xs text-muted-foreground">
                   {FEATURE_BLOCK_HINTS[block.type]}
                 </p>
+              )}
+
+              {block.type === "goods" && (
+                <div className="space-y-1.5">
+                  <select
+                    value={block.destination}
+                    aria-label="Shop block destination"
+                    onChange={(e) =>
+                      patchBlock(block.id, {
+                        destination: isBioGoodsDestination(e.target.value)
+                          ? e.target.value
+                          : DEFAULT_GOODS_DESTINATION,
+                      })
+                    }
+                    className={INPUT}
+                  >
+                    {BIO_GOODS_DESTINATIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {GOODS_DESTINATION_LABEL[d]}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Unavailable is a WARNING, not a block: the artist's
+                      selection is preserved even while unavailable (FD8) — it
+                      is never silently swapped for the other destination. */}
+                  {goodsAvailability &&
+                    !goodsAvailability[block.destination] && (
+                      <p className="text-xs text-destructive">
+                        {block.destination === "standalone_shop"
+                          ? "Your standalone shop is off right now, so this block won't show on your public Hub. Turn it on under Goods, or point this block at your booking page instead."
+                          : "Your booking page's shop section is hidden right now, so this block won't show on your public Hub. Show it under Books & availability, or point this block at your standalone shop instead."}
+                      </p>
+                    )}
+                </div>
               )}
 
               {block.type === "featured_collection" && (

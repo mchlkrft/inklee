@@ -942,3 +942,59 @@ requirement and fixed in the same slice by switching to a
 `res.body.getReader()` running-total mid-stream abort; mutation-proven —
 deleting the abort check flips exactly the MID-STREAM test) plus coverage
 rows; `pnpm audit:validate` and `pnpm audit:generate` both clean.
+
+### 2026-08-01 — FD7 + FD8 implementation note (visibility summary + goods Hub block destination)
+
+Implements FD7 ("independent non-cascading visibility... adds required UX: a
+clear per-surface visibility summary") and FD8 ("the hub goods block gets an
+EXPLICIT destination setting... SUPERSEDES S4"). Full narrative in
+`docs/product/plus-build-progress.md` (2026-08-01 entry); this note records
+the missing-destination judgement call and the wire-safety split, since
+those are the facts a later reader of THIS file would look for.
+
+**The one judgement call (missing destination on an existing block).** A
+goods block with NO `destination` key resolves to `"booking_page"`
+(`parseGoodsDestination`, `packages/shared/src/bio-page.ts`) — not the
+ruling's plain `"standalone_shop"` default for new configs. The parser has
+no version marker to tell "a genuinely new block" apart from "an existing
+block that predates this field, never resaved since" — both look identical,
+a bare `{id,type:"goods"}` — so this picks the one outcome that preserves
+today's actual behaviour (every existing block has always pointed at the
+booking page) rather than the one that would, on deploy day alone, turn a
+live artist's working Hub shop link into a link to a page that 404s (the
+standalone shop is separately dark behind `GOODS_COMMERCE_ENABLED`, while the
+artist's own `shop_checkout` toggle defaults ON). An EXPLICIT but
+unrecognised value still falls back to the ruling's stated default,
+`"standalone_shop"` — that case genuinely cannot regress anything, since
+nothing valid was ever stored there.
+
+**Split from wire safety, which is a separate mechanism.** The parser default
+above only fires for a key that is missing FOR ANY REASON, which includes an
+old app build resaving an existing, ALREADY-CHOSEN `"standalone_shop"` block
+on an unrelated edit. That case must NOT fall back to the parser default (it
+would silently revert a real choice) — it is handled instead by
+`preserveGoodsDestinationOnSave`, a second pass run at both save paths
+(mirroring `gateMediaBlocksForSave`'s shape) that compares the incoming raw
+payload against the CURRENT stored settings and keeps the stored value when
+the client's payload omitted the key.
+
+**Gap noticed, not fixed, flagged for the register (supervisor owns
+`docs/audit/findings.yaml` for this task).** The ruling's own availability
+formula for the Hub block's `standalone_shop` destination does not include
+the `GOODS_COMMERCE_ENABLED` dark flag or Stripe Connect readiness — both
+are reported separately by the FD7 summary. Consequence: while the flag
+stays off (today), a brand-new goods block defaults to `"standalone_shop"`
+and reads as "available" with no editor warning, yet its target page 404s
+for every visitor. `deriveGoodsVisibilitySummary`'s `publishedNowhere` field
+inherits the same gap. This matches the ruling's literal formula, so it was
+not changed in this slice; a test documents the exact behaviour rather than
+silently asserting around it (`goods-visibility-summary.test.ts`, "false
+when only an AVAILABLE hub block is present, everything else hidden").
+
+Validation: `npx tsc --noEmit` clean (web + mobile), `pnpm --filter
+@inklee/mobile typecheck` clean, eslint 0 errors on every touched file. Full
+`npx vitest run`: 168 files, 2910 passed + 1 expected fail (2911 total), up
+from the 2876-passed/1-expected-fail baseline (commit `6bac9914`) by exactly
+the 34 tests this slice added (9 `bio-page-settings.test.ts`, 7 new
+`goods-visibility.test.ts`, 14 new `goods-visibility-summary.test.ts`, net +4
+`hub-feature-data.test.ts`), zero regressions.
