@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import {
@@ -62,12 +63,52 @@ export async function getArtistFeeSavings(
     depositQuery = depositQuery.gte("deposit_paid_at", `${from}T00:00:00Z`);
   }
 
-  const { data: deposits } = await depositQuery;
+  const { data: deposits, error: depositErr } = await depositQuery;
+  if (depositErr) {
+    // FAIL QUIET-BUT-HONEST, never fail-to-zero. A discarded read here used to
+    // render as "you paid 0 in fees", which is a fabricated money figure shown
+    // as fact. Returning null is already a supported outcome on both call
+    // sites (the Savings tab is hidden, the mobile route sends undefined), so
+    // an unavailable panel replaces a wrong one. Throwing was the other
+    // candidate and is worse: it takes down an analytics page whose other
+    // panels are fine.
+    Sentry.captureException(depositErr, {
+      tags: { area: "fee-savings", step: "deposit-read" },
+    });
+    return null;
+  }
 
   let goodsQuery = serviceClient
     .from("orders")
-    .select("subtotal, platform_fee_amount, fee_schedule_version, fee_tier")
+    // `subtotal_amount` is the real column; this read asked for `subtotal`,
+    // which does not exist on `orders` and never has (0036 defines
+    // subtotal_amount). PostgREST answered 42703 on EVERY call, the error was
+    // discarded, and the whole goods lane silently reported zero fees, zero
+    // transactions and zero hypothetical on the artist analytics page and the
+    // mobile analytics route. Proven against local PostgREST, not inferred:
+    // the exact select string returns `column orders.subtotal does not exist`
+    // while the same query with subtotal_amount returns 200.
+    //
+    // `booking_id IS NULL` is the second half. A booking-coupled add-on order
+    // stamps the FULL intent fee into platform_fee_amount (actions.ts ~571),
+    // the same fee already counted above from
+    // booking_requests.platform_fee_collected_cents, so once the column name
+    // is fixed every combined deposit+add-on payment would be counted TWICE.
+    // The dead query was hiding a double-count: fixing only the typo would
+    // have turned an under-report into an over-report. Same filter the A2 tax
+    // rollup uses on this table, deliberately.
+    //
+    // Consequence worth stating: the goods portion of a COMBINED payment is
+    // reported in the appointment lane, because that is the only place the
+    // total fee is recorded. Lane attribution is therefore approximate for
+    // combined payments while the total stays exact. Splitting it properly
+    // means netting each coupled order's goods_fee_amount out of the deposit
+    // lane, which is an accounting presentation decision, not a bug fix.
+    .select(
+      "subtotal_amount, platform_fee_amount, fee_schedule_version, fee_tier",
+    )
     .eq("artist_id", artistId)
+    .is("booking_id", null)
     .eq("status", "paid")
     .not("platform_fee_amount", "is", null);
 
@@ -75,7 +116,13 @@ export async function getArtistFeeSavings(
     goodsQuery = goodsQuery.gte("created_at", `${from}T00:00:00Z`);
   }
 
-  const { data: goods } = await goodsQuery;
+  const { data: goods, error: goodsErr } = await goodsQuery;
+  if (goodsErr) {
+    Sentry.captureException(goodsErr, {
+      tags: { area: "fee-savings", step: "goods-read" },
+    });
+    return null;
+  }
 
   let depositFeesPaid = 0;
   let depositHypothetical = 0;
@@ -110,7 +157,7 @@ export async function getArtistFeeSavings(
     goodsTxCount++;
 
     const rowTier = (g.fee_tier as PaymentTier | null) ?? tier;
-    const base = Math.round(((g.subtotal as number) ?? 0) * 100);
+    const base = Math.round(((g.subtotal_amount as number) ?? 0) * 100);
     goodsHypothetical += feeMinorUnits({
       baseMinor: base,
       lane: "goods" as FeeLane,
