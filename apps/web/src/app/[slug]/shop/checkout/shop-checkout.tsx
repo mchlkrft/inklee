@@ -820,8 +820,23 @@ export function ShopCheckout({
             className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <span className="text-xs text-muted-foreground">
-            Your receipt goes here, and the artist uses it to arrange pickup or
-            delivery.
+            {/* C1.4 verbatim (docs/legal/counsel-accountant-handoff-2026-08.md
+                PART 4): "We use your email for your receipt and so [artist]
+                can arrange delivery. It is kept as part of the order record.
+                [Privacy policy]". Plain <a>, not <Link> (same reasoning as
+                cookie-banner.tsx): /privacy is apex-only and the host.ts
+                safety net rewrites a plain anchor correctly on an artist
+                subdomain, where a client-side RSC navigation would not. */}
+            We use your email for your receipt and so {artistName} can arrange
+            delivery. It is kept as part of the order record.{" "}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a
+              href="/privacy"
+              className="text-foreground underline underline-offset-4"
+            >
+              Privacy policy
+            </a>
+            .
           </span>
         </label>
         <label className="block space-y-1 text-sm">

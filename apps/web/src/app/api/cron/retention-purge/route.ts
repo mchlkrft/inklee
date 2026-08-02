@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
+import {
+  financialYearRetentionCutoff,
+  monthsAgoCutoff,
+} from "@/lib/server/retention-cutoffs";
+import { runShopRetentionPurges } from "@/lib/server/shop-retention";
 
 export const runtime = "nodejs";
 
-// Retention purge (counsel docs/account-deletion-handoff.md §4 + §8). Enforces
-// the time-boxes counsel set so retention is never indefinite:
+// Retention purge (counsel docs/account-deletion-handoff.md §4 + §8, plus
+// docs/legal/counsel-accountant-handoff-2026-08.md PART 4 C1.4 for the
+// guest-shop steps added below). Enforces the time-boxes counsel set so
+// retention is never indefinite:
 //   • deleted_account_records (pseudonymised financial snapshot): 7 years from
 //     the end of the relevant financial year. Financial year = calendar year
 //     (founder decision 2026-06-10), so a record is purgeable once 31 Dec of
@@ -22,6 +30,43 @@ export const runtime = "nodejs";
 //     24 months, matching the audit convention. Account deletion already
 //     cascades both via their profiles FK; this bounds retention for accounts
 //     that stay.
+//   • guest-shop rows (C1.4, standalone-order buyers who never have an
+//     account): erase a cancelled standalone order's email 30 days after
+//     cancellation, erase a completed standalone order's email 7 years from
+//     the end of its financial year, delete an abandoned cart 30 days after
+//     last activity, delete an inactive wishlist item after 12 months —
+//     delegated to shop-retention.ts, which is unit- and DB-tested on its
+//     own.
+//
+// SEQUENCING: every step below runs independently via `runStep`/
+// `runShopRetentionPurges`. This used to be eight sequential blocks that each
+// `return`ed a 500 on its own error, which meant a failure in block 3 left
+// blocks 4-8 unexecuted with NO retry until the next scheduled run (found
+// 2026-08-02 reviewing this file for the C1.4 addition — the file had zero
+// tests before this change). A failed step is now reported per-step in the
+// response body and the route still 500s if any step failed (so cron
+// monitoring still alerts), but every OTHER step still runs and its count is
+// still reported.
+async function runStep(
+  name: string,
+  run: () => PromiseLike<{
+    data: unknown[] | null;
+    error: { message: string } | null;
+  }>,
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  try {
+    const { data, error } = await run();
+    if (error) throw new Error(error.message);
+    return { ok: true, count: data?.length ?? 0 };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    Sentry.captureException(err, {
+      tags: { action: "retention_purge", step: name },
+    });
+    return { ok: false, error: message };
+  }
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -29,127 +74,113 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-
-  // 7y-from-financial-year-end (calendar year): purge records whose deletion
-  // year is <= currentYear - 8, i.e. deleted_at before 1 Jan of (currentYear-7).
-  const financialCutoff = new Date(
-    Date.UTC(now.getUTCFullYear() - 7, 0, 1),
-  ).toISOString();
-
-  // 24 months ago (calendar months, exact).
-  const m24 = new Date(now);
-  m24.setUTCMonth(m24.getUTCMonth() - 24);
-  const auditCutoff = m24.toISOString();
-
-  const { data: purgedFinancial, error: financialError } = await serviceClient
-    .from("deleted_account_records")
-    .delete()
-    .lt("deleted_at", financialCutoff)
-    .select("id");
-  if (financialError) {
-    return NextResponse.json(
-      { error: financialError.message },
-      { status: 500 },
-    );
-  }
-
-  const { data: purgedAudit, error: auditError } = await serviceClient
-    .from("audit_log")
-    .delete()
-    .is("booking_id", null)
-    .lt("timestamp", auditCutoff)
-    .select("id");
-  if (auditError) {
-    return NextResponse.json({ error: auditError.message }, { status: 500 });
-  }
-
-  const { data: purgedAdmin, error: adminError } = await serviceClient
-    .from("admin_action_log")
-    .delete()
-    .lt("created_at", auditCutoff)
-    .select("id");
-  if (adminError) {
-    return NextResponse.json({ error: adminError.message }, { status: 500 });
-  }
-
-  const { data: purgedEvents, error: eventsError } = await serviceClient
-    .from("analytics_events")
-    .delete()
-    .lt("occurred_at", auditCutoff)
-    .select("id");
-  if (eventsError) {
-    return NextResponse.json({ error: eventsError.message }, { status: 500 });
-  }
-
+  const financialCutoff = financialYearRetentionCutoff(now, 7).toISOString();
+  const auditCutoff = monthsAgoCutoff(now, 24).toISOString();
   const auditCutoffDay = auditCutoff.slice(0, 10);
-  const { data: purgedActivity, error: activityError } = await serviceClient
-    .from("artist_activity_days")
-    .delete()
-    .lt("day", auditCutoffDay)
-    .select("artist_id");
-  if (activityError) {
-    return NextResponse.json({ error: activityError.message }, { status: 500 });
-  }
+
+  const steps: Record<
+    string,
+    { ok: true; count: number } | { ok: false; error: string }
+  > = {};
+
+  steps.purged_financial_records = await runStep(
+    "deleted_account_records",
+    () =>
+      serviceClient
+        .from("deleted_account_records")
+        .delete()
+        .lt("deleted_at", financialCutoff)
+        .select("id"),
+  );
+
+  steps.purged_audit_rows = await runStep("audit_log", () =>
+    serviceClient
+      .from("audit_log")
+      .delete()
+      .is("booking_id", null)
+      .lt("timestamp", auditCutoff)
+      .select("id"),
+  );
+
+  steps.purged_admin_rows = await runStep("admin_action_log", () =>
+    serviceClient
+      .from("admin_action_log")
+      .delete()
+      .lt("created_at", auditCutoff)
+      .select("id"),
+  );
+
+  steps.purged_analytics_events = await runStep("analytics_events", () =>
+    serviceClient
+      .from("analytics_events")
+      .delete()
+      .lt("occurred_at", auditCutoff)
+      .select("id"),
+  );
+
+  steps.purged_activity_days = await runStep("artist_activity_days", () =>
+    serviceClient
+      .from("artist_activity_days")
+      .delete()
+      .lt("day", auditCutoffDay)
+      .select("artist_id"),
+  );
 
   // Public web analytics rows are anonymous by construction (daily-rotating
   // visitor hash) but still follow the same 24-month bound. The sessionized
   // daily rollup (migration 0073) carries the same visit rows, so it is
   // purged on the same clock, along with its coverage bookkeeping.
-  const { data: purgedWebEvents, error: webEventsError } = await serviceClient
-    .from("web_analytics_events")
-    .delete()
-    .lt("occurred_at", auditCutoff)
-    .select("id");
-  if (webEventsError) {
-    return NextResponse.json(
-      { error: webEventsError.message },
-      { status: 500 },
-    );
-  }
+  steps.purged_web_analytics_events = await runStep(
+    "web_analytics_events",
+    () =>
+      serviceClient
+        .from("web_analytics_events")
+        .delete()
+        .lt("occurred_at", auditCutoff)
+        .select("id"),
+  );
 
-  const { data: purgedWaVisits, error: waVisitsError } = await serviceClient
-    .from("wa_visits_daily")
-    .delete()
-    .lt("day", auditCutoffDay)
-    .select("day");
-  if (waVisitsError) {
-    return NextResponse.json({ error: waVisitsError.message }, { status: 500 });
-  }
-  const { error: waRollupDaysError } = await serviceClient
-    .from("wa_visit_rollup_days")
-    .delete()
-    .lt("day", auditCutoffDay);
-  if (waRollupDaysError) {
-    return NextResponse.json(
-      { error: waRollupDaysError.message },
-      { status: 500 },
-    );
-  }
+  steps.purged_wa_visits = await runStep("wa_visits_daily", () =>
+    serviceClient
+      .from("wa_visits_daily")
+      .delete()
+      .lt("day", auditCutoffDay)
+      .select("day"),
+  );
+
+  steps.purged_wa_rollup_days = await runStep("wa_visit_rollup_days", () =>
+    serviceClient
+      .from("wa_visit_rollup_days")
+      .delete()
+      .lt("day", auditCutoffDay)
+      .select("day"),
+  );
 
   // Map reports (DSA register, migration 0075): keep 24 months, same clock as
   // the audit rows. Statements of reasons (moderation_statements) are kept
   // 5 years and deliberately NOT purged here yet; their purge lands with the
   // Phase 7 threshold machinery that starts creating them.
-  const { data: purgedMapReports, error: mapReportsError } = await serviceClient
-    .from("map_reports")
-    .delete()
-    .lt("created_at", auditCutoff)
-    .select("id");
-  if (mapReportsError) {
-    return NextResponse.json(
-      { error: mapReportsError.message },
-      { status: 500 },
-    );
+  steps.purged_map_reports = await runStep("map_reports", () =>
+    serviceClient
+      .from("map_reports")
+      .delete()
+      .lt("created_at", auditCutoff)
+      .select("id"),
+  );
+
+  const shopSteps = await runShopRetentionPurges(now);
+  for (const [name, result] of Object.entries(shopSteps)) {
+    steps[name] = result;
   }
 
-  return NextResponse.json({
-    purged_financial_records: purgedFinancial?.length ?? 0,
-    purged_audit_rows: purgedAudit?.length ?? 0,
-    purged_admin_rows: purgedAdmin?.length ?? 0,
-    purged_analytics_events: purgedEvents?.length ?? 0,
-    purged_activity_days: purgedActivity?.length ?? 0,
-    purged_web_analytics_events: purgedWebEvents?.length ?? 0,
-    purged_wa_visits: purgedWaVisits?.length ?? 0,
-    purged_map_reports: purgedMapReports?.length ?? 0,
+  const body: Record<string, number> = {};
+  const errors: { step: string; error: string }[] = [];
+  for (const [name, result] of Object.entries(steps)) {
+    if (result.ok) body[name] = result.count;
+    else errors.push({ step: name, error: result.error });
+  }
+
+  return NextResponse.json(errors.length > 0 ? { ...body, errors } : body, {
+    status: errors.length > 0 ? 500 : 200,
   });
 }

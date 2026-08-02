@@ -2512,3 +2512,116 @@ local Postgres before any test ran).
 `GOODS-DISC-001` (the add-on-checkout gap, `hypothesis`/`open`); new
 coverage row for this task's own scope, naming what was and was not
 covered. `pnpm audit:validate` and `pnpm audit:generate` both clean.
+
+## C1.4: guest-buyer retention purges (2026-08-02, ready for review)
+
+Counsel's retention table (`docs/legal/counsel-accountant-handoff-2026-08.md`
+Part 4, C1.4) implemented as four independent purge functions, wired into
+the pre-existing `retention-purge` cron, plus the checkout privacy notice
+and a records-of-processing entry. Counsel named this the launch blocker:
+"Build the purge jobs before the shop switches on — the cancelled-order
+purge is the one with no current path and no lawful anchor without it."
+
+**What shipped.** New pure module `apps/web/src/lib/server/retention-cutoffs.ts`
+(`financialYearRetentionCutoff`, `daysAgoCutoff`, `monthsAgoCutoff`) —
+factored out so the pre-existing cron's own 7-year and 24-month cutoffs and
+this task's new ones share one implementation instead of two copies that
+could quietly diverge. New `apps/web/src/lib/server/shop-retention.ts`:
+`purgeCancelledStandaloneOrderEmails` (30 days),
+`purgeCompletedStandaloneOrderEmails` (7y from financial-year-end),
+`purgeAbandonedCarts` (30 days since last activity), and
+`purgeInactiveWishlistItems` (12 months), all scoped to standalone orders
+(`booking_id IS NULL`) only — a booking-linked order's `client_email`
+follows the booking's own retention story, not this one. No migration: every
+column these purges need already exists (`orders.client_email/updated_at`,
+`shop_carts.updated_at`, `shop_cart_items.updated_at`,
+`shop_wishlist_items.created_at`).
+
+**A real constraint conflict found by the tests, not by inspection.** The
+first version erased a cancelled/completed order's email with
+`client_email: null`. Every purge against a real fixture failed with `new
+row for relation "orders" violates check constraint
+"orders_buyer_identity_check"` — migration 0134's own invariant
+(`booking_id IS NOT NULL OR client_email IS NOT NULL`, "an order must always
+have someone to fulfil to") categorically forbids nulling the email on a
+booking-less order. Counsel's own answer offered the fork ("erase **or**
+pseudonymise"); fixed by pseudonymising to a single constant,
+non-identifying placeholder (`PURGED_EMAIL_PLACEHOLDER =
+"purged@retention.inklee.invalid"`) shared by every purged row — no
+per-subject reversible link is kept, so this is erasure of the personal data
+with a schema-satisfying tombstone, not a true reversible pseudonym. Filters
+use `.neq(client_email, placeholder)` rather than `.not(...,"is",null)` so a
+second run is idempotent and never re-matches an already-purged row.
+
+**The eight-block sequencing flaw, fixed, not appended to.** The
+pre-existing `retention-purge` cron was eight sequential blocks that each
+`return`ed a 500 the instant its own delete errored, stranding every step
+after it with no retry until the next scheduled run, and had zero tests.
+Refactored every step (the original eight plus the four new C1.4 steps)
+into an independent `runStep`/`runShopRetentionPurges` pattern: one step's
+error is captured to Sentry and reported in an `errors` array, but every
+OTHER step still runs and its count is still reported; the route still
+500s if anything failed, so cron monitoring still alerts.
+`route.test.ts` (new; the route had none before) proves a failing early
+step does not block later ones, that C1.4 failures merge into the same
+error list, and the happy-path 200.
+
+**Privacy notice + records of processing.** The checkout email field's
+helper text now reads counsel's verbatim wording ("We use your email for
+your receipt and so {artist} can arrange delivery. It is kept as part of
+the order record.") with a real `/privacy` link (`shop-checkout.tsx`).
+New `docs/legal/records-of-processing-guest-shop.md`: the first standalone
+Article 30 register entry (categories, recipients, legal bases, the
+retention table, and a pointer to the implementation), since no
+consolidated register file previously existed — earlier processing
+activities are described in prose across
+`docs/account-deletion-handoff.md` rather than as a register entry.
+
+**Tests, all at the exact boundary.** Every rule proven with a fixture on
+each side of its cutoff (one day inside the window survives, one day past
+it does not) against the real local Postgres in
+`tests/db/shop-retention-purge.test.ts` (15 tests): cancelled-order
+pseudonymisation (29d survives / 31d purged / idempotent re-run), the
+financial-year-end arithmetic specifically proving it is NOT naive "7 years
+from the order date" (a row dated 1 Jan of a financial year survives past
+the point a naive per-row-date formula would already have purged it; a row
+dated 31 Dec of the prior year is purged), abandoned-cart deletion keyed to
+the MORE RECENT of the cart's own `updated_at` and its items' `updated_at`
+(shop-cart.ts never touches the parent cart row on add/update/remove, so a
+cart-only check would purge an actively-shopped cart), and wishlist
+12-month inactivity. A separate pure unit suite
+(`retention-cutoffs.test.ts`, 5 tests) pins the exact ISO instants the
+financial-year formula must produce, independent of any DB. Mutation proof
+on the cancelled-order purge (the one counsel flagged by name): function
+body replaced with `return { count: 0 }`, named test
+("is pseudonymised at 31 days old ... — MUTATION-PROVEN") went red along
+with two tests that transitively exercise the same function, file restored
+to its exact prior content (sha256
+`3d1735e21256ad3ac13c54f4ad8c1f879ffe8e5ad3c11c3e83d6ff0efe848b70` before
+and after), suite green again.
+
+**Validation.** `npx tsc --noEmit` clean (one real error surfaced and
+fixed along the way: `runStep`'s callback type was `Promise<...>`, which a
+`PostgrestFilterBuilder` satisfies structurally but not nominally —
+widened to `PromiseLike<...>`). `eslint` on every touched file: zero
+errors. Full `npx vitest run`: 186 files, 3159 passed + 1 expected fail
+(this task's own additions: 9 unit tests, in `retention-cutoffs.test.ts`
+and the new cron `route.test.ts`; the total also reflects concurrent work
+from other workers in this shared session), zero regressions attributable
+to this change. `pnpm test:db` full run: 20 files, 281/281 green on a
+clean run; two earlier runs in the same session showed a DIFFERENT
+unrelated file failing each time (`account-deletion-retention.test.ts` +
+`appointment-payments-convergence.test.ts` once, then
+`payment-request-intent-race.test.ts` with a literal "deadlock detected"
+Postgres error the next) — the fingerprint of another process hitting the
+same local Supabase concurrently (multiple agents share this session), not
+a regression: `shop-retention-purge.test.ts` itself passed in every run,
+including when isolated alongside the two files that failed in the full
+run, and a subsequent full clean run passed 281/281 with no retries or
+code changes in between.
+
+**Findings raised, not fixed here (reported to the team lead, who owns
+`docs/audit/findings.yaml` for this workstream):** the
+`orders_buyer_identity_check` conflict above, and the pre-existing
+zero-test/non-independent-step state of `retention-purge/route.ts` before
+this change.
