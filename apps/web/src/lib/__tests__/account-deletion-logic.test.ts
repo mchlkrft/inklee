@@ -3,6 +3,10 @@ import {
   buildFinancialSnapshot,
   categorizeDepositBookings,
   pseudonymizeOrder,
+  pseudonymizePaymentRequest,
+  pseudonymizePaymentRequestLine,
+  pseudonymizePaymentCollection,
+  pseudonymizePaymentAllocation,
   type BillingSnapshot,
   type DepositBookingRow,
 } from "@/lib/server/account-deletion-logic";
@@ -178,7 +182,7 @@ describe("buildFinancialSnapshot", () => {
     ];
     const snap = buildFinancialSnapshot([], new Set(), orders);
     expect(snap.orders).toEqual(orders);
-    expect(snap.schemaVersion).toBe(2);
+    expect(snap.schemaVersion).toBe(3);
   });
 
   it("includes billing snapshot when provided", () => {
@@ -191,12 +195,111 @@ describe("buildFinancialSnapshot", () => {
     };
     const snap = buildFinancialSnapshot([], new Set(), [], billing);
     expect(snap.billing).toEqual(billing);
-    expect(snap.schemaVersion).toBe(2);
+    expect(snap.schemaVersion).toBe(3);
   });
 
   it("sets billing to null when no subscription exists", () => {
     const snap = buildFinancialSnapshot([], new Set(), []);
     expect(snap.billing).toBeNull();
+  });
+
+  it("defaults appointmentPayments to the empty snapshot when omitted", () => {
+    const snap = buildFinancialSnapshot([], new Set(), []);
+    expect(snap.appointmentPayments).toEqual({
+      requests: [],
+      lines: [],
+      collections: [],
+      allocations: [],
+    });
+  });
+
+  it("embeds the pseudonymised P9 subset verbatim when provided", () => {
+    const appointmentPayments = {
+      requests: [{ id: "pr1", status: "sent", total_minor: 5000 }],
+      lines: [{ id: "l1", request_id: "pr1", name: "Session" }],
+      collections: [{ payment_intent_id: "pi_1", booking_id: "b1" }],
+      allocations: [
+        { id: "a1", payment_intent_id: "pi_1", amount_minor: 5000 },
+      ],
+    };
+    const snap = buildFinancialSnapshot(
+      [],
+      new Set(),
+      [],
+      null,
+      appointmentPayments,
+    );
+    expect(snap.appointmentPayments).toEqual(appointmentPayments);
+  });
+});
+
+describe("P9 pseudonymize* functions", () => {
+  it("payment request: keeps money/status fields, drops artist_id and any client token", () => {
+    const out = pseudonymizePaymentRequest({
+      id: "pr1",
+      artist_id: "artist-uuid",
+      booking_id: "b1",
+      status: "sent",
+      currency: "eur",
+      total_minor: 5000,
+      client_token: "supersecrettoken",
+    });
+    expect(out).toEqual({
+      id: "pr1",
+      booking_id: "b1",
+      status: "sent",
+      currency: "eur",
+      total_minor: 5000,
+    });
+    expect(JSON.stringify(out)).not.toMatch(/artist_id|token/i);
+  });
+
+  it("payment request line: keeps the descriptor, drops free-text description and artist_id", () => {
+    const out = pseudonymizePaymentRequestLine({
+      id: "l1",
+      request_id: "pr1",
+      artist_id: "artist-uuid",
+      name: "Full sleeve, session 2",
+      description: "As discussed with the client on Instagram",
+      quantity: 1,
+      unit_amount_minor: 5000,
+      line_total_minor: 5000,
+      classification: "tattoo_service",
+    });
+    expect(out.name).toBe("Full sleeve, session 2");
+    expect(out).not.toHaveProperty("description");
+    expect(out).not.toHaveProperty("artist_id");
+  });
+
+  it("payment collection and allocation: keep only money/Stripe identifiers", () => {
+    const collection = pseudonymizePaymentCollection({
+      payment_intent_id: "pi_1",
+      artist_id: "artist-uuid",
+      booking_id: "b1",
+      currency: "eur",
+    });
+    expect(collection).toEqual({
+      payment_intent_id: "pi_1",
+      booking_id: "b1",
+      currency: "eur",
+    });
+    const allocation = pseudonymizePaymentAllocation({
+      id: "a1",
+      artist_id: "artist-uuid",
+      payment_intent_id: "pi_1",
+      component: "deposit",
+      amount_minor: 5000,
+      collected_total_minor: 5000,
+      status: "succeeded",
+    });
+    expect(allocation).toEqual({
+      id: "a1",
+      payment_intent_id: "pi_1",
+      component: "deposit",
+      amount_minor: 5000,
+      collected_total_minor: 5000,
+      status: "succeeded",
+    });
   });
 });
 

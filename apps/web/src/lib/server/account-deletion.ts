@@ -7,6 +7,11 @@ import {
   buildFinancialSnapshot,
   categorizeDepositBookings,
   pseudonymizeOrder,
+  pseudonymizePaymentRequest,
+  pseudonymizePaymentRequestLine,
+  pseudonymizePaymentCollection,
+  pseudonymizePaymentAllocation,
+  type AppointmentPaymentsSnapshot,
   type BillingSnapshot,
   type DepositBookingRow,
 } from "./account-deletion-logic";
@@ -16,11 +21,21 @@ import {
 // storage/Stripe-skipping bug can't be re-propagated.
 //
 // Design: docs/account-deletion-design-2026-06-08.md. Legal position:
-// docs/account-deletion-handoff.md (counsel).
+// docs/account-deletion-handoff.md (counsel). Migration-side carve-out for the
+// tables that must survive: 0129 (billing/tax core) + 0143 (founder-offer
+// pricing evidence) — see each file's header for the per-table decision.
 // Two non-negotiable facts this hinges on:
 //   1) profiles.id has NO FK to auth.users, so deleting the auth user does NOT
 //      cascade — the profiles delete is what fans out, and it must succeed.
 //   2) Storage NEVER cascades — both buckets are purged by {artistId}/ prefix.
+//   3) A table that cascades from profiles and holds a financial record with
+//      no schema-level carve-out (SET NULL) must be archived HERE, into
+//      deleted_account_records, before the step-4 cascade destroys it. The P9
+//      appointment-payment tables (payment_requests/lines/collections/
+//      allocations, migration 0125) are the reference case: they stay
+//      CASCADE (their composite subject FKs cannot be SET NULL — see 0125's
+//      own comment on payment_requests_booking_fk), so archival here is the
+//      only surviving copy (BDEL-PAY-001).
 //
 // ⚠️ Counsel §3: erasure is NOT blocked on financial resolution. Deletion always
 // proceeds. Live unpaid intents are cancelled (transient retry, not a block);
@@ -253,7 +268,76 @@ export async function deleteOwnAccountCore(
     const pseudonymizedOrders = (orders ?? []).map((o) =>
       pseudonymizeOrder(o as Record<string, unknown>),
     );
-    if (paid.length > 0 || pseudonymizedOrders.length > 0 || billingSnapshot) {
+
+    // BDEL-PAY-001: the P9 appointment-payment tables (migration 0125) all
+    // cascade from `profiles` and are not covered by the deposit/order
+    // archive above. Same discipline: read + pseudonymise BEFORE the step-4
+    // cascade destroys the source rows. Only SENT requests are retained (see
+    // account-deletion-logic.ts) — an unsent draft was never shown to a
+    // client and carries no financial or retention obligation.
+    const { data: sentRequests, error: requestsError } = await serviceClient
+      .from("payment_requests")
+      .select("*")
+      .eq("artist_id", userId)
+      .not("sent_at", "is", null);
+    if (requestsError) throw requestsError;
+    const pseudonymizedRequests = (sentRequests ?? []).map((r) =>
+      pseudonymizePaymentRequest(r as Record<string, unknown>),
+    );
+    const sentRequestIds = (sentRequests ?? []).map((r) => r.id as string);
+
+    let pseudonymizedLines: Record<string, unknown>[] = [];
+    if (sentRequestIds.length > 0) {
+      const { data: lines, error: linesError } = await serviceClient
+        .from("payment_request_lines")
+        .select("*")
+        .in("request_id", sentRequestIds);
+      if (linesError) throw linesError;
+      pseudonymizedLines = (lines ?? []).map((l) =>
+        pseudonymizePaymentRequestLine(l as Record<string, unknown>),
+      );
+    }
+
+    // Collections and allocations are written ONLY by the service role at
+    // settlement (0125's "WHICH CLIENT WRITES WHAT"), so every row that
+    // exists for this artist represents money that actually moved — retained
+    // unconditionally, not gated on the parent request having been sent (a
+    // legacy deposit-path allocation carries no payment_request at all).
+    const { data: collections, error: collectionsError } = await serviceClient
+      .from("payment_collections")
+      .select("*")
+      .eq("artist_id", userId);
+    if (collectionsError) throw collectionsError;
+    const pseudonymizedCollections = (collections ?? []).map((c) =>
+      pseudonymizePaymentCollection(c as Record<string, unknown>),
+    );
+
+    const { data: allocations, error: allocationsError } = await serviceClient
+      .from("payment_allocations")
+      .select("*")
+      .eq("artist_id", userId);
+    if (allocationsError) throw allocationsError;
+    const pseudonymizedAllocations = (allocations ?? []).map((a) =>
+      pseudonymizePaymentAllocation(a as Record<string, unknown>),
+    );
+
+    const appointmentPayments: AppointmentPaymentsSnapshot = {
+      requests: pseudonymizedRequests,
+      lines: pseudonymizedLines,
+      collections: pseudonymizedCollections,
+      allocations: pseudonymizedAllocations,
+    };
+    const hasAppointmentPayments =
+      pseudonymizedRequests.length > 0 ||
+      pseudonymizedCollections.length > 0 ||
+      pseudonymizedAllocations.length > 0;
+
+    if (
+      paid.length > 0 ||
+      pseudonymizedOrders.length > 0 ||
+      billingSnapshot ||
+      hasAppointmentPayments
+    ) {
       const { error: archiveError } = await serviceClient
         .from("deleted_account_records")
         .insert({
@@ -264,6 +348,7 @@ export async function deleteOwnAccountCore(
             resolvedIds,
             pseudonymizedOrders,
             billingSnapshot,
+            appointmentPayments,
           ),
         });
       if (archiveError) throw archiveError;

@@ -69,16 +69,156 @@ const ORDER_RETAINED_FIELDS = [
   "created_at",
 ];
 
+// BDEL-PAY-001: the P9 appointment-payment tables (migration 0125) all cascade
+// from `profiles` and did not exist when the deposit/order archive above was
+// designed, so a paid appointment request was destroyed with no retained
+// record at all. Same allowlist discipline as `ORDER_RETAINED_FIELDS`: money
+// and Stripe identifiers only, artist_id excluded (redundant with the
+// `deleted_account_records.artist_id` column the snapshot already lives
+// under).
+//
+// `payment_request_lines.description` is DELIBERATELY excluded. It is
+// free-text typed by the artist at request-creation time (appointment-
+// payments.ts:506, trimmed(input.description, ...)) with no structural limit
+// on what it can contain, and counsel's allowlist (account-deletion-handoff.md
+// §4) excludes "free-text booking answers" and "Client notes" for exactly this
+// reason. `name` survives: counsel's own words for a goods line item are
+// "product descriptor and price only", and `name` is that descriptor for a
+// service or goods line, required (not optional) at line-creation, matching
+// the deposit/order precedent above of retaining structure, never prose.
+const PAYMENT_REQUEST_RETAINED_FIELDS = [
+  "id",
+  "booking_id",
+  "project_id",
+  "status",
+  "currency",
+  "total_minor",
+  "revision",
+  "supersedes_id",
+  "fee_schedule_version",
+  "sent_at",
+  "viewed_at",
+  "expires_at",
+  "cancelled_at",
+  "created_at",
+];
+
+const PAYMENT_REQUEST_LINE_RETAINED_FIELDS = [
+  "id",
+  "request_id",
+  "name",
+  "quantity",
+  "unit_amount_minor",
+  "line_total_minor",
+  "currency",
+  "classification",
+  "tax_treatment",
+  "refund_status",
+  "source",
+  "product_id",
+  "position",
+  "created_at",
+];
+
+// payment_collections has no client-attributable columns at all: it is purely
+// the Stripe PaymentIntent group key plus the subject it settles. Retained
+// wholesale, minus artist_id.
+const PAYMENT_COLLECTION_RETAINED_FIELDS = [
+  "payment_intent_id",
+  "booking_id",
+  "project_id",
+  "currency",
+  "created_at",
+];
+
+// payment_allocations is the record that money moved (spec section 7): every
+// column is either an amount, a Stripe identifier, or a pointer to another
+// retained/already-deleted row. No client PII was ever storable here (the
+// table is SERVICE-ROLE-WRITE-ONLY, migration 0125's "WHICH CLIENT WRITES
+// WHAT" header). Retained wholesale, minus artist_id.
+const PAYMENT_ALLOCATION_RETAINED_FIELDS = [
+  "id",
+  "booking_id",
+  "project_id",
+  "request_id",
+  "line_id",
+  "payment_intent_id",
+  "component",
+  "amount_minor",
+  "collected_total_minor",
+  "currency",
+  "status",
+  "settled_at",
+  "created_at",
+];
+
+/** Pick ONLY the given allowlisted fields from a row. Shared by every
+ *  pseudonymize* function below so the allowlist-not-denylist property (a
+ *  future PII column can never silently leak in) is enforced in one place. */
+function pickAllowlisted(
+  row: Record<string, unknown>,
+  fields: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of fields) {
+    if (key in row) out[key] = row[key];
+  }
+  return out;
+}
+
 /** Pick ONLY the allowlisted financial fields from an order row (no client PII). */
 export function pseudonymizeOrder(
   order: Record<string, unknown>,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const key of ORDER_RETAINED_FIELDS) {
-    if (key in order) out[key] = order[key];
-  }
-  return out;
+  return pickAllowlisted(order, ORDER_RETAINED_FIELDS);
 }
+
+export function pseudonymizePaymentRequest(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  return pickAllowlisted(row, PAYMENT_REQUEST_RETAINED_FIELDS);
+}
+
+export function pseudonymizePaymentRequestLine(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  return pickAllowlisted(row, PAYMENT_REQUEST_LINE_RETAINED_FIELDS);
+}
+
+export function pseudonymizePaymentCollection(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  return pickAllowlisted(row, PAYMENT_COLLECTION_RETAINED_FIELDS);
+}
+
+export function pseudonymizePaymentAllocation(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  return pickAllowlisted(row, PAYMENT_ALLOCATION_RETAINED_FIELDS);
+}
+
+/** The pseudonymised P9 subset retained past deletion (BDEL-PAY-001). Only
+ *  requests that were ever SENT are retained — same principle as
+ *  `ORDER_MONEY_STATES` below: a draft never shown to a client is not a
+ *  financial or client-facing document and carries no retention obligation.
+ *  Collections and allocations are retained unconditionally for the artist:
+ *  both are written only at settlement (service-role-only, migration 0125),
+ *  so by construction every row that exists represents money that actually
+ *  moved. */
+export type AppointmentPaymentsSnapshot = {
+  requests: Record<string, unknown>[];
+  lines: Record<string, unknown>[];
+  collections: Record<string, unknown>[];
+  allocations: Record<string, unknown>[];
+};
+
+export const EMPTY_APPOINTMENT_PAYMENTS_SNAPSHOT: AppointmentPaymentsSnapshot =
+  {
+    requests: [],
+    lines: [],
+    collections: [],
+    allocations: [],
+  };
 
 /**
  * The PSEUDONYMISED financial record retained past deletion (counsel §4/§5):
@@ -103,9 +243,13 @@ export function buildFinancialSnapshot(
   resolvedBookingIds: Set<string>,
   pseudonymizedOrders: Record<string, unknown>[],
   billing?: BillingSnapshot | null,
+  appointmentPayments?: AppointmentPaymentsSnapshot,
 ) {
   return {
-    schemaVersion: 2,
+    // v2 -> v3: added `appointmentPayments` (BDEL-PAY-001). A reader keyed to
+    // schemaVersion sees this as an additive change: every v2 key is still
+    // present in the same shape.
+    schemaVersion: 3,
     deposits: paidDeposits.map((d) => {
       const amount = d.deposit_amount != null ? Number(d.deposit_amount) : null;
       // G2 (FEE-STP-001): prefer the ACTUAL fee Stripe took (stamped at
@@ -134,5 +278,7 @@ export function buildFinancialSnapshot(
     }),
     orders: pseudonymizedOrders,
     billing: billing ?? null,
+    appointmentPayments:
+      appointmentPayments ?? EMPTY_APPOINTMENT_PAYMENTS_SNAPSHOT,
   };
 }

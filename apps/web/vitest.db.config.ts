@@ -31,6 +31,15 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@inklee/shared": path.resolve(__dirname, "../../packages/shared/src"),
+      // Same alias vitest.config.ts (the unit config) already carries:
+      // `server-only` / `client-only` throw when imported outside Next's
+      // RSC/client build. A db test that imports a real `@/lib/server/*`
+      // orchestration module (e.g. account-deletion.ts, so the retention
+      // carve-out can be proven against a REAL delete rather than a mock)
+      // needs the same no-op so the import does not throw before the test
+      // body ever runs.
+      "server-only": path.resolve(__dirname, "./vitest.empty-module.ts"),
+      "client-only": path.resolve(__dirname, "./vitest.empty-module.ts"),
     },
   },
   test: {
