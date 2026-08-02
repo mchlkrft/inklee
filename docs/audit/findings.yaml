@@ -14903,7 +14903,10 @@ findings:
       reachability: "conditionally-reachable"
       impact_status: "latent"
       affected_users_or_systems: "Deleted accounts' billing records, held with no end date."
-      production_exposure: "Real but small today: 0129 is applied in production and deletions do
+      production_exposure: "CORRECTED 2026-08-02: an earlier version of this line said 0129 is
+        applied in production. It is not. `git ls-tree origin/master` shows the file absent from
+        the deployed branch entirely (highest there is 0127). The gap is therefore NOT live, and
+        deletions do
         happen, though the volume is tiny."
       exploit_preconditions: "Not attacker-driven."
       remaining_uncertainty: "None on the mechanism."
@@ -15898,8 +15901,9 @@ findings:
       constraint has been dropped by hand aborts the whole two-clause ALTER, so the object does NOT
       come back. This is the LOUD variant of the AGENTS.md convergence footgun rather than the
       silent one, but it is still a failed repair path. The same shape appears five times in 0129,
-      which is ALREADY APPLIED IN PRODUCTION and therefore cannot be edited, so 're-run 0129' would
-      fail at exactly the moment someone reaches for it during an incident."
+      which the supervisor asserted was ALREADY APPLIED IN PRODUCTION and therefore unfixable.
+      THAT ASSERTION WAS WRONG and was corrected by the reviewer; see the evidence below. All six
+      sites are still editable, so nothing here is stuck."
     classification:
       domain: "migration"
       category: "broken-invariant"
@@ -15927,7 +15931,16 @@ findings:
         - "0138_bundle_item_variants.sql:108 uses `drop constraint if exists` for the same reshape
           pattern IN THE SAME BATCH, so the safer syntax was known and applied inconsistently."
         - "0129 contains five `drop constraint` statements and zero use `if exists` (counted)."
-        - "0129 is applied in production; 0143 is not."
+        - "CORRECTION, and the supervisor was the one who got this wrong: 0129 is NOT in
+          production. `git ls-tree -r origin/master` shows the file does not exist on the deployed
+          branch at all (the highest migration there is 0127), and the go-live worklist records
+          0125-0145 as unapplied. The reviewer pushed back on the supervisor's claim and was
+          right. Consequence: all six bare-drop sites are still editable and none is stuck, which
+          is materially better than the position first recorded here."
+        - "The complete inventory is SIX sites across TWO files, established by a full-folder sweep
+          rather than by looking near the two already known: 0129 lines 28, 36, 48, 77 and 85, and
+          0143 line 69. Eight other occurrences in the folder already use `if exists` and are
+          correct. Zero bare occurrences exist anywhere in 0001-0124."
       references:
         - "AGENTS.md"
     assessment:
@@ -15979,8 +15992,199 @@ findings:
           no execution tool. The supervisor had mis-briefed a read-only agent to run probes; its
           response was to name the exact probe someone else should run rather than infer a verdict
           from the SQL text."
+      - date: "2026-08-02"
+        actor: "audit-db (correction) + supervisor session (verification)"
+        action: "reclassified"
+        note: "SUPERVISOR ERROR CORRECTED. I told the reviewer, the founder and this register that
+          0129 was already applied in production and therefore locked. The reviewer challenged it
+          with citations and was right: 0129 is absent from origin/master entirely, which I then
+          confirmed with `git ls-tree`. Recording it because the error was consequential in the
+          wrong direction - it would have converted six trivially fixable sites into an accepted
+          permanent risk, and an accepted risk is the kind of thing nobody revisits. It also came
+          from me while I was telling everyone else not to infer facts from reading. The reviewer
+          also widened the sweep to the whole folder unasked, which is what turned two known sites
+          into a complete inventory of six with a proven-empty (a) bucket."
+
+  - id: "AUTH-MFA-001"
+    title: "The MFA step-up gate fails OPEN on a transient failure, in production, and the page it
+      redirects to fails open in the same direction"
+    summary: "proxy.ts wraps getAuthenticatorAssuranceLevel in a try/catch whose catch continues
+      past the gate, and separately binds only `data`, so a non-throwing failure leaves `aal` null
+      and the redirect never fires. TWO independent fail-open paths in nine lines. The page it
+      would have redirected to, /auth/mfa, then calls listFactors with the same unchecked
+      destructuring and routes to /dashboard when the result is empty, which a failed read is
+      indistinguishable from. A transient failure of the MFA service therefore admits an AAL1
+      session to /dashboard, /settings and /admin, with no Sentry event and no log."
+    classification:
+      domain: "auth"
+      category: "silent-failure"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "two independent sweep agents that converged on it from different file buckets,
+        each having assumed the other file would backstop it"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "508c33d5"
+      environment: "production"
+      discovery_context: "Found by a sweep for a MECHANISM (reads whose error is discarded) rather
+        than by a security review of authentication. The mechanism sweep was commissioned because
+        the same shape had been found six times that day on money paths; nobody expected it to
+        surface an auth bypass, which is the argument for scoping sweeps by mechanism instead of by
+        subject."
+    location:
+      files:
+        - "apps/web/src/proxy.ts"
+        - "apps/web/src/app/auth/mfa/page.tsx"
+      clients:
+        - "web"
+    evidence:
+      observed_facts:
+        - "proxy.ts ~96-106: the catch block's entire body is the comment 'MFA check failed -
+          continue without gating', so a thrown error skips the gate by design-as-written."
+        - "The same block binds `data` only, so an error returned rather than thrown leaves `aal`
+          null, `aal?.nextLevel` undefined, and the redirect unreachable. This second path is not
+          covered by the catch and appears unintentional."
+        - "auth/mfa/page.tsx ~31-36: `const { data: factors } = await
+          supabase.auth.mfa.listFactors()` then `if (!totp) router.replace('/dashboard')`."
+        - "Neither file backstops the other; both fail in the same direction."
+      reproduction: "Verified as live rather than merely present: `git diff origin/master --stat --
+        apps/web/src/proxy.ts` is EMPTY, so the deployed branch carries this code byte for byte.
+        The behaviour itself is established by reading the control flow, which is short and
+        unconditional; it has not been exercised against an induced MFA-service failure."
+    assessment:
+      interpretation: "The same mechanism as the day's other eight findings, on an authentication
+        control instead of a money path. The indistinguishable pair here is 'no authenticator
+        enrolled' and 'could not determine', and because the overwhelming majority of users
+        genuinely have no authenticator, the failure path is the same path the common case takes."
+      root_cause_hypothesis: "The gate was written for the enrolled-user case. Not-enrolled needed
+        a permissive branch, and could-not-determine was folded into it because both produce an
+        empty-looking result."
+      reachability: "directly-reachable"
+      impact_status: "reachable-no-known-impact"
+      affected_users_or_systems: "Any account with MFA enrolled, during an MFA-service disruption.
+        Includes admin sessions."
+      production_exposure: "LIVE. proxy.ts on the deployed branch is byte-identical. No evidence
+        it has fired, but the absence of evidence is uninformative here: neither path emits any
+        signal, which is itself part of the finding."
+      exploit_preconditions: "Not directly attacker-triggerable in the general case; requires the
+        Supabase MFA endpoint to fail or time out while an enrolled user authenticates. Whether an
+        attacker could induce that is not assessed."
+      remaining_uncertainty: "Whether /admin is independently protected by the ADMIN_EMAILS guard
+        in admin-guard.ts, which would narrow the blast radius. Flagged to the fixer to CHECK
+        rather than assume."
+    relationships:
+      related_findings:
+        - "FEE-DSP-002"
+        - "GOODS-SET-001"
+        - "GAL-REL-001"
+      structural_patterns:
+        - "PAT-004"
+    remediation:
+      status: "in-progress"
+      proposed_action: "Separate the three states the code currently has two of: enrolled and not
+        stepped up, not enrolled, and could not determine. The naive inversion is WRONG and was
+        explicitly warned against in the brief: failing closed without distinguishing not-enrolled
+        locks out the majority of users or creates a redirect loop, because /auth/mfa is itself the
+        redirect target and its own read can fail. Every failure path must emit Sentry; the total
+        absence of signal is why this survived."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "508c33d5"
+      verification_method: "Supervisor read both files and confirmed both fail-open paths, and
+        confirmed liveness by diffing against origin/master. NOT exercised against an induced
+        failure."
+      residual_risk: "Unfixed at time of writing. The fix carries its own risk of over-correction
+        into a lockout, so its distinction tests matter more than its failure tests."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "a2a7-worker (sweep, 5 parallel agents)"
+        action: "opened"
+        note: "Two agents on different buckets each flagged it and each named the other file as the
+          expected backstop. Neither backstops. Convergence from independent directions is why this
+          is recorded as confirmed rather than as a reading."
 
 patterns:
+  - id: "PAT-004"
+    title: "A database read whose error is never bound, degrading silently to a plausible empty
+      value that the caller then acts on"
+    description: "The single most productive defect shape in this repository. A Supabase call is
+      destructured as `const { data } = ...` with no `error` binding, and the result is immediately
+      coalesced with `?? 0`, `?? []`, `?? null` or `?? {}`. A failed read becomes indistinguishable
+      from a legitimate empty result and the caller proceeds on it. NINE confirmed defects in a
+      single day across five subsystems, with consequences ranging from a wrong dashboard number to
+      permanent data loss to an authentication bypass. A codebase-wide sweep then found roughly 448
+      instances across 175 files, of which about 68 act on the bad value on a money, entitlement,
+      authorization or deletion path. Two properties let it survive review: the failure produces a
+      plausible VALUE rather than an exception, so nothing distinguishes it at runtime; and the
+      coalescing operator that causes it reads as defensive programming, so a reviewer-s eye passes
+      over it as a good habit. The question that finds it is not -is this error handled- but -is a
+      failed read here distinguishable from a legitimate empty result, and does the difference
+      matter-."
+    related_findings:
+      - "FEE-DSP-002"
+      - "BDEL-PAY-002"
+      - "PAY-RFD-011"
+      - "GOODS-SET-001"
+      - "GAL-REL-001"
+      - "AUTH-MFA-001"
+    affected_domains:
+      - "auth"
+      - "payment"
+      - "data-retention"
+      - "analytics"
+      - "storage"
+      - "web"
+    first_observed: "2026-08-02"
+    last_observed: "2026-08-02"
+    recurrence_count: 9
+    shared_root_cause_hypothesis: "Supabase-s client returns errors as VALUES rather than throwing,
+      so forgetting to bind `error` is syntactically invisible and costs nothing at the call site.
+      The language then supplies `??`, which converts the resulting undefined into a domain-plausible
+      default. Neither step looks wrong in isolation and together they convert every transient
+      failure into a confident wrong answer. Compounding it: in most of these call sites the empty
+      result is a GENUINELY legitimate outcome (no prior refunds, no gallery images, no MFA
+      enrolled), so the correct handling of the legitimate case is what makes the failure case
+      invisible."
+    supporting_evidence:
+      - "FEE-DSP-002: a select on a column that never existed returned 42703 on every call for the
+        life of the feature; the discarded error made the whole goods lane report zero."
+      - "GOODS-SET-001: a read-modify-write where the collapsed merge base is PERSISTED, destroying
+        the artist-s bio page, booking settings and theme. The only instance that loses data."
+      - "AUTH-MFA-001: the MFA step-up gate, live in production, with two fail-open paths in nine
+        lines, found by two agents independently who each assumed the other file backstopped it."
+      - "GAL-REL-001: a counsel-mandated compliance control that marks itself complete and excludes
+        the artist from every future retry, because a failed read looks exactly like an artist with
+        no images."
+      - "Sweep totals, 5 parallel read-only agents over 175 files: ~448 instances, ~113 harmless,
+        ~267 wrong-but-visible, 68 acting on the bad value on a critical path."
+      - "A 13-file cluster of the JSONB read-merge-write variant, one of which can silently REOPEN a
+        closed artist-s books as a side effect of an unrelated save."
+    status: "active"
+    systemic_assessment: "systemic"
+    confidence: "confirmed"
+    engineering_followup:
+      - "TIER 1, in flight: fix AUTH-MFA-001 and the 13-file JSONB cluster properly. The cluster
+        gets ONE shared helper that makes the destructive path unrepresentable rather than merely
+        guarded - a helper returning an empty object on failure, trusting callers to check, has
+        rebuilt the bug with extra steps."
+      - "TIER 2: an ESLint rule for the destructure-without-error shape, to stop the population
+        growing. VIABILITY GENUINELY UNCERTAIN and deliberately not assumed: roughly 113
+        legitimately-harmless instances match the same syntax, and a rule that noisy gets disabled,
+        which is worse than no rule. The judgment has been put to the agent that surveyed the whole
+        population rather than decided from the first ten examples."
+      - "TIER 3: triage the remaining critical-path instances by consequence, money and deletion
+        first. Explicitly NOT 68 hand-written guards."
+      - "STANDING REQUIREMENT for every fix in all three tiers: pair each failure test with a
+        DISTINCTION test proving the legitimate empty case still works. A guard that refuses
+        everything passes all the failure tests, and three separate fixes today shipped without
+        that distinction test until it was asked for."
 
   - id: "PAT-001"
     title: "A safety property is asserted in a comment or commit message before it has ever been
@@ -18953,3 +19157,16 @@ coverage:
       - "PAY-AUTHZ-002"
     recommended_next_inspection: "The execution half of the migration review, now dispatched: break-then-rerun convergence probes for all four files, the 0144+0145 combined pass that has never been run, and db tests for three migrations that have none for their own new surface. Then the twelve should-fix items, chief among them three hand-copied duplicates of one product column list where one copy has ALREADY drifted - the same defect class the same wave fixed structurally in addon-products.ts."
     known_exclusions: "NO MIGRATION WAS APPLIED OR EXECUTED during the review half: every convergence verdict is a reading, explicitly marked as such, and MIG-DROP-001-s predicted behaviour is unproven. apps/mobile was not inspected. The security and test-integrity reviews had not reported at the time this row was written and are NOT covered by it. PAY-AUTHZ-002-s underlying fix was not re-verified; the ledger-s own fixed-unverified status is relayed, not confirmed."
+
+  - area: "Codebase-wide sweep for the discarded-read MECHANISM, scoped by shape rather than by subject, across apps/web/src and packages"
+    subsystem: "governance"
+    coverage: "comprehensive"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "508c33d5"
+    reviewer: "a2a7-worker coordinating 5 parallel read-only agents; supervisor independently verified the two most severe findings and confirmed the auth bypass is live by diffing against origin/master"
+    evidence: "175 files, ~448 instances, bucketed by consequence: ~113 harmless, ~267 wrong-but-visible, 68 acting on the bad value on a money, entitlement, authorization or deletion path. Commissioned because the same shape had been found six times that day while people were looking for other things; the recommendation to scope the next sweep by MECHANISM rather than by subject was recorded before this ran, and it is what surfaced an AUTH BYPASS from a sweep aimed at money reads. TWO STRUCTURAL RESULTS beyond the inventory. AUTH-MFA-001: two agents on different buckets independently found the MFA step-up gate failing open, each having assumed the other file backstopped it; neither does, and the code is live in production. And a 13-file cluster of the JSONB read-merge-write variant, where a failed read collapses the merge base and the write silently discards every sibling setting - including a path that can REOPEN a closed artist-s books as a side effect of an unrelated save. The sweep-s own conclusion, which the supervisor accepted, is that 68 hand-written guards is the wrong remediation and a shared helper plus a lint rule is the right one."
+    findings_produced:
+      - "AUTH-MFA-001"
+    recommended_next_inspection: "Whether the ESLint rule is viable at all. Roughly 113 legitimately-harmless instances would match the same syntactic shape, and a rule that noisy gets disabled, which is worse than no rule. That judgment has been put to the agent that saw the whole population rather than decided from the first ten examples."
+    known_exclusions: "READ-ONLY THROUGHOUT: nothing was executed, no test was run, and no instance in the 68 was reproduced. The inventory is a classification of source shapes, so individual severities are hypotheses until each is traced the way the six confirmed findings were. Three items were flagged by the agents themselves as unverified: a count-based analog in bookings/form/actions.ts, the claim that a nightly cron reconciles truncated storage purges, and whether the public map pin feed re-derives address visibility. packages/shared was confirmed to contain zero Supabase calls by design and is genuinely out of scope rather than unchecked. The eight files already fixed earlier the same day were deliberately excluded."
