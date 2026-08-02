@@ -14850,6 +14850,100 @@ findings:
         action: "fix-committed"
         note: "PARTIALLY FIXED in eb1b8aed, remainder ESCALATED rather than absorbed. Four of the five tables now purge at 7 years from financial-year end, scoped to artist_id IS NULL, dependency-ordered leaf-to-root with exclusions for rows still referenced by a NOT-YET-EXPIRED sibling. Proven by a test where a young withdrawal_case protects its consent record and subscription, and one later run then frees the whole chain in the correct order with no 23503: a purge job with the wrong delete order fails in production the first month it has real data, and no ordinary suite catches it. THE FIFTH IS NOT FIXED BY DESIGN: transaction_tax_snapshots has an append-only trigger (0106/0129) refusing every DELETE with the message 'corrections are new rows'. That is a deliberate accounting-immutability control, so the worker refused BOTH shortcuts - weakening it, or calling the gap acceptable - and escalated. CONSEQUENCE that widens the question: because nearly every real subscription generates a tax event, the subscriptions those snapshots reference are effectively permanent too. Now Q1 in the counsel and accountant package."
 
+  - id: "HUB-GAL-009"
+    title: "A downgraded artist's gallery images stayed publicly fetchable forever: the entitlement
+      gate hid the RENDER, never the objects"
+    summary: "The D2 downgrade posture hides an unentitled artist's gallery at render time and
+      preserves the blocks in settings, which is correct for the artist's work but was never
+      access control for the FILES. The objects sat in the public logos bucket at their existing
+      URLs, reachable by anyone holding or guessing one, indefinitely after the entitlement
+      lapsed. Counsel's C1.5 answer names the standard directly: unguessable URLs are not access
+      control for images of identifiable people's skin, and tattoo photographs are health
+      adjacent. Public-unlisted was given a conditional pass AT LAUNCH ONLY, and one of the
+      conditions was this change."
+    classification:
+      domain: "data-retention"
+      category: "missing-authorization"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "counsel (C1.5 answer), correcting behaviour the build had shipped deliberately"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "43e08766"
+      environment: "repository-only"
+      discovery_context: "Counsel review of the hosted client-photo posture. This is not a coding
+        mistake: the render-gate behaviour was designed, recorded as decision D2, and reviewed -
+        it was the LEGAL standard for the object layer that nobody had checked."
+    location:
+      files:
+        - "apps/web/src/lib/server/gallery-relocation.ts"
+        - "apps/web/src/app/[slug]/hub/page.tsx"
+    evidence:
+      observed_facts:
+        - "Pre-fix, downgrade changed only the render gate; no code moved, deleted or
+          invalidated the stored objects, which live in the public logos bucket."
+        - "Counsel's C1.5 answer requires the objects to stop being publicly reachable, not only
+          the render, and makes public-unlisted conditional on it."
+      references:
+        - "docs/legal/counsel-accountant-handoff-2026-08.md"
+    assessment:
+      interpretation: "A gate placed one layer above where the data actually lives. The render
+        was the only thing anyone thought of as the surface, because the render is the only thing
+        a developer sees."
+      root_cause_hypothesis: "D2 was reasoned as a product question - does the artist lose their
+        work on downgrade - and answered well. Nobody re-asked it as an access-control question."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Clients photographed by any artist who lapses from Plus."
+      production_exposure: "None in practice: the gallery capability has never been granted to
+        anyone, so no artist has ever uploaded through it."
+      exploit_preconditions: "Possession of a previously-valid image URL - which every past
+        visitor to the page had."
+      remaining_uncertainty: "None on the mechanism."
+    relationships:
+      related_findings:
+        - "HUB-GAL-002"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "a56548ce"
+      fixed_at: "2026-08-02"
+      proposed_action: "Migration 0144 adds a private gallery-archive bucket (zero policies) and
+        a relocation marker. Objects MOVE cross-bucket on downgrade and move back on resubscribe,
+        hooked into the Stripe reconcile and the comp-expiry sweep, both deciding via the SAME
+        oracle the render gate uses. Relocation is PROMPT rather than delayed to the end of
+        counsel's 60-day window: the resubscribe clause in that sentence explains relocate-versus-
+        delete, so the window is a deadline to act by, not a delay to observe. Admin overrides and
+        half-failures are covered by a STATE-driven nightly sweep comparing physical location
+        against current entitlement, which catches paths nobody hooked. STILL OWED, per counsel:
+        signed expiring URLs as a dated fast-follow before any gallery marketing push, and the
+        gallery folded into the LO-5 DPIA."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "a56548ce"
+      verification_method: "40 unit tests written by the implementing worker; supervisor re-ran
+        them and checked the prompt-relocation reading against counsel's actual sentence. NOT
+        executed against real storage: the cross-bucket move is exercised against a mocked
+        storage client, and migration 0144 has not been applied to any database."
+      residual_risk: "The storage behaviour itself is unproven against a real bucket, and 0144 is
+        unapplied pending an isolated db pass."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "counsel review (C1.5)"
+        action: "opened"
+        note: "Raised as a correction to shipped, deliberately-designed behaviour rather than as a
+          coding defect - worth distinguishing, because review caught what testing could not."
+      - date: "2026-08-02"
+        actor: "gallery-compliance-worker + supervisor session"
+        action: "fix-committed"
+        note: "Fixed in a56548ce the same day."
+
 patterns:
 
   - id: "PAT-001"
@@ -17743,3 +17837,14 @@ coverage:
     evidence: "Five commits: 9a7c3536 cron, 8e8c6cdc checkout disclosures with migration 0142, 7071ac08 deletion carve-out with migration 0143, 03c67b04 retention purges, eb1b8aed billing purge. Web suite 3103 to 3160 passing; db suite 255 to 297. THE PATTERN WORTH RECORDING: four of the five slices surfaced something the brief could not have contained because it was only discoverable by execution. Nulling client_email violates orders_buyer_identity_check on a booking-less order, so counsel-s erase was not literally implementable and the or-pseudonymise latitude was required. Cart last-activity must be the more recent of cart and ITEM timestamps because the write path never touches the parent, so the obvious implementation would have deleted live carts. The seed.sql RLS mirror gap broke a worker-s own gate before their code ran. And transaction_tax_snapshots cannot be purged at all, by deliberate design. Three fixes had guards mutation-proven, one of which reproduced the original incident shape rather than merely failing."
     recommended_next_inspection: "Independent verification of all five: every fix here was tested by the worker that wrote it. The FK-ordered billing purge and the deletion carve-out deserve it most, because both fail in ways an ordinary suite would not surface - a wrong delete order, and a wrong survive-or-erase decision per table."
     known_exclusions: "No production data touched or queried. The retention purges have never expired anything because nothing is old enough: the boundary tests use synthetic dates, so the jobs are proven correct but have never run for real. GOODS-DISC-001, the add-on checkout selling custom-made goods with no disclosure, is confirmed and NOT fixed. Other cron routes were not checked for the abort-on-first-error pattern retention-purge had. OPERATIONAL: pnpm test:db is not safe to run concurrently across agents on one local Docker instance; it produced flakes for three workers today."
+
+  - area: "Counsel-answer implementation, second wave: C1.5 gallery downgrade relocation and C1.6 the rights attestation at URL import"
+    subsystem: "web"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "a56548ce"
+    reviewer: "gallery-compliance-worker (wrote the code and its 40 tests); supervisor re-ran them and checked both judgment calls against counsel-s wording rather than agreeing by default"
+    evidence: "C1.5 recorded as HUB-GAL-009 and fixed. C1.6 is a new control rather than a defect: the URL import now refuses server-side unless the rights attestation is present, checked BEFORE the rate limit and the outbound fetch so a refused import spends no egress, with the consent record written before the fetch and failing closed - the ordering IS the gate, because an unattested hosted copy is what the gate exists to prevent. Two judgment calls were confirmed on their merits: prompt relocation rather than waiting out the 60-day window (counsel-s resubscribe clause explains relocate-versus-delete, so the window is a deadline, not a delay), and covering admin overrides with a state-driven sweep instead of a fourth hook - a sweep comparing physical location against entitlement catches half-failures and paths nobody hooked, where a hook only catches the one someone remembered."
+    recommended_next_inspection: "Exercise the cross-bucket move against a real bucket; it is currently proven only against a mocked storage client. Then the signed-URL fast-follow and the LO-5 DPIA, both of which counsel dated rather than waived."
+    known_exclusions: "No real storage and no database: migration 0144 is unapplied, and pnpm test:db was deliberately NOT run because another worker had an uncommitted 0145 in the same directory and supabase migration up applies all pending files together. That abstention was correct and it surfaced a coordination requirement: THE RELEASE SEQUENCER NEEDS AN ISOLATED DB PASS COVERING BOTH 0144 AND 0145 before either moves. No numbering collision was introduced."

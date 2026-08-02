@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `4b10aec82c76`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `091f782fa234`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-138 recorded finding(s), 3 structural pattern(s), across 90 mapped area(s).
-114 remain open by remediation status. 109 are reachable (directly or conditionally) rather than latent.
-111 have not passed independent verification.
+139 recorded finding(s), 3 structural pattern(s), across 91 mapped area(s).
+115 remain open by remediation status. 110 are reachable (directly or conditionally) rather than latent.
+112 have not passed independent verification.
 181 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 32 |
-| medium | 61 |
+| medium | 62 |
 | low | 39 |
 | informational | 4 |
 
@@ -35,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 55 |
+| fixed-unverified | 56 |
 | in-progress | 2 |
 | mitigated | 2 |
 | not-applicable | 1 |
@@ -47,7 +49,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 108 |
+| not-started | 109 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -150,7 +152,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | web | 12 |
 | testing | 8 |
 | authorization | 5 |
-| data-retention | 4 |
+| data-retention | 5 |
 | migration | 4 |
 | public-surface | 4 |
 | governance | 3 |
@@ -220,6 +222,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | HUB-GAL-001 | medium | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | HUB-GAL-004 | medium | conditionally-reachable | latent | isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch is dead only by accident of URL bracket handling |
 | HUB-GAL-008 | medium | conditionally-reachable | latent | The IPv6 blanket refusal breaks Import-from-URL for most real image hosts, and the comment justifying it asserted the opposite without measuring |
+| HUB-GAL-009 | medium | directly-reachable | latent | A downgraded artist's gallery images stayed publicly fetchable forever: the entitlement gate hid the RENDER, never the objects |
 | MAP-SSRF-001 | medium | conditionally-reachable | latent | The map coverage ingest fetched third-party URLs behind a hostname check that never resolved DNS, while the hardened resolving guard sat one import away |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
@@ -311,6 +314,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | HUB-GAL-004 | medium | fixed-unverified | not-started | 6bac9914 |
 | HUB-GAL-008 | medium | fixed-unverified | not-started | c3d7ae49 |
+| HUB-GAL-009 | medium | fixed-unverified | not-started | a56548ce |
 | MAP-SSRF-001 | medium | fixed-unverified | not-started | c3d7ae49 |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | 45a44bee |
 | PAY-AUTHZ-003 | medium | fixed-unverified | not-started | 3d308203 |
