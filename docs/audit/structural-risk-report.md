@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `0ef70498c897`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `d57c99515ef9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -37,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 50 |
+| fixed-unverified | 53 |
 | in-progress | 1 |
 | mitigated | 2 |
 | not-applicable | 1 |
-| open | 57 |
+| open | 54 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -285,6 +285,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | AUTH-RPC-001 | critical | fixed-unverified | not-started | 364a10f |
 | PAY-DEP-001 | critical | fixed-unverified | not-started | 7e59c79 |
 | BDEL-TTS-001 | high | fixed-unverified | not-started | - |
+| CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
+| CRON-RMD-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
 | PAY-AUTHZ-001 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-AUTHZ-002 | high | fixed-unverified | not-started | 8db7b2dc |
@@ -300,6 +302,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-ENT-001 | medium | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | 45a44bee |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
+| CRON-IGX-001 | medium | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | GOODS-VAR-001 | medium | fixed-unverified | not-started | 88c9e544 |

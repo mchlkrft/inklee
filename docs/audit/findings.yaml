@@ -4283,7 +4283,9 @@ findings:
           logic which I did not read."
         - "Resend-side suppression/rate limiting was not inspected."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "9a7c3536"
+      fixed_at: "2026-08-02"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -4298,6 +4300,20 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "Cron endpoints (apps/web/src/app/api/cron/*) - all eight reviewed individually"
+      - date: "2026-08-02"
+        actor: "cron-gate0-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fixed in 9a7c3536 with TWO independent guards, because one was not enough to be sure:
+          an all-time send cap of 5 counted from existing reminder_sent audit rows (no
+          migration, and it cannot drift from what was actually sent), plus a 30-day
+          staleness floor matching the cutoff at which the cleanup cron already treats a
+          booking as abandoned - reminders were the one place still nagging about a booking
+          every other system had given up on. The pre-existing ARTIST_EMAIL_CAP was NOT a
+          fix and is not counted as one: it caps per RUN and resets nightly. Both guards
+          mutation-proven independently, sources restored sha256-byte-exact. 7 named tests
+          in a route that had none. The production-state half (275 sends across 10 bookings)
+          is unverifiable from here and is not claimed as resolved."
+
   - id: "CRON-IGX-001"
     title: "instagram-refresh marks an account disconnected on ANY thrown error, including a transient
       Meta outage"
@@ -4367,7 +4383,9 @@ findings:
         - "The Instagram sync/import paths in the shared sync module use the same token and were not
           inspected for the same catch-everything shape."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "9a7c3536"
+      fixed_at: "2026-08-02"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -4382,6 +4400,21 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "Cron endpoints (apps/web/src/app/api/cron/*) - all eight reviewed individually"
+      - date: "2026-08-02"
+        actor: "cron-gate0-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fixed in 9a7c3536 by requiring the error to EVIDENCE the claim, the same discipline
+          PAY-CONN-001 established for Connect: only Meta error code 190 (invalid OAuth
+          token) marks an account disconnected. Deliberately NOT the OAuthException type,
+          because Meta's rate-limit and throttling errors (4, 17, 32, 613) share that type
+          and would still have misfired on a 429. A bare network failure, with no HTTP
+          response at all, now never disconnects. 7 named tests including the positive
+          control that code 190 still works. RESIDUAL, disclosed by the worker: the
+          discriminator was written against Meta's published error-code table, not against a
+          live error payload. FOLLOW-UP: it lives in the route because src/lib/instagram.ts
+          was outside that task's ownership; a structured error class there is the cleaner
+          shape and is owed."
+
   - id: "CRON-CLN-001"
     title: "cleanup discards the error from the 7-year financial-retention lookup, so a transient
       failure deletes bookings carrying financial records"
@@ -4460,7 +4493,9 @@ findings:
       structural_patterns:
         - "PAT-003"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "9a7c3536"
+      fixed_at: "2026-08-02"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -4475,6 +4510,18 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "Cron endpoints (apps/web/src/app/api/cron/*) - all eight reviewed individually"
+      - date: "2026-08-02"
+        actor: "cron-gate0-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fixed in 9a7c3536 by FAILING CLOSED: on a retention-guard error deletableIds is forced
+          empty and the delete step is skipped entirely for that run, rather than proceeding
+          on an incomplete money-booking set. The mutation proof did not merely go red, it
+          reproduced the exact incident shape (both fixture bookings hard-deleted on a guard
+          error). The worker also added a guard nobody asked for and was right to: a booking
+          whose IMAGE purge failed is excluded from the row delete too, because the row is
+          the only remaining pointer to that storage folder and deleting it would strand the
+          image permanently. 5 named tests."
+
   - id: "CRON-PRG-001"
     title: "The 30-day reference-image purge is non-paginated, non-recursive and error-discarding, and
       it is named as the safety net for a purge path that deliberately does not throw"
@@ -4567,6 +4614,17 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "Cron endpoints (apps/web/src/app/api/cron/*) - all eight reviewed individually"
+      - date: "2026-08-02"
+        actor: "cron-gate0-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "NOT fixed, and explicitly flagged by the worker so it would not be assumed closed. The
+          9a7c3536 change fixed only the DISCARDED-ERROR half that CRON-CLN-001's scope
+          called out (list and remove errors are now captured, and a failed purge excludes
+          its booking from the row delete). The pagination and recursion rewrite - using the
+          repo's own purgeStoragePrefix instead of a hand-rolled non-paginated .list() -
+          remains open, as does the false assertion in storage-purge.ts that the nightly
+          cleanup reconciles the remainder."
+
   - id: "CRON-GRW-001"
     title: "The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or
       backfills a missed run"
@@ -4833,6 +4891,16 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "Cron endpoints (apps/web/src/app/api/cron/*) - all eight reviewed individually"
+      - date: "2026-08-02"
+        actor: "cron-gate0-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "PARTIALLY fixed in 9a7c3536 and deliberately not more: Sentry capture added on every
+          failure path of the THREE routes touched (reminders, cleanup, instagram-refresh),
+          tagged by route and step. The other eight cron endpoints still report nothing, so
+          this stays OPEN. Worth stating plainly: the total absence of cron observability is
+          why CRON-RMD-001 reached a documented run of 46 sends to one address before anyone
+          noticed."
+
   - id: "CRON-AUT-001"
     title: "Seven of eight cron endpoints use a plain string comparison for the bearer secret while the
       repo's own timing-safe helper is used by exactly one"
