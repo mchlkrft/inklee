@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
 import Spinner from "@/components/spinner";
 import RandomizedLogo from "@/components/randomized-logo";
 import { useRecoveryCode } from "./use-recovery-code";
+import { resolveTotpStatus } from "./resolve-totp-status";
 
 export default function MfaPage() {
   const router = useRouter();
@@ -28,14 +30,27 @@ export default function MfaPage() {
     setPending(true);
     setError(null);
     try {
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const totp = factors?.totp?.[0];
-      if (!totp) {
+      // MFA-GATE-001: a failed listFactors() call is not the same fact as "no
+      // TOTP enrolled" — see resolve-totp-status.ts. Only "not-enrolled"
+      // releases the session to /dashboard; "unknown" holds it here with an
+      // explicit, retryable error instead of silently letting it through.
+      const totpStatus = await resolveTotpStatus(() =>
+        supabase.auth.mfa.listFactors(),
+      );
+      if (totpStatus.status === "not-enrolled") {
         router.replace("/dashboard");
         return;
       }
+      if (totpStatus.status === "unknown") {
+        Sentry.captureMessage("mfa_list_factors_failed", {
+          level: "error",
+          tags: { area: "mfa_challenge_page" },
+        });
+        setError("We couldn’t verify your two-factor status. Try again.");
+        return;
+      }
       const { data: challenge, error: cErr } =
-        await supabase.auth.mfa.challenge({ factorId: totp.id });
+        await supabase.auth.mfa.challenge({ factorId: totpStatus.factorId });
       if (cErr || !challenge) {
         setError(
           cErr?.message ??
@@ -44,7 +59,7 @@ export default function MfaPage() {
         return;
       }
       const { error: vErr } = await supabase.auth.mfa.verify({
-        factorId: totp.id,
+        factorId: totpStatus.factorId,
         challengeId: challenge.id,
         code: code.replace(/\s/g, ""),
       });
