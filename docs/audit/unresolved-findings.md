@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `9f23f5a2ff99`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `9cbda0d36de0`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
