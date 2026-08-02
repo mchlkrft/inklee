@@ -49,3 +49,12 @@ export function monthsAgoCutoff(now: Date, months: number): Date {
   d.setUTCMonth(d.getUTCMonth() - months);
   return d;
 }
+
+/** 1 Jan of `now`'s own year (UTC midnight), same financial-year=calendar-
+ *  year convention as `financialYearRetentionCutoff` above. VAT registration
+ *  and OSS thresholds (A2, tax-threshold-rollup.ts) are calendar-year
+ *  turnover windows, so bucketing "this year so far" off this single helper
+ *  is what makes the rollup reset on 1 Jan without separate reset logic. */
+export function calendarYearStart(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+}

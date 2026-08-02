@@ -74,3 +74,57 @@ export function artistNetEur(depositEur: number): number {
   const cents = Math.round(depositEur * 100);
   return (cents - platformFeeCents(cents)) / 100;
 }
+
+// ===========================================================================
+// A7 (counsel-accountant-handoff-2026-08.md PART 4): "no separate
+// card-processing fees" — bound to WHO PAYS Stripe, not to the rate.
+// ===========================================================================
+
+/**
+ * Mirrors the Custom Connect controller config every connected account is
+ * created with (`stripe-connect.ts`: `controller.fees.payer = "application"`)
+ * — Inklee's platform balance bears Stripe's processing cost on every charge
+ * through that account, never the artist's. Every account created by this
+ * codebase sets that, so this is `true` today for all of them; it exists as
+ * an explicit, named constant (rather than a bare `true` at each call site)
+ * so that IF a future account type or controller config ever paid the
+ * processing cost differently, changing THIS constant is the one place that
+ * would need to change, and `noSeparateCardProcessingFeesClaimVisible` below
+ * reads it instead of re-deriving "who pays" from the fee rate.
+ */
+export const CONNECT_FEE_PAYER_IS_APPLICATION = true;
+
+/** The accountant's approved wording (A7), valid at ANY fee rate once the
+ *  binding conditions hold — never conditioned on the rate itself. */
+export const NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM =
+  "No separate card-processing fees.";
+
+/**
+ * Whether the "no separate card-processing fees" claim may be shown.
+ *
+ * A7's answer: the claim is true whenever Inklee absorbs the Stripe
+ * processing cost (`payerIsApplication`), REGARDLESS of the deposit rate — at
+ * 0.5% it is a subsidy (Stripe's ~1.5%+0.25 typically exceeds the fee itself),
+ * at 3% it is a straightforward margin, but "who pays Stripe" is the same
+ * structural fact either way. The PREVIOUS implementation bound the claim to
+ * `feeBps === 300`, which reads as "true because the rate happens to be 3%
+ * today" — a future fee-schedule change (v2's Plus 50bps) would silently make
+ * that condition false even though the underlying claim stays true, and
+ * conversely a hypothetical future payer change could leave a stale `=== 300`
+ * check reporting true when it should not. Binding to `payerIsApplication`
+ * instead makes the claim track the actual reason it is true.
+ *
+ * `founderApprovedSubsidyClaim` is the SECOND, independent condition (never a
+ * fallback/default): the founder must have recorded the per-transaction
+ * subsidy as intended policy before the claim may show at a rate where it is
+ * a subsidy rather than a margin. Both conditions are required — this
+ * function returns false unless BOTH hold, which is what keeps the claim
+ * suppressed by default (no `billing_activation_approvals` row for it exists
+ * yet) until that recording happens.
+ */
+export function noSeparateCardProcessingFeesClaimVisible(input: {
+  payerIsApplication: boolean;
+  founderApprovedSubsidyClaim: boolean;
+}): boolean {
+  return input.payerIsApplication && input.founderApprovedSubsidyClaim;
+}

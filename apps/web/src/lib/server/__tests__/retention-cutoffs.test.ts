@@ -3,6 +3,7 @@ import {
   financialYearRetentionCutoff,
   daysAgoCutoff,
   monthsAgoCutoff,
+  calendarYearStart,
 } from "../retention-cutoffs";
 
 describe("financialYearRetentionCutoff", () => {
@@ -85,5 +86,19 @@ describe("monthsAgoCutoff", () => {
     const now = new Date("2026-08-02T10:00:00.000Z");
     const cutoff = monthsAgoCutoff(now, 12);
     expect(cutoff.toISOString()).toBe("2025-08-02T10:00:00.000Z");
+  });
+});
+
+describe("calendarYearStart", () => {
+  it("returns 1 Jan UTC midnight of now's own year, regardless of the time of year", () => {
+    expect(
+      calendarYearStart(new Date("2026-08-02T23:59:59.999Z")).toISOString(),
+    ).toBe("2026-01-01T00:00:00.000Z");
+    expect(
+      calendarYearStart(new Date("2026-01-01T00:00:00.000Z")).toISOString(),
+    ).toBe("2026-01-01T00:00:00.000Z");
+    expect(
+      calendarYearStart(new Date("2026-12-31T23:59:59.999Z")).toISOString(),
+    ).toBe("2026-01-01T00:00:00.000Z");
   });
 });

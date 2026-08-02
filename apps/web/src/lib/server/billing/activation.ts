@@ -106,6 +106,27 @@ export async function assertSalesLaunchApproved(
   }
 }
 
+/** A7 (counsel-accountant-handoff-2026-08.md PART 4): whether the founder has
+ *  recorded the per-transaction Stripe-processing subsidy as intended policy —
+ *  the second, independent half of `noSeparateCardProcessingFeesClaimVisible`
+ *  (@inklee/shared/platform-fee). This is a COPY decision, not a money gate,
+ *  so unlike `assertLiveBillingAllowedFor` it is NOT a test-mode no-op: the
+ *  payouts page must show the same copy in dev/staging as it will in
+ *  production once this is recorded, so a preview environment can actually
+ *  preview the flip. Recorded the same way as the standalone launch keys
+ *  (`scripts/billing/record-approval.cjs` — no separate script needed): a
+ *  single `billing_activation_approvals` row, `approved = true`, absent by
+ *  default, which is what keeps the claim suppressed until the founder acts. */
+const FEE_PROCESSING_SUBSIDY_CLAIM_KEY =
+  "fee_processing_subsidy_claim_approved";
+
+export async function isFeeProcessingSubsidyClaimApproved(): Promise<boolean> {
+  const approvals = await getActivationApprovals();
+  return approvals.some(
+    (a) => a.approvalKey === FEE_PROCESSING_SUBSIDY_CLAIM_KEY && a.approved,
+  );
+}
+
 /** Throwing guard for the money path. Call before any live charge. In test
  *  mode it is a deliberate no-op (no live money), so the flow dogfoods with the
  *  gate still closed for real billing. */

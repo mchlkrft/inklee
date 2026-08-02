@@ -14,10 +14,12 @@ const {
   mockCaptureException,
   mockRunShopRetentionPurges,
   mockRunBillingRecordRetentionPurges,
+  mockRunTaxThresholdRollup,
 } = vi.hoisted(() => ({
   mockCaptureException: vi.fn(),
   mockRunShopRetentionPurges: vi.fn(),
   mockRunBillingRecordRetentionPurges: vi.fn(),
+  mockRunTaxThresholdRollup: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -33,6 +35,13 @@ vi.mock("@/lib/server/shop-retention", () => ({
 vi.mock("@/lib/server/billing-record-retention", () => ({
   runBillingRecordRetentionPurges: (...a: unknown[]) =>
     mockRunBillingRecordRetentionPurges(...a),
+}));
+// A2: mocked wholesale here too — the counting rule and status boundaries are
+// unit-tested on their own in tax-threshold-rollup.test.ts. Without this mock
+// the real rollup would run against the delete-only service-client stub below
+// and fail every "select" chain it calls.
+vi.mock("@/lib/server/tax-threshold-rollup", () => ({
+  runTaxThresholdRollup: (...a: unknown[]) => mockRunTaxThresholdRollup(...a),
 }));
 
 type Reply = { data?: unknown; error?: unknown };
@@ -86,12 +95,17 @@ const BILLING_STEPS_ALL_OK = {
   purged_deleted_account_billing_subscriptions: { ok: true as const, count: 0 },
 };
 
+const TAX_THRESHOLD_STEPS_ALL_OK = {
+  tax_threshold_rollup: { ok: true as const, count: 1 },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.CRON_SECRET = "test-secret";
   tableReplies.clear();
   mockRunShopRetentionPurges.mockResolvedValue(SHOP_STEPS_ALL_OK);
   mockRunBillingRecordRetentionPurges.mockResolvedValue(BILLING_STEPS_ALL_OK);
+  mockRunTaxThresholdRollup.mockResolvedValue(TAX_THRESHOLD_STEPS_ALL_OK);
 });
 
 describe("retention-purge sequencing: every step is independent", () => {
@@ -160,6 +174,23 @@ describe("retention-purge sequencing: every step is independent", () => {
     expect(body.purged_financial_records).toBe(0);
     expect(body.purged_map_reports).toBe(0);
     expect(body.purged_cancelled_standalone_order_emails).toBe(0);
+    expect(body.tax_threshold_rollup).toBe(1);
+  });
+
+  it("merges an A2 tax-threshold-rollup step failure into the same error list without blocking the others", async () => {
+    mockRunTaxThresholdRollup.mockResolvedValue({
+      tax_threshold_rollup: { ok: false, error: "boom" },
+    });
+
+    const res = await GET(req());
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(res.status).toBe(500);
+    expect(body.purged_map_reports).toBe(0); // other steps still ran
+    expect(body.tax_threshold_rollup).toBeUndefined();
+    expect(body.errors).toEqual(
+      expect.arrayContaining([{ step: "tax_threshold_rollup", error: "boom" }]),
+    );
   });
 
   it("merges a C1.4 shop-retention step failure into the same error list without blocking the others", async () => {

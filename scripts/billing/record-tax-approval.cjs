@@ -71,10 +71,17 @@ const CONFIG = {
 
 // Thresholds to track (limits in minor units). Country-specific SME thresholds
 // are added per country as the SME scheme is used in that country.
+//
+// warning_minor (0145, A2): the early-warning point counsel/accountant
+// confirmed in counsel-accountant-handoff-2026-08.md PART 4 A2 — 35k EUR for
+// the domestic EE threshold, 8k EUR for the cross-border EU B2C OSS
+// threshold. `null` for union_turnover_sme: no warning figure was confirmed
+// for it, and inventing one is exactly what the tax posture's "law is data,
+// never invented in code" rule (billing.ts) forbids.
 const THRESHOLDS = [
-  { threshold_type: "ee_registration_40k", limit_minor: 4000000, notes: "Estonian VAT-registration threshold." },
-  { threshold_type: "eu_b2c_oss_10k", limit_minor: 1000000, notes: "Cross-border EU B2C electronically supplied services." },
-  { threshold_type: "union_turnover_sme", limit_minor: 10000000, notes: "Total Union turnover for the cross-border SME scheme." },
+  { threshold_type: "ee_registration_40k", limit_minor: 4000000, warning_minor: 3500000, notes: "Estonian VAT-registration threshold." },
+  { threshold_type: "eu_b2c_oss_10k", limit_minor: 1000000, warning_minor: 800000, notes: "Cross-border EU B2C electronically supplied services." },
+  { threshold_type: "union_turnover_sme", limit_minor: 10000000, warning_minor: null, notes: "Total Union turnover for the cross-border SME scheme." },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -155,10 +162,10 @@ const sql = postgres(url, { ssl: "require", max: 1, idle_timeout: 8 });
 
     for (const t of THRESHOLDS) {
       await tx`
-        insert into tax_thresholds (threshold_type, limit_minor, currency, notes, updated_at)
-        values (${t.threshold_type}, ${t.limit_minor}, 'eur', ${t.notes}, ${now})
+        insert into tax_thresholds (threshold_type, limit_minor, warning_minor, currency, notes, updated_at)
+        values (${t.threshold_type}, ${t.limit_minor}, ${t.warning_minor}, 'eur', ${t.notes}, ${now})
         on conflict (threshold_type, coalesce(country, '')) do update set
-          limit_minor = ${t.limit_minor}, notes = ${t.notes}, updated_at = ${now}`;
+          limit_minor = ${t.limit_minor}, warning_minor = ${t.warning_minor}, notes = ${t.notes}, updated_at = ${now}`;
     }
   });
 

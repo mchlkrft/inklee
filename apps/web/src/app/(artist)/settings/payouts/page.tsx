@@ -5,6 +5,12 @@ import {
   type ConnectStatus,
 } from "@/lib/stripe-connect";
 import { getDepositCollection } from "@/lib/server/deposit-collection";
+import { isFeeProcessingSubsidyClaimApproved } from "@/lib/server/billing/activation";
+import {
+  CONNECT_FEE_PAYER_IS_APPLICATION,
+  NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM,
+  noSeparateCardProcessingFeesClaimVisible,
+} from "@inklee/shared/platform-fee";
 import PayoutsControls from "./payouts-controls";
 import ConnectKycForm from "./connect-kyc-form";
 import VerificationDocumentForm from "./verification-document-form";
@@ -24,22 +30,25 @@ const STATUS_LABEL: Record<ConnectStatus, string> = {
 // while v1 is active) — the sentence then says collection isn't part of the
 // plan rather than printing a fabricated 0%.
 //
-// The "(card processing included)" parenthetical is a COMMERCIAL CLAIM tied to
-// the all-in 3% rate (Custom Connect bills Stripe's processing cost to
-// Inklee's own balance, never the artist's, so the full 3% IS the artist's
-// only deduction). At the Plus 0.5% rate that claim is not the same statement
-// (a different, TBD cost/margin split) and would need re-confirming with the
-// accountant, so it is included ONLY when the shown rate is exactly the
-// historical 300 bps (today: always, since v1 is active for every tier).
+// A7 (counsel-accountant-handoff-2026-08.md PART 4): the "no separate
+// card-processing fees" claim used to be tied to the rate being exactly 300
+// bps, which reads as true only by coincidence of today's flat rate. Counsel's
+// answer binds it instead to WHO PAYS Stripe (`fees.payer: application`,
+// @inklee/shared/platform-fee) — true at any rate Inklee absorbs the cost at,
+// 3% or 0.5% alike — AND to a founder recording of intent, since absorbing the
+// cost at 0.5% is a subsidy rather than a margin. `showNoSeparateFeesClaim` is
+// resolved ONCE by the caller and threaded through, so this function never
+// re-derives it from the rate.
 function statusDescription(
   status: ConnectStatus,
   feePercentLabel: string | null,
-  feeBps: number | null,
+  showNoSeparateFeesClaim: boolean,
 ): string {
-  const cardProcessingNote =
-    feeBps === 300 ? " (card processing included)" : "";
+  const cardProcessingNote = showNoSeparateFeesClaim
+    ? ` ${NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM}`
+    : "";
   const feeClause = feePercentLabel
-    ? ` A ${feePercentLabel}% processing fee is deducted per deposit${cardProcessingNote}.`
+    ? ` A ${feePercentLabel}% processing fee is deducted per deposit.${cardProcessingNote}`
     : " Card deposit collection isn't part of your current plan.";
   switch (status) {
     case "unset":
@@ -87,7 +96,17 @@ export default async function PayoutsSettingsPage() {
   // rather than either being derived from the other.
   const depositCollection = await getDepositCollection(user!.id);
   const feePercentLabel = depositCollection.feeDisplay?.percentLabel ?? null;
-  const feeBps = depositCollection.feeDisplay?.bps ?? null;
+
+  // A7: both conditions resolved once, here — the structural fact (every
+  // connected account is Custom Connect with Inklee as the fee payer) and the
+  // founder's recorded intent (absent today, which is what keeps the claim
+  // suppressed).
+  const founderApprovedSubsidyClaim =
+    await isFeeProcessingSubsidyClaimApproved();
+  const showNoSeparateFeesClaim = noSeparateCardProcessingFeesClaimVisible({
+    payerIsApplication: CONNECT_FEE_PAYER_IS_APPLICATION,
+    founderApprovedSubsidyClaim,
+  });
 
   // P0-3: fetch what Stripe still needs so the form can show it on load (the
   // artist can only self-resolve if we tell them). Fetched for every live
@@ -136,7 +155,7 @@ export default async function PayoutsSettingsPage() {
           Optional. Set this up only if you want clients to pay deposits by card
           here.{" "}
           {feePercentLabel
-            ? `Each deposit lands in your own account with a ${feePercentLabel}% processing fee deducted${feeBps === 300 ? " (card processing included)" : ""}.`
+            ? `Each deposit lands in your own account with a ${feePercentLabel}% processing fee deducted.${showNoSeparateFeesClaim ? ` ${NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM}` : ""}`
             : "Card deposit collection isn't part of your current plan."}{" "}
           Without it, you can still collect deposits manually.
         </p>
@@ -151,7 +170,7 @@ export default async function PayoutsSettingsPage() {
         </div>
         <p className="text-sm text-foreground">{STATUS_LABEL[status]}</p>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          {statusDescription(status, feePercentLabel, feeBps)}
+          {statusDescription(status, feePercentLabel, showNoSeparateFeesClaim)}
         </p>
 
         {(status === "active" ||
@@ -269,7 +288,7 @@ export default async function PayoutsSettingsPage() {
       <p className="text-xs text-muted-foreground">
         Setting up payouts is optional and reversible.{" "}
         {feePercentLabel
-          ? `Deposits you collect this way land in your own account, with a ${feePercentLabel}% processing fee deducted${feeBps === 300 ? " (card processing included)" : ""}.`
+          ? `Deposits you collect this way land in your own account, with a ${feePercentLabel}% processing fee deducted.${showNoSeparateFeesClaim ? ` ${NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM}` : ""}`
           : "Card deposit collection isn't part of your current plan."}
       </p>
     </div>

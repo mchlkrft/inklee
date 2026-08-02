@@ -7,6 +7,7 @@ import {
 } from "@/lib/server/retention-cutoffs";
 import { runShopRetentionPurges } from "@/lib/server/shop-retention";
 import { runBillingRecordRetentionPurges } from "@/lib/server/billing-record-retention";
+import { runTaxThresholdRollup } from "@/lib/server/tax-threshold-rollup";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,13 @@ export const runtime = "nodejs";
 //     `transaction_tax_snapshots` (the fifth) is deliberately NOT purged
 //     here — see billing-record-retention.ts for why. Delegated to
 //     billing-record-retention.ts, which is DB-tested on its own.
+//   • A2 tax-threshold rollup (counsel-accountant-handoff-2026-08.md PART 4
+//     A2, tax-threshold-rollup.ts): NOT a purge, but reuses this SAME monthly
+//     schedule deliberately rather than registering a new vercel.json cron
+//     entry (Vercel cron slots are a scarce resource on this plan). Sums
+//     every platform-fee-revenue source since 1 Jan and writes
+//     tax_thresholds.current_minor/status under the accountant's conservative
+//     counting rule.
 //
 // SEQUENCING: every step below runs independently via `runStep`/
 // `runShopRetentionPurges`. This used to be eight sequential blocks that each
@@ -185,6 +193,11 @@ export async function GET(request: Request) {
 
   const billingSteps = await runBillingRecordRetentionPurges(now);
   for (const [name, result] of Object.entries(billingSteps)) {
+    steps[name] = result;
+  }
+
+  const thresholdSteps = await runTaxThresholdRollup(now);
+  for (const [name, result] of Object.entries(thresholdSteps)) {
     steps[name] = result;
   }
 

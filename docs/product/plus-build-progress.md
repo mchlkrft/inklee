@@ -2943,3 +2943,135 @@ future pass wants parity here too.
 it) and the C1.8/A6 items reported to the team lead for `docs/audit/findings.yaml`,
 per this task's explicit instruction to report rather than edit the register
 directly.
+
+## A2 + A7 + C1.9 Terms-edit assembly (2026-08-02, ready for review)
+
+Two items from `docs/legal/counsel-accountant-handoff-2026-08.md` Part 4,
+plus the C1.9 documentation task.
+
+**A2 — the threshold monitor now exists.** New migration `0145_tax_threshold_
+warning_points.sql`: adds `tax_thresholds.warning_minor` (data, not prose)
+seeded to 3,500,000 (35k EUR) for `ee_registration_40k` and 800,000 (8k EUR)
+for `eu_b2c_oss_10k` via unconditional UPDATEs keyed on the desired value
+(convergent even against a hand-edited row, per AGENTS.md's drop-then-create
+discipline); `union_turnover_sme` stays `null` — no confirmed early-warning
+figure exists for it, and inventing one would be exactly the "law is data,
+never invented in code" violation `billing.ts` warns against. Also closes a
+pre-existing gap: `tax_thresholds.status` had no CHECK since `0108` (any
+string was accepted); now constrained to `under`/`approaching`/`exceeded`.
+`scripts/billing/record-tax-approval.cjs`'s `THRESHOLDS` seed list updated to
+carry `warning_minor` too, so a future re-run stays convergent on the new
+column.
+
+New module `apps/web/src/lib/server/tax-threshold-rollup.ts`:
+`resolveThresholdStatus` (pure; inclusive `>=` on both the warning point and
+the statutory limit) and `computeFeeRevenueSinceMinor`, which sums every fee
+source found: `booking_requests.platform_fee_collected_cents` (deposits,
+including the goods portion of a combined deposit+add-on payment),
+`orders.platform_fee_amount` for **standalone orders only**
+(`booking_id IS NULL`), and `payment_collections.application_fee_minor`. The
+`booking_id IS NULL` filter is the one dedup this rollup has to get right:
+a booking-coupled add-on order's `platform_fee_amount`
+(`request/[token]/actions.ts:571`) stamps the SAME PaymentIntent's
+`application_fee_amount` the webhook already wrote to `booking_requests`
+(`stripe/webhook/route.ts:713-717`) — summing both would double-count every
+combined payment. `payment_collections` is always a distinct PaymentIntent
+(its own primary key), so it's always additive. Per the accountant's
+conservative rule, the total is written to `ee_registration_40k` only;
+`eu_b2c_oss_10k`/`union_turnover_sme` are left at whatever they already held
+— fee revenue is a B2B charge to the artist-as-trader (A4), not the B2C
+cross-border supply those two track, and no other revenue stream exists yet
+(0 live-mode charges, ever). Windowed to the current calendar year via a new
+`calendarYearStart` helper in `retention-cutoffs.ts`, so the rollup resets on
+1 Jan by construction.
+
+Wired into the existing monthly `retention-purge` cron
+(`api/cron/retention-purge/route.ts`) rather than a new `vercel.json` entry —
+this is not a purge, but reuses that schedule deliberately (a scarce Vercel
+cron slot) and follows the SAME independent-step pattern that route was
+rewritten with today (a failing step never blocks the others).
+
+**A7 — the claim now binds to the fee payer, not the rate.** New exports in
+`packages/shared/src/platform-fee.ts`: `CONNECT_FEE_PAYER_IS_APPLICATION`
+(mirrors the Custom Connect `controller.fees.payer = "application"` config
+every account is created with, `stripe-connect.ts:175`),
+`NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM` (counsel's approved sentence), and
+`noSeparateCardProcessingFeesClaimVisible({ payerIsApplication,
+founderApprovedSubsidyClaim })` — both conditions required, neither a
+fallback. The founder's half is read via a new
+`isFeeProcessingSubsidyClaimApproved()` in
+`apps/web/src/lib/server/billing/activation.ts`, checking for a
+`fee_processing_subsidy_claim_approved` row in `billing_activation_approvals`
+(same standalone-key pattern as `SALES_LAUNCH_KEYS`; recordable with the
+existing generic `scripts/billing/record-approval.cjs`, no new script). No
+row exists today, so the claim **stays suppressed** — the single obvious
+switch the brief asked for. Unlike the sales-launch keys this is NOT a
+test-mode no-op: it's a copy decision, not a money gate, so dev/staging reads
+the same DB state production would.
+
+`apps/web/src/app/(artist)/settings/payouts/page.tsx` rewired: the old
+`feeBps === 300 ? " (card processing included)" : ""` in three places
+(the header paragraph, `statusDescription`, the footer paragraph) is now
+`showNoSeparateFeesClaim` resolved once at the top of the page and threaded
+through, rendering `" No separate card-processing fees."` when true. Native
+parity checked: the mobile payouts screen never rendered this claim at all
+(only the raw `appointmentFeeBps`/`appointmentFeePercentLabel` numbers), so
+this is a deliberate web-only row, not a gap — added to
+`docs/web-native-parity.md` with a note that a future native equivalent must
+read the same shared predicate rather than re-deriving a rate-based
+condition.
+
+**C1.9 — Terms-edit inputs assembled, live Terms NOT touched.** New
+`docs/legal/c1.9-terms-edit-inputs.md`: gathers counsel's exact wording for
+X2 (line-76 fix), C1.1-C1.3, C1.7 (the one item genuinely missing anywhere in
+`terms.md` — no Refunds-of-our-fee clause exists yet), C1.8, C1.4, and the
+new A5 line ("buyer-requested invoices for goods are the artist's to issue;
+Inklee supplies the data"), cross-referenced against what a repo sweep found
+already live in code (C1.1/C1.2/C1.3/C1.8/C1.4 all already match counsel's
+wording in the checkout page, confirmation emails and privacy notice — see
+the file for exact file:line citations) versus what still needs a Terms
+section (a new Section 13 "Goods orders" is suggested, since none exists
+today; Section 12 "Deposits and payments" is the model). Ends with an
+execution checklist mapping to `go-live-worklist.md` FA9. This document does
+not edit `content/legal/terms.md` and does not constitute wording sign-off;
+per counsel's own C1.9 answer, the actual edit goes through the versioned
+snapshot workflow (`getLegalDoc`, `_versions/`) with a final counsel
+confirmation pass on the resulting hash.
+
+**Validation.** `npx tsc --noEmit` clean. `eslint` clean on every touched
+file (`apps/web` and `packages/shared`). Full `npx vitest run`: 193 files,
+3256 passed + 1 expected fail (same pre-existing expected fail), no
+regressions. `pnpm test:db`: local Docker had migrations `0144`/`0145`
+pending (`supabase migration list --local` showed both with an empty
+`remote` column); applied both non-destructively via
+`supabase migration up --local` (0144 belongs to the concurrent gallery
+worker), then ran the full db suite: 21 files, 297 passed. Migration
+convergence proved by hand: re-ran `0145`'s SQL twice against the live table
+(no error both times), then manually dropped `tax_thresholds_status_check`
+and re-ran the migration file, confirming it restored the constraint.
+
+Mutation-proved by hand: `computeFeeRevenueSinceMinor`'s `payment_collections`
+term zeroed out breaks the "sums all three sources" test (asserted exact
+total, not just `> 0`, specifically so a dropped source is visible);
+`resolveThresholdStatus`'s exceeded-boundary `>=` changed to `>` breaks both
+the pure boundary test at the exact statutory limit AND the `rollupTaxThresholds`
+integration test for the same boundary. Both reverted after confirming the
+failure.
+
+New/updated test files: `tax-threshold-rollup.test.ts` (new, 16 cases:
+boundary matrix on both sides of both points including a null-warning
+threshold, additive-source sums, the booking/orders dedup reasoning, read
+failures throwing per source, the cron wrapper never throwing),
+`retention-cutoffs.test.ts` (+`calendarYearStart`), `route.test.ts`
+(retention-purge cron, +the new step's merge-on-success and
+merge-on-failure cases), `activation.test.ts`
+(+`isFeeProcessingSubsidyClaimApproved`, including the "does not short-circuit
+in test mode" case), `platform-fee-a7-claim.test.ts` (new,
+`noSeparateCardProcessingFeesClaimVisible`'s four boolean combinations).
+
+**Findings for the record.** `apps/web/src/lib/server/fee-savings-query.ts`
+(the per-artist fee-savings dashboard) sums `orders.platform_fee_amount`
+WITHOUT excluding `booking_id IS NOT NULL` rows — the same double-count this
+rollup had to guard against. Read, not fixed (out of scope; reported to the
+team lead for `docs/audit/findings.yaml` rather than edited directly, per
+this task's instruction).

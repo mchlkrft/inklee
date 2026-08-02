@@ -18,6 +18,7 @@ import {
   assertLiveBillingAllowedFor,
   assertSalesLaunchApproved,
   evaluateLiveBilling,
+  isFeeProcessingSubsidyClaimApproved,
 } from "@/lib/server/billing/activation";
 
 const ORIGINAL_KEY = process.env.STRIPE_SECRET_KEY;
@@ -240,5 +241,55 @@ describe("the launch decision is a DB approval, not a code constant", () => {
       ).resolves.toBeUndefined();
       expect(selectMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+// A7: the founder's fee-processing-subsidy-claim approval. This is a COPY
+// decision (whether the payouts page may show "no separate card-processing
+// fees"), never a money gate, so — unlike assertSalesLaunchApproved — it must
+// read the SAME way in test mode as in live mode: a preview environment has
+// to be able to preview the flip once the founder records it.
+describe("isFeeProcessingSubsidyClaimApproved", () => {
+  it("false when no row for the key exists (the suppressed default)", async () => {
+    selectMock.mockResolvedValue({ data: [], error: null });
+    await expect(isFeeProcessingSubsidyClaimApproved()).resolves.toBe(false);
+  });
+
+  it("false when the row exists but approved is false", async () => {
+    selectMock.mockResolvedValue({
+      data: [
+        {
+          approval_key: "fee_processing_subsidy_claim_approved",
+          approval_group: "b2b",
+          approved: false,
+          bound_artifact: null,
+        },
+      ],
+      error: null,
+    });
+    await expect(isFeeProcessingSubsidyClaimApproved()).resolves.toBe(false);
+  });
+
+  it("true only once the founder's row is recorded with approved:true", async () => {
+    selectMock.mockResolvedValue({
+      data: [row("fee_processing_subsidy_claim_approved", "b2b")],
+      error: null,
+    });
+    await expect(isFeeProcessingSubsidyClaimApproved()).resolves.toBe(true);
+  });
+
+  it("does NOT short-circuit in test mode — reads the DB regardless of billing mode", async () => {
+    forceTestMode();
+    selectMock.mockResolvedValue({
+      data: [row("fee_processing_subsidy_claim_approved", "b2b")],
+      error: null,
+    });
+    await expect(isFeeProcessingSubsidyClaimApproved()).resolves.toBe(true);
+    expect(selectMock).toHaveBeenCalled();
+  });
+
+  it("propagates a read failure rather than reading it as false", async () => {
+    selectMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+    await expect(isFeeProcessingSubsidyClaimApproved()).rejects.toThrow(/boom/);
   });
 });
