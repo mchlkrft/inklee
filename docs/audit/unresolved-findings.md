@@ -5,18 +5,16 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `d57c99515ef9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `f3a2b022f135`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (54)
+## Open (53)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
 | ABUSE-PUB-001 | high | public-surface | directly-reachable | latent | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
 | AUTH-RLS-003 | high | authorization | directly-reachable | latent | product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items |
-| BDEL-PAY-001 | high | billing | directly-reachable | latent | Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it |
-| BDEL-RET-001 | high | data-retention | conditionally-reachable | latent | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
 | BDEL-SUB-001 | high | billing | conditionally-reachable | latent | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
 | BILL-ENT-002 | high | billing | conditionally-reachable | latent | OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile |
 | DRIFT-ENUM-001 | high | database | conditionally-reachable | latent | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
@@ -24,6 +22,7 @@ Operational view. Generated from the ledger; do not edit.
 | WHK-ERR-001 | high | webhook | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | webhook | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
 | BDEL-CON-001 | medium | billing | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
+| BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | CRON-CAP-001 | medium | jobs | conditionally-reachable | latent | The per-artist 10-email daily cap is consumed in branch order, and a capped appointment reminder is lost rather than deferred |
 | CRON-COV-001 | medium | jobs | conditionally-reachable | unknown | coverage-worker has no run-level mutual exclusion and its real cadence comes from a GitHub Actions schedule against production, making overlap plausible for the non-task work |
 | CRON-GRW-001 | medium | jobs | directly-reachable | historically-impacting | The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or backfills a missed run |
@@ -74,7 +73,7 @@ Operational view. Generated from the ledger; do not edit.
 | --- | --- | --- | --- | --- | --- |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (53)
+## Fixed but NOT verified (55)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -82,6 +81,8 @@ A commit exists. Nothing independent has confirmed it works.
 | --- | --- | --- | --- | --- | --- |
 | AUTH-RPC-001 | critical | authorization | currently-unreachable | historically-impacting | book_flash_item and increment_fee_sponsored_used were callable by anon via PostgREST until 0060 revoked the grants |
 | PAY-DEP-001 | critical | payment | directly-reachable | historically-impacting | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
+| BDEL-PAY-001 | high | billing | directly-reachable | latent | Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it |
+| BDEL-RET-001 | high | data-retention | conditionally-reachable | latent | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
 | BDEL-TTS-001 | high | billing | conditionally-reachable | latent | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
 | CRON-CLN-001 | high | jobs | conditionally-reachable | latent | cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records |
 | CRON-RMD-001 | high | jobs | directly-reachable | actively-impacting | Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46 |

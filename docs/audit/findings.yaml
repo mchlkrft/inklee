@@ -5743,6 +5743,14 @@ findings:
           this finding cited still carries the CASCADE + old trigger. The repo defect is
           fixed; the production exposure is CANNOT-TELL from here and closes only when
           FA1 lands. (2)"
+      - date: "2026-08-02"
+        actor: "c110-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Confirmed fixed by execution, not just by reading: a new db test deletes a fixture
+          profile directly and asserts the delete SUCCEEDS, which is the property 0129's
+          repoint of the append-only trigger's FK was supposed to restore. The whole cascade
+          depends on this, so it was worth confirming rather than trusting the earlier
+          read-only recheck."
 
   - id: "BDEL-SUB-001"
     title: "Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade
@@ -5878,6 +5886,23 @@ findings:
           chain. Remaining reachable windows: (a) the customer.subscription.deleted
           event that step 2b's own cancel emits can land after step 4's profile delete,
           driving reconcile to write the now-dangling artist_id;"
+      - date: "2026-08-02"
+        actor: "c110-worker (implementation) + supervisor session (review)"
+        action: "evidence-added"
+        note: "REMAINING HALF SCOPED, still open, now task #59. Both windows trace to ONE root cause:
+          resolveArtistId in reconcile.ts trusts sub.metadata.artist_id and
+          customer.metadata.artist_id even after the owning profile is gone. (a) A late
+          customer.subscription.* webhook - which the deletion's own cancel() call emits -
+          drives guardedUpsert to write artist_id back to a deleted uuid on
+          billing_subscriptions: a FRESH 23503, independent of the SET NULL fix. (b) The
+          same call upserts account_overrides, which IS cascade-erased, so the UPDATE
+          matches nothing, falls through to INSERT and 23503s on the same dangling id. A
+          narrower in-scope mitigation was considered and REJECTED with reasoning worth
+          keeping: clearing Stripe metadata before cancelling does not help, because events
+          are immutable snapshots taken at generation time; doing it earlier would fire an
+          orphaned-subscription Sentry alert on EVERY Plus-subscriber deletion, which is a
+          product and alerting trade rather than a bug fix, and not one to make silently
+          inside a compliance commit."
 
   - id: "BDEL-RET-001"
     title: "Terms and Privacy promise post-deletion retention of billing and tax records that the
@@ -5984,7 +6009,9 @@ findings:
         - "Whether any invoice PDF or artifact lives in Supabase Storage under a prefix the purge
           would delete - artifacts.ts was not read."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "7071ac08"
+      fixed_at: "2026-08-02"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -6017,6 +6044,22 @@ findings:
           current fact. (2) A NEW inverse gap created by the fix: the five SET-NULL
           tables now survive indefinitely and nothing purges them.
           apps/web/src/app/api/cron/retention-purge/route.ts time-boxes on"
+      - date: "2026-08-02"
+        actor: "c110-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "RESOLVED across all eleven tables, with the arithmetic corrected rather than repeated.
+          Five were already moved to SET NULL by 0129 (recorded earlier today). Of the six
+          remaining: founder_offer_redemptions moved to SET NULL by migration 0143 (it is
+          Stripe-pointered evidence of WHY an artist was billed at the founder price, and
+          its eligibility_reason is a fixed literal, never free text); account_overrides
+          deliberately STAYS CASCADE, because it is entitlement configuration with no
+          revenue-substantiation role that billing_subscriptions and
+          transaction_tax_snapshots do not already cover - retaining it would be
+          over-retention, which is the direction retention decisions usually fail in; and
+          the remaining four were 0129's own deliberate decision, re-verified rather than
+          assumed, including confirming that none of them has any code writing to it yet.
+          0143's convergence was proven as a side effect of the second mutation, which
+          restored the mutated schema by re-running the migration's own SQL."
 
   - id: "BDEL-CON-001"
     title: "Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but
@@ -8489,7 +8532,9 @@ findings:
         - "Any other table added after account-deletion.ts that has ON DELETE CASCADE from profiles
           and contains financial or legally-retainable data."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "7071ac08"
+      fixed_at: "2026-08-02"
       proposed_action: "Extend deleteOwnAccountCore to query and archive P9 payment data (payment
         requests with allocations and collections) into deleted_account_records before the profile
         cascade. Must be done before the appointment payments system goes live."
@@ -8504,6 +8549,19 @@ findings:
       - date: "2026-07-30"
         actor: "Opus 5 code quality audit: money paths lens"
         action: "opened"
+      - date: "2026-08-02"
+        actor: "c110-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fixed in 7071ac08. Account deletion now reads the P9 tables (payment_requests limited to
+          sent_at NOT NULL - a draft never shown to a client carries no obligation),
+          pseudonymises each through a new allowlist and archives them into
+          deleted_account_records BEFORE the step-4 cascade. The allowlist deliberately
+          EXCLUDES customer_token_hash and the free-text description column. All four P9
+          tables stay CASCADE because their composite subject FKs cannot be SET NULL (0125's
+          own comment says so), which makes this archive the only surviving copy - so the
+          mutation proof matters: sabotaging the archival query reds exactly the named test
+          and nothing else. buildFinancialSnapshot is schemaVersion 3, additive over 2."
+
   - id: "SEED-GRT-002"
     title: "seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE,
       leaving local stack with authenticated TRUNCATE on a service-role-only table"
@@ -14701,6 +14759,86 @@ findings:
         action: "opened"
         note: "Raised proactively while implementing the standalone-shop-only scope named in the
           task brief; not reproduced end-to-end."
+
+  - id: "BDEL-RET-002"
+    title: "The 0129 retention repair created the inverse gap: five billing tables now survive
+      account deletion INDEFINITELY because nothing purges them"
+    summary: "Migration 0129 moved billing_consent_records, billing_subscriptions,
+      transaction_tax_snapshots, billing_contract_confirmations and withdrawal_cases from CASCADE
+      to ON DELETE SET NULL so they survive a deleted account, which was the correct fix for the
+      retention promise. But the retention-purge cron time-boxes only deleted_account_records (7
+      years) and audit_log (24 months); none of those five has any purge deadline at all. Counsel
+      section 8 is explicit that indefinite retention is not applied. A record kept forever
+      because we fixed it from being deleted too early is the same compliance failure pointing the
+      other way."
+    classification:
+      domain: "data-retention"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "c110-worker, while implementing C1.10 (found it, did not fix it - the purge
+        cron was another worker's owned surface)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "7071ac08"
+      environment: "local"
+      discovery_context: "An earlier read-only recheck had flagged that 0129's repair created an
+        inverse gap but did not detail it; this is the detail."
+    location:
+      files:
+        - "apps/web/src/app/api/cron/retention-purge/route.ts"
+        - "apps/web/supabase/migrations/0129_billing_record_retention.sql"
+    evidence:
+      observed_facts:
+        - "The five tables' FKs are confdeltype n (SET NULL) in the live local catalog, confirmed
+          during the C1.10 work."
+        - "retention-purge time-boxes exactly two tables; the five appear in no purge job
+          anywhere."
+      references:
+        - "docs/legal/counsel-accountant-handoff-2026-08.md"
+    assessment:
+      interpretation: "Two opposite compliance failures share one root: nobody owned the QUESTION
+        of how long each table should live, so each fix moved a table to whichever pole the
+        immediate problem demanded."
+      root_cause_hypothesis: "0129 was scoped as 'stop these being deleted', not as 'decide these
+        tables' lifetime', and the second half was never written down."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Deleted accounts' billing records, held with no end date."
+      production_exposure: "Real but small today: 0129 is applied in production and deletions do
+        happen, though the volume is tiny."
+      exploit_preconditions: "Not attacker-driven."
+      remaining_uncertainty: "None on the mechanism."
+    relationships:
+      related_findings:
+        - "BDEL-RET-001"
+    remediation:
+      status: "open"
+      proposed_action: "Give the five a retention deadline consistent with the 7-year
+        financial-record rule - they ARE the financial records, so 7 years from the end of the
+        financial year is the natural anchor, and it is the same arithmetic the C1.4 retention
+        work is already implementing. Relayed to that worker mid-task so it can land in the same
+        commit rather than becoming a follow-up."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "7071ac08"
+      verification_method: "Established by reading the purge cron against the live catalog's FK
+        states; not executed as a retention-expiry scenario (nothing has been retained long
+        enough to expire)."
+      residual_risk: "None material; the gap is a missing job, not a wrong one."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "c110-worker"
+        action: "opened"
+        note: "Reported rather than fixed, because the purge cron belonged to another worker
+          active in the same tree at the time."
 
 patterns:
 

@@ -5,16 +5,18 @@
 
 # Structural risk report
 
-**Ledger content hash:** `d57c99515ef9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `f3a2b022f135`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-137 recorded finding(s), 3 structural pattern(s), across 89 mapped area(s).
-113 remain open by remediation status. 108 are reachable (directly or conditionally) rather than latent.
-110 have not passed independent verification.
+138 recorded finding(s), 3 structural pattern(s), across 89 mapped area(s).
+114 remain open by remediation status. 109 are reachable (directly or conditionally) rather than latent.
+111 have not passed independent verification.
 181 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 32 |
-| medium | 60 |
+| medium | 61 |
 | low | 39 |
 | informational | 4 |
 
@@ -35,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 53 |
+| fixed-unverified | 55 |
 | in-progress | 1 |
 | mitigated | 2 |
 | not-applicable | 1 |
-| open | 54 |
+| open | 53 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -47,7 +49,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 107 |
+| not-started | 108 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -150,9 +152,9 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | web | 12 |
 | testing | 8 |
 | authorization | 5 |
+| data-retention | 4 |
 | migration | 4 |
 | public-surface | 4 |
-| data-retention | 3 |
 | governance | 3 |
 | production-config | 3 |
 | ci-cd | 2 |
@@ -196,6 +198,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | WHK-ERR-001 | high | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
 | BDEL-CON-001 | medium | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
+| BDEL-RET-002 | medium | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | BILL-ENT-001 | medium | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
 | BILL-UI-001 | medium | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
@@ -282,6 +285,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | --- | --- | --- | --- | --- |
 | AUTH-RPC-001 | critical | fixed-unverified | not-started | 364a10f |
 | PAY-DEP-001 | critical | fixed-unverified | not-started | 7e59c79 |
+| BDEL-PAY-001 | high | fixed-unverified | not-started | 7071ac08 |
+| BDEL-RET-001 | high | fixed-unverified | not-started | 7071ac08 |
 | BDEL-TTS-001 | high | fixed-unverified | not-started | - |
 | CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | CRON-RMD-001 | high | fixed-unverified | not-started | 9a7c3536 |
