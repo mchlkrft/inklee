@@ -15,6 +15,7 @@ import {
   purgeCompletedStandaloneOrderEmails,
   purgeAbandonedCarts,
   purgeInactiveWishlistItems,
+  countUnstampedCancelledStandaloneOrders,
   PURGED_EMAIL_PLACEHOLDER,
 } from "@/lib/server/shop-retention";
 import { daysAgoCutoff, monthsAgoCutoff } from "@/lib/server/retention-cutoffs";
@@ -98,13 +99,19 @@ async function orderEmail(orderId: string): Promise<string | null> {
 
 // ===========================================================================
 // Rule 1: cancelled order — erase the guest email 30 days after cancellation.
+//
+// D4 (counsel, docs/legal/counsel-handoff-2026-08-02.md Part 5): the clock is
+// `cancelled_at`, stamped by the status transition (migration 0149), NOT
+// `updated_at`, which any later touch of the row restarts. Every fixture
+// below therefore sets `cancelled_at` explicitly, and the two tests at the
+// end of the block pin the two clocks APART: the same row cannot pass both.
 
 describe("cancelled standalone order: erase email 30 days after cancellation", () => {
   it("survives at 29 days old (inside the 30-day window)", async () => {
     const id = await insertOrder({
       client_email: "survivor-29d@example.com",
       status: "cancelled",
-      updated_at: new Date(
+      cancelled_at: new Date(
         NOW.getTime() - 29 * 24 * 60 * 60 * 1000,
       ).toISOString(),
     });
@@ -116,7 +123,7 @@ describe("cancelled standalone order: erase email 30 days after cancellation", (
     const id = await insertOrder({
       client_email: "erase-31d@example.com",
       status: "cancelled",
-      updated_at: new Date(
+      cancelled_at: new Date(
         NOW.getTime() - 31 * 24 * 60 * 60 * 1000,
       ).toISOString(),
     });
@@ -129,7 +136,7 @@ describe("cancelled standalone order: erase email 30 days after cancellation", (
     const id = await insertOrder({
       client_email: "idempotent-31d@example.com",
       status: "cancelled",
-      updated_at: new Date(
+      cancelled_at: new Date(
         NOW.getTime() - 31 * 24 * 60 * 60 * 1000,
       ).toISOString(),
     });
@@ -165,7 +172,7 @@ describe("cancelled standalone order: erase email 30 days after cancellation", (
       booking_id: bookingId,
       client_email: "booking-order@example.com",
       status: "cancelled",
-      updated_at: new Date(
+      cancelled_at: new Date(
         NOW.getTime() - 400 * 24 * 60 * 60 * 1000,
       ).toISOString(),
     });
@@ -185,6 +192,150 @@ describe("cancelled standalone order: erase email 30 days after cancellation", (
     });
     await purgeCancelledStandaloneOrderEmails(NOW);
     expect(await orderEmail(id)).toBe("still-pending@example.com");
+  });
+});
+
+// ===========================================================================
+// D4: the clock runs from the CANCELLATION, not from `updated_at`.
+//
+// These two are a matched pair and they are the whole point of the deviation.
+// Neither alone distinguishes the two clocks; together, no implementation can
+// pass both unless it reads `cancelled_at`:
+//
+//   fixture A: cancelled 31 days ago, updated_at = NOW      -> MUST purge
+//              (the old `updated_at` rule keeps this row forever, because
+//               every touch of the row pushed the deadline out again)
+//   fixture B: cancelled 5 days ago,  updated_at = 400d ago -> MUST NOT purge
+//              (the old rule erases this row's email 25 days early)
+//
+// Fixture B also exists because a guard that refuses everything passes every
+// "must purge" test: it is the legitimate-case control for this rule.
+
+describe("D4: the 30-day clock runs from cancelled_at, not updated_at", () => {
+  it("purges a row cancelled 31 days ago even though updated_at is TODAY", async () => {
+    const id = await insertOrder({
+      client_email: "d4-touched-today@example.com",
+      status: "cancelled",
+      cancelled_at: new Date(
+        NOW.getTime() - 31 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      updated_at: NOW.toISOString(),
+    });
+    // Touch the row again after insert, the way a refund flip or an admin
+    // correction would. Under the pre-D4 rule this alone made the row
+    // permanently unpurgeable.
+    const touch = await admin
+      .from("orders")
+      .update({ fulfillment_status: "picked_up" })
+      .eq("id", id);
+    expect(touch.error, touch.error?.message).toBeNull();
+
+    const result = await purgeCancelledStandaloneOrderEmails(NOW);
+    expect(result.count).toBeGreaterThanOrEqual(1);
+    expect(await orderEmail(id)).toBe(PURGED_EMAIL_PLACEHOLDER);
+  });
+
+  it("does NOT purge a row cancelled 5 days ago whose updated_at is 400 days old", async () => {
+    const id = await insertOrder({
+      client_email: "d4-recently-cancelled@example.com",
+      status: "cancelled",
+      cancelled_at: new Date(
+        NOW.getTime() - 5 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      updated_at: new Date(
+        NOW.getTime() - 400 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    });
+    await purgeCancelledStandaloneOrderEmails(NOW);
+    expect(await orderEmail(id)).toBe("d4-recently-cancelled@example.com");
+  });
+});
+
+// ===========================================================================
+// D4: the stamp itself (migration 0149's trigger). The purge is only as good
+// as the column it reads, and nothing in application code sets it.
+
+describe("D4: orders_stamp_cancelled_at_trg", () => {
+  async function cancelledAt(id: string): Promise<string | null> {
+    const { data, error } = await admin
+      .from("orders")
+      .select("cancelled_at")
+      .eq("id", id)
+      .single();
+    expect(error, error?.message).toBeNull();
+    return (data?.cancelled_at as string | null) ?? null;
+  }
+
+  it("stamps cancelled_at when a pending order is flipped to cancelled", async () => {
+    const id = await insertOrder({
+      client_email: "trg-flip@example.com",
+      status: "pending",
+    });
+    expect(await cancelledAt(id)).toBeNull();
+
+    const flip = await admin
+      .from("orders")
+      .update({ status: "cancelled" })
+      .eq("id", id);
+    expect(flip.error, flip.error?.message).toBeNull();
+    expect(await cancelledAt(id)).not.toBeNull();
+  });
+
+  it("does NOT re-stamp on a later touch while the order stays cancelled", async () => {
+    const stamp = new Date(
+      NOW.getTime() - 20 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const id = await insertOrder({
+      client_email: "trg-no-restamp@example.com",
+      status: "cancelled",
+      cancelled_at: stamp,
+    });
+    const before = await cancelledAt(id);
+    expect(before).not.toBeNull();
+
+    const touch = await admin
+      .from("orders")
+      .update({ fulfillment_status: "cancelled" })
+      .eq("id", id);
+    expect(touch.error, touch.error?.message).toBeNull();
+    // Same instant, to the microsecond. A re-stamp here would rebuild exactly
+    // the restartable clock D4 exists to remove.
+    expect(await cancelledAt(id)).toBe(before);
+  });
+
+  it("clears cancelled_at when an order leaves the cancelled state", async () => {
+    const id = await insertOrder({
+      client_email: "trg-uncancel@example.com",
+      status: "cancelled",
+      cancelled_at: new Date(
+        NOW.getTime() - 10 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    });
+    expect(await cancelledAt(id)).not.toBeNull();
+
+    const reopen = await admin
+      .from("orders")
+      .update({ status: "pending" })
+      .eq("id", id);
+    expect(reopen.error, reopen.error?.message).toBeNull();
+    expect(await cancelledAt(id)).toBeNull();
+  });
+
+  it("re-cancelling starts a FRESH clock rather than inheriting the expired one", async () => {
+    const id = await insertOrder({
+      client_email: "trg-recancel@example.com",
+      status: "cancelled",
+      cancelled_at: new Date(
+        NOW.getTime() - 400 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    });
+    await admin.from("orders").update({ status: "pending" }).eq("id", id);
+    await admin.from("orders").update({ status: "cancelled" }).eq("id", id);
+
+    // Stamped fresh (roughly wall-clock now), so the purge at NOW leaves it
+    // alone even though the ORIGINAL cancellation was 400 days ago.
+    await purgeCancelledStandaloneOrderEmails(NOW);
+    expect(await orderEmail(id)).toBe("trg-recancel@example.com");
   });
 });
 
@@ -232,6 +383,12 @@ describe("completed standalone order: erase email 7y from financial-year-end", (
       status: "cancelled",
       created_at: "2015-01-01T00:00:00.000Z",
       updated_at: "2015-01-01T00:00:00.000Z",
+      // D4: `cancelled_at` is the cancelled-order clock now, and without it
+      // 0149's trigger stamps this fixture with wall-clock now() — which
+      // makes the second half of this test (the cancelled rule DOES erase it)
+      // fail for a fixture reason rather than a behaviour reason. Observed:
+      // this was the one fixture in the file still keyed to updated_at.
+      cancelled_at: "2015-01-01T00:00:00.000Z",
     });
     await purgeCompletedStandaloneOrderEmails(NOW);
     expect(await orderEmail(id)).toBe("cancelled-old@example.com"); // untouched by the completed-order rule
@@ -394,6 +551,113 @@ describe("guest wishlist item: delete after 12 months of inactivity", () => {
     const result = await purgeInactiveWishlistItems(NOW);
     expect(result.count).toBeGreaterThanOrEqual(1);
     expect(await itemExists(id)).toBe(false);
+  });
+});
+
+// ===========================================================================
+// Q14: dry-run mode. Counsel wants a production report run that proves the
+// control's reach WITHOUT deleting anything, so two properties have to hold
+// together and neither is sufficient alone:
+//
+//   (a) a dry-run mutates nothing            — else it is a purge
+//   (b) its count equals what a purge does   — else it is not evidence
+//
+// A step that always returned 0 satisfies (a); a step that always deleted
+// satisfies (b). Each test below asserts both, on a specific row.
+
+describe("Q14: dry-run reports what a purge would do and changes nothing", () => {
+  it("cancelled-order pseudonymisation: same count, no write", async () => {
+    const id = await insertOrder({
+      client_email: "dryrun-cancelled@example.com",
+      status: "cancelled",
+      cancelled_at: new Date(
+        NOW.getTime() - 31 * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+    });
+
+    const dry = await purgeCancelledStandaloneOrderEmails(NOW, "dry-run");
+    expect(dry.count).toBeGreaterThanOrEqual(1);
+    expect(await orderEmail(id)).toBe("dryrun-cancelled@example.com");
+
+    const real = await purgeCancelledStandaloneOrderEmails(NOW, "purge");
+    expect(real.count).toBe(dry.count);
+    expect(await orderEmail(id)).toBe(PURGED_EMAIL_PLACEHOLDER);
+  });
+
+  it("abandoned cart deletion: same count, no delete", async () => {
+    const { data, error } = await admin
+      .from("shop_carts")
+      .insert({
+        guest_token_hash: `c14-dryrun-${crypto.randomUUID()}`,
+        artist_id: artist.id,
+        updated_at: new Date(
+          NOW.getTime() - 31 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+      })
+      .select("id")
+      .single();
+    expect(error, error?.message).toBeNull();
+    const cartId = data!.id as string;
+
+    const dry = await purgeAbandonedCarts(NOW, "dry-run");
+    expect(dry.count).toBeGreaterThanOrEqual(1);
+    const stillThere = await admin
+      .from("shop_carts")
+      .select("id")
+      .eq("id", cartId)
+      .maybeSingle();
+    expect(stillThere.data).not.toBeNull();
+
+    const real = await purgeAbandonedCarts(NOW, "purge");
+    expect(real.count).toBe(dry.count);
+    const gone = await admin
+      .from("shop_carts")
+      .select("id")
+      .eq("id", cartId)
+      .maybeSingle();
+    expect(gone.data).toBeNull();
+  });
+
+  it("wishlist deletion: same count, no delete", async () => {
+    const cutoff = monthsAgoCutoff(NOW, 12);
+    const { data, error } = await admin
+      .from("shop_wishlist_items")
+      .insert({
+        guest_token_hash: `c14-dryrun-wish-${crypto.randomUUID()}`,
+        artist_id: artist.id,
+        product_id: productId,
+        created_at: new Date(cutoff.getTime() - 86_400_000).toISOString(),
+      })
+      .select("id")
+      .single();
+    expect(error, error?.message).toBeNull();
+    const itemId = data!.id as string;
+
+    const dry = await purgeInactiveWishlistItems(NOW, "dry-run");
+    expect(dry.count).toBeGreaterThanOrEqual(1);
+    const stillThere = await admin
+      .from("shop_wishlist_items")
+      .select("id")
+      .eq("id", itemId)
+      .maybeSingle();
+    expect(stillThere.data).not.toBeNull();
+
+    const real = await purgeInactiveWishlistItems(NOW, "purge");
+    expect(real.count).toBe(dry.count);
+    const gone = await admin
+      .from("shop_wishlist_items")
+      .select("id")
+      .eq("id", itemId)
+      .maybeSingle();
+    expect(gone.data).toBeNull();
+  });
+
+  it("reports zero unstamped cancelled orders — the D4 backfill/trigger hold", async () => {
+    // If this ever returns non-zero, some writer reached `status='cancelled'`
+    // without the trigger and those rows can never be purged. That is exactly
+    // the silent over-retention the counter exists to surface.
+    const result = await countUnstampedCancelledStandaloneOrders();
+    expect(result.count).toBe(0);
   });
 });
 

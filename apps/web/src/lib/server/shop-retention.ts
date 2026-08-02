@@ -6,6 +6,13 @@ import {
   daysAgoCutoff,
   monthsAgoCutoff,
 } from "@/lib/server/retention-cutoffs";
+import {
+  countMatchingRows,
+  deleteMatchingRows,
+  updateMatchingRows,
+  type RetentionMode,
+  type RetentionStepResult,
+} from "@/lib/server/retention-run";
 
 /**
  * Guest-buyer retention purges (docs/legal/counsel-accountant-handoff-2026-08.md
@@ -38,7 +45,12 @@ import {
  * booking-linked row.
  *
  * Each function takes an explicit `now` (default `new Date()`) so tests can
- * pin exact boundary instants without faking the system clock.
+ * pin exact boundary instants without faking the system clock, and an
+ * explicit `mode` (default `"purge"`): in `"dry-run"` every function reports
+ * the number of rows its rule MATCHES and writes nothing, which is counsel's
+ * Q14 element (2). Both branches of every function are built from one shared
+ * predicate (`retention-run.ts`), so the reported number cannot drift from
+ * what a real run would touch.
  */
 
 export type PurgeResult = { count: number };
@@ -70,21 +82,71 @@ export const PURGED_EMAIL_PLACEHOLDER = "purged@retention.inklee.invalid";
  * statistics; only the PII is removed. `.neq` (not `.not(...,"is",null)`)
  * against the placeholder makes repeat runs idempotent: an already-purged
  * row never matches and is never re-counted.
+ *
+ * ANCHORED ON `cancelled_at`, NOT `updated_at` (counsel deviation D4,
+ * migration 0149). `updated_at` is written by every writer of the row, so a
+ * refund flip, an admin correction or any future column added to the order
+ * restarted the 30-day clock and the guest's email quietly outlived the
+ * period counsel set. `cancelled_at` is stamped by
+ * `orders_stamp_cancelled_at_trg` at the moment the status becomes
+ * `cancelled` and is not touched again while it stays cancelled, so the
+ * clock runs from the EVENT. Counsel: "a clock any later touch can restart
+ * is not the specified rule and will drift silently."
  */
 export async function purgeCancelledStandaloneOrderEmails(
   now: Date = new Date(),
+  mode: RetentionMode = "purge",
 ): Promise<PurgeResult> {
   const cutoff = daysAgoCutoff(now, 30).toISOString();
-  const { data, error } = await serviceClient
-    .from("orders")
-    .update({ client_email: PURGED_EMAIL_PLACEHOLDER })
-    .is("booking_id", null)
-    .eq("status", "cancelled")
-    .neq("client_email", PURGED_EMAIL_PLACEHOLDER)
-    .lt("updated_at", cutoff)
-    .select("id");
-  if (error) throw error;
-  return { count: data?.length ?? 0 };
+  const count = await updateMatchingRows(
+    mode,
+    "orders",
+    "id",
+    { client_email: PURGED_EMAIL_PLACEHOLDER },
+    (q) =>
+      q
+        .is("booking_id", null)
+        .eq("status", "cancelled")
+        .neq("client_email", PURGED_EMAIL_PLACEHOLDER)
+        .lt("cancelled_at", cutoff),
+  );
+  return { count };
+}
+
+/**
+ * The failure mode the D4 fix introduces, made visible instead of silent.
+ *
+ * Keying the purge to `cancelled_at` means a cancelled standalone order with
+ * a NULL `cancelled_at` never matches `< cutoff` and is therefore never
+ * purged, forever, without erroring — over-retention that looks exactly like
+ * "there was nothing to purge". 0149's trigger plus its backfill should make
+ * that set permanently empty; this counts it every run so that if a future
+ * writer ever bypasses the trigger (a raw SQL migration, a restore from a
+ * dump taken before 0149) it shows up as a number and an alert rather than
+ * as compliant-looking silence.
+ *
+ * NOT a purge: it never writes in either mode. It is reported alongside the
+ * purge steps because the cron response and the run log are where anyone
+ * looks for the health of this control.
+ */
+export async function countUnstampedCancelledStandaloneOrders(): Promise<PurgeResult> {
+  const count = await countMatchingRows("orders", "id", (q) =>
+    q
+      .is("booking_id", null)
+      .eq("status", "cancelled")
+      .neq("client_email", PURGED_EMAIL_PLACEHOLDER)
+      .is("cancelled_at", null),
+  );
+  if (count > 0) {
+    Sentry.captureMessage(
+      `Retention: ${count} cancelled standalone order(s) have no cancelled_at and can never be purged`,
+      {
+        level: "error",
+        tags: { action: "shop_retention_purge", step: "unstamped_cancelled" },
+      },
+    );
+  }
+  return { count };
 }
 
 /**
@@ -100,18 +162,22 @@ export async function purgeCancelledStandaloneOrderEmails(
  */
 export async function purgeCompletedStandaloneOrderEmails(
   now: Date = new Date(),
+  mode: RetentionMode = "purge",
 ): Promise<PurgeResult> {
   const cutoff = financialYearRetentionCutoff(now, 7).toISOString();
-  const { data, error } = await serviceClient
-    .from("orders")
-    .update({ client_email: PURGED_EMAIL_PLACEHOLDER })
-    .is("booking_id", null)
-    .in("status", ["paid", "refunded", "partially_refunded"])
-    .neq("client_email", PURGED_EMAIL_PLACEHOLDER)
-    .lt("created_at", cutoff)
-    .select("id");
-  if (error) throw error;
-  return { count: data?.length ?? 0 };
+  const count = await updateMatchingRows(
+    mode,
+    "orders",
+    "id",
+    { client_email: PURGED_EMAIL_PLACEHOLDER },
+    (q) =>
+      q
+        .is("booking_id", null)
+        .in("status", ["paid", "refunded", "partially_refunded"])
+        .neq("client_email", PURGED_EMAIL_PLACEHOLDER)
+        .lt("created_at", cutoff),
+  );
+  return { count };
 }
 
 /**
@@ -126,6 +192,7 @@ export async function purgeCompletedStandaloneOrderEmails(
  */
 export async function purgeAbandonedCarts(
   now: Date = new Date(),
+  mode: RetentionMode = "purge",
 ): Promise<PurgeResult> {
   const cutoffIso = daysAgoCutoff(now, 30).toISOString();
 
@@ -147,6 +214,11 @@ export async function purgeAbandonedCarts(
   const idsToDelete = (staleCandidates ?? [])
     .map((r) => r.id as string)
     .filter((id) => !activeCartIds.has(id));
+  // The dry-run stops here rather than reusing `deleteMatchingRows`: the
+  // candidate set IS the answer, and it was computed by the same two reads a
+  // real run performs. Counting via a third query would be a second copy of
+  // the rule, which is the drift this design exists to prevent.
+  if (mode === "dry-run") return { count: idsToDelete.length };
   if (idsToDelete.length === 0) return { count: 0 };
 
   // shop_cart_items.cart_fk is ON DELETE CASCADE (0141): deleting the cart
@@ -169,15 +241,16 @@ export async function purgeAbandonedCarts(
  */
 export async function purgeInactiveWishlistItems(
   now: Date = new Date(),
+  mode: RetentionMode = "purge",
 ): Promise<PurgeResult> {
   const cutoff = monthsAgoCutoff(now, 12).toISOString();
-  const { data, error } = await serviceClient
-    .from("shop_wishlist_items")
-    .delete()
-    .lt("created_at", cutoff)
-    .select("id");
-  if (error) throw error;
-  return { count: data?.length ?? 0 };
+  const count = await deleteMatchingRows(
+    mode,
+    "shop_wishlist_items",
+    "id",
+    (q) => q.lt("created_at", cutoff),
+  );
+  return { count };
 }
 
 /**
@@ -188,24 +261,32 @@ export async function purgeInactiveWishlistItems(
  * back to the caller so the cron route can decide the HTTP status without
  * re-deriving what happened.
  */
-export type ShopRetentionStepResult =
-  | { ok: true; count: number }
-  | { ok: false; error: string };
+export type ShopRetentionStepResult = RetentionStepResult;
 
 export async function runShopRetentionPurges(
   now: Date = new Date(),
+  mode: RetentionMode = "purge",
 ): Promise<Record<string, ShopRetentionStepResult>> {
   const steps: [string, () => Promise<PurgeResult>][] = [
     [
       "purged_cancelled_standalone_order_emails",
-      () => purgeCancelledStandaloneOrderEmails(now),
+      () => purgeCancelledStandaloneOrderEmails(now, mode),
     ],
     [
       "purged_completed_standalone_order_emails",
-      () => purgeCompletedStandaloneOrderEmails(now),
+      () => purgeCompletedStandaloneOrderEmails(now, mode),
     ],
-    ["purged_abandoned_carts", () => purgeAbandonedCarts(now)],
-    ["purged_inactive_wishlist_items", () => purgeInactiveWishlistItems(now)],
+    ["purged_abandoned_carts", () => purgeAbandonedCarts(now, mode)],
+    [
+      "purged_inactive_wishlist_items",
+      () => purgeInactiveWishlistItems(now, mode),
+    ],
+    // Health check, not a purge — see the function's own comment. Runs in
+    // BOTH modes because it never writes.
+    [
+      "unstamped_cancelled_standalone_orders",
+      () => countUnstampedCancelledStandaloneOrders(),
+    ],
   ];
 
   const results: Record<string, ShopRetentionStepResult> = {};
