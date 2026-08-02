@@ -20,6 +20,10 @@ let updateOutcome: { error: unknown; count: number } = {
   error: null,
   count: 1,
 };
+// Rows the dedupe window "sees" as created in the last 60 seconds for this
+// artist (ABUSE-PUB-001). Empty by default so every pre-existing test in this
+// file, which isn't exercising dedupe, keeps passing unduplicated.
+let recentProjects: Record<string, unknown>[] = [];
 const projectInsert = vi.fn(() => ({
   select: () => ({ single: () => Promise.resolve(insertResult) }),
 }));
@@ -70,6 +74,8 @@ vi.mock("@/lib/supabase/service", () => ({
               eq: () => ({
                 maybeSingle: () => Promise.resolve({ data: currentProject }),
               }),
+              // Dedupe read: .select(...).eq("artist_id", id).gte("created_at", ...)
+              gte: () => Promise.resolve({ data: recentProjects }),
             }),
           }),
         };
@@ -122,6 +128,7 @@ beforeEach(() => {
   largeProjectsAllowed.mockReturnValue(true);
   currentProject = { ...projectRow };
   updateOutcome = { error: null, count: 1 };
+  recentProjects = [];
 });
 
 describe("submitProjectIntakeCore", () => {
@@ -356,6 +363,69 @@ describe("intake upload ceilings", () => {
       file(2 * 1024 * 1024),
       file(3 * 1024 * 1024),
     ]);
+    expect(r.ok).toBe(true);
+  });
+});
+
+// MIME allowlist (ABUSE-PUB-001). The size caps above stop an oversized
+// upload but say nothing about *kind* — before this fix, any file type was
+// handed straight to sharp.
+describe("MIME allowlist", () => {
+  const typedFile = (type: string, name = "p.bin") =>
+    ({ name, size: 1024, type }) as unknown as File;
+
+  it("refuses a disallowed file type before processing it", async () => {
+    const r = await submitProjectIntakeCore("artist-1", validIntake, [
+      typedFile("application/pdf"),
+    ]);
+    expect(r).toMatchObject({ ok: false, field: "images" });
+    expect(processImage).not.toHaveBeenCalled();
+  });
+
+  // Distinction: an allowed type on the same size/shape must still go through.
+  it("still accepts an allowed image type", async () => {
+    processImage.mockResolvedValue({
+      buffer: Buffer.from([1, 2, 3]),
+      width: 100,
+      height: 100,
+    });
+    const r = await submitProjectIntakeCore("artist-1", validIntake, [
+      typedFile("image/webp", "p.webp"),
+    ]);
+    expect(r.ok).toBe(true);
+    expect(processImage).toHaveBeenCalled();
+  });
+});
+
+// Dedupe window (ABUSE-PUB-001), mirroring the booking intake's 60-second
+// fingerprint dedupe (apps/web/src/app/[slug]/actions.ts).
+describe("dedupe window", () => {
+  it("refuses a duplicate of a request from the last 60 seconds", async () => {
+    recentProjects = [
+      {
+        customer_email: validIntake.customerEmail,
+        customer_handle: null,
+        title: validIntake.title,
+        scale: validIntake.scale,
+      },
+    ];
+    const r = await submitProjectIntakeCore("artist-1", validIntake, []);
+    expect(r.ok).toBe(false);
+    expect(projectInsert).not.toHaveBeenCalled();
+  });
+
+  // Distinction: a different enquiry from the same artist in the same window
+  // must not be swept up by the dedupe check.
+  it("still accepts a distinct enquiry in the same window", async () => {
+    recentProjects = [
+      {
+        customer_email: "someone-else@example.com",
+        customer_handle: null,
+        title: "An unrelated project",
+        scale: "back_piece",
+      },
+    ];
+    const r = await submitProjectIntakeCore("artist-1", validIntake, []);
     expect(r.ok).toBe(true);
   });
 });

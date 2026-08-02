@@ -48,6 +48,30 @@ const MEDIA_BUCKET = "bookings";
 const mediaPath = (artistId: string, projectId: string) =>
   `projects/${artistId}/${projectId}/${crypto.randomUUID()}.webp`;
 
+// MIME allowlist (ABUSE-PUB-001). The size caps below stop an oversized
+// upload but say nothing about *kind* — without this, an arbitrary file is
+// handed straight to sharp. Same three types the booking intake accepts
+// (apps/web/src/app/[slug]/actions.ts).
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** A request fingerprint for the dedupe window below, mirroring the booking
+ *  intake's buildBookingFingerprintKey (packages/shared/src/booking-domain.ts):
+ *  compare a handful of fields instead of email alone, so a doubled network
+ *  retry or an impatient double-click cannot create two enquiries. */
+function projectFingerprintKey(input: {
+  customerEmail: string | null | undefined;
+  customerHandle?: string | null;
+  title: string | null | undefined;
+  scale: string | null | undefined;
+}): string {
+  return [
+    (input.customerEmail ?? "").trim().toLowerCase(),
+    (input.customerHandle ?? "").trim().toLowerCase(),
+    (input.title ?? "").trim().toLowerCase(),
+    input.scale ?? "",
+  ].join("|");
+}
+
 /**
  * Submit a project intake. Public entry point: the caller has already resolved
  * the artist from the slug and confirmed the intake is reachable.
@@ -101,6 +125,18 @@ export async function submitProjectIntakeCore(
     .filter((f) => f && f.size > 0)
     .slice(0, PROJECT_MAX_IMAGES);
 
+  // MIME allowlist before anything is handed to sharp (ABUSE-PUB-001).
+  const disallowedType = realImages.find(
+    (f) => !ALLOWED_IMAGE_TYPES.includes(f.type),
+  );
+  if (disallowedType) {
+    return {
+      ok: false,
+      error: "Photos must be JPG, PNG, or WebP.",
+      field: "images",
+    };
+  }
+
   // The client checks these too, so a visitor can correct a photo while they
   // still have the file picker open. This is the enforcement copy: a crafted
   // post, or a stale page, must not be able to hand `processImage` an
@@ -119,6 +155,39 @@ export async function submitProjectIntakeCore(
       ok: false,
       error: "Those photos add up to too much. Send fewer, or smaller ones.",
       field: "images",
+    };
+  }
+
+  // Deduplication (ABUSE-PUB-001): compare a request fingerprint over a
+  // 60-second window, same shape and window as the booking intake's dedupe
+  // (apps/web/src/app/[slug]/actions.ts). Scoped to this artist only.
+  const dedupeWindow = new Date(Date.now() - 60000).toISOString();
+  const requestFingerprint = projectFingerprintKey({
+    customerEmail: data.customerEmail,
+    customerHandle: data.customerHandle,
+    title: data.title,
+    scale: data.scale,
+  });
+  const { data: recentProjects } = await serviceClient
+    .from("projects")
+    .select("customer_email, customer_handle, title, scale")
+    .eq("artist_id", artistId)
+    .gte("created_at", dedupeWindow);
+
+  const duplicate = (recentProjects ?? []).some(
+    (row) =>
+      projectFingerprintKey({
+        customerEmail: row.customer_email as string | null,
+        customerHandle: row.customer_handle as string | null,
+        title: row.title as string | null,
+        scale: row.scale as string | null,
+      }) === requestFingerprint,
+  );
+  if (duplicate) {
+    return {
+      ok: false,
+      error:
+        "Your enquiry was already submitted. Check your email for confirmation.",
     };
   }
 

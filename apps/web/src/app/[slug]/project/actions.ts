@@ -1,10 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { serviceClient } from "@/lib/supabase/service";
 import { submitProjectIntakeCore } from "@/lib/server/projects";
 import { PROJECT_MAX_IMAGES } from "@inklee/shared/projects";
 import { projectPortalUrl } from "@/lib/public-url";
+import { checkProjectIntakeRateLimit } from "@/lib/ratelimit";
+import { isAllowedBookingOrigin } from "@/lib/host";
+import { HONEYPOT_FIELD, isHoneypotTriggered } from "@/lib/honeypot";
 
 type State = { error: string; field?: string } | null;
 
@@ -21,6 +25,28 @@ export async function submitProjectIntakeAction(
   _prev: State,
   formData: FormData,
 ): Promise<State> {
+  // Honeypot check — silently succeed so bots don't know they were blocked.
+  // Mirrors the booking intake's control (apps/web/src/app/[slug]/actions.ts):
+  // a distinguishable refusal here would teach a bot which field trips it.
+  if (isHoneypotTriggered(formData.get(HONEYPOT_FIELD))) return null;
+
+  // Origin check — same acceptance rule as the booking form: the canonical
+  // app host plus artist bio-domain subdomains, since this form is served on
+  // both and once *.inkl.ee subdomain mode is live a stricter check would
+  // reject real submissions.
+  const headersList = await headers();
+  if (
+    !isAllowedBookingOrigin(
+      headersList.get("origin"),
+      process.env.NEXT_PUBLIC_APP_URL,
+    )
+  ) {
+    return { error: "Invalid request origin." };
+  }
+
+  const ip =
+    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
   const slug = (formData.get("slug") as string | null)?.trim().toLowerCase();
   if (!slug) return { error: "Something went wrong. Reload and try again." };
 
@@ -31,6 +57,19 @@ export async function submitProjectIntakeAction(
     .eq("account_status", "active")
     .single();
   if (!profile) return { error: "This page is no longer available." };
+
+  // Rate limit — per artist per IP. Tighter than the booking form's own limit
+  // (see lib/ratelimit.ts): this action sends mail to an address the caller
+  // supplies and processes up to PROJECT_MAX_IMAGES photos through sharp.
+  const { allowed } = await checkProjectIntakeRateLimit(
+    ip,
+    profile.id as string,
+  );
+  if (!allowed) {
+    return {
+      error: "Too many requests. Please wait before submitting again.",
+    };
+  }
 
   const images = formData
     .getAll("images")
