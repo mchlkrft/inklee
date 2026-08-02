@@ -3,7 +3,23 @@ import {
   DEPOSIT_OVERDUE_MAX_SENDS,
   DEPOSIT_OVERDUE_STALENESS_FLOOR_DAYS,
 } from "../constants";
-import { addDaysToDateKey, localDateKey } from "@/lib/date-utils";
+import {
+  addDaysToDateKey,
+  localDateKey,
+  todayInTimeZone,
+} from "@/lib/date-utils";
+
+// The staleness-floor tests MUST derive their fixtures from the same clock the
+// route uses, which is the ARTIST'S timezone (todayInTimeZone(snapshot.timezone)),
+// not the machine's local date. Mixing the two silently consumes the fixture's
+// one-day margin whenever the runner's timezone and the fixture artist's
+// timezone fall on different calendar days - on 2026-08-03 the runner was
+// UTC+7 while the fixture artist is UTC, so a "31 days overdue" fixture landed
+// EXACTLY on a 30-day floor and the guard correctly declined to skip it. The
+// test failed; the production guard was right. A boundary test that depends on
+// where the runner happens to be gets dismissed as flaky, and this one guards
+// the incident where one customer received 46 reminders.
+const FIXTURE_TZ = "UTC";
 
 // CRON-RMD-001: the deposit_overdue branch had no upper bound on sends and no
 // staleness floor. `alreadySentToday` only suppressed a SECOND send on the
@@ -200,7 +216,7 @@ function overdueBooking(overrides: Partial<OverdueBooking>): OverdueBooking {
     customer_handle: "customer",
     deposit_amount: 5000,
     deposit_currency: "eur",
-    deposit_due_at: addDaysToDateKey(localDateKey(), -2),
+    deposit_due_at: addDaysToDateKey(todayInTimeZone(FIXTURE_TZ), -2),
     deposit_note: null,
     artist_id: "artist-1",
     ...overrides,
@@ -280,7 +296,7 @@ describe("reminders deposit_overdue send limits (CRON-RMD-001)", () => {
       overdueBooking({
         id: "b-ancient",
         deposit_due_at: addDaysToDateKey(
-          localDateKey(),
+          todayInTimeZone(FIXTURE_TZ),
           -(DEPOSIT_OVERDUE_STALENESS_FLOOR_DAYS + 1),
         ),
       }),
@@ -307,7 +323,7 @@ describe("reminders deposit_overdue send limits (CRON-RMD-001)", () => {
       overdueBooking({
         id: "b-just-inside",
         deposit_due_at: addDaysToDateKey(
-          localDateKey(),
+          todayInTimeZone(FIXTURE_TZ),
           -(DEPOSIT_OVERDUE_STALENESS_FLOOR_DAYS - 1),
         ),
       }),
