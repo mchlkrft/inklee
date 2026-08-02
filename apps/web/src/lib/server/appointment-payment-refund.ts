@@ -167,12 +167,49 @@ export async function refundPaymentRequestCore(input: {
   );
 
   // Check for existing refund adjustments to compute already-refunded amount.
-  const { data: existingAdj } = await serviceClient
+  //
+  // FEE-DSP-002 sweep (task #61, widened): this discarded its error too, and
+  // unlike `allocations` above it is NOT guarded downstream — a failed read
+  // used to make `alreadyRefunded` resolve to 0, inflating `maxRefundable`
+  // for every refund type. For `full`, `refundMinor = maxRefundable` directly:
+  // a failed read after a genuine prior partial refund would request the
+  // ENTIRE original amount again, not just what remains. `partial` and
+  // `by_line` are exposed the same way, through the `maxRefundable` clamp
+  // each already relies on. Unlike `payment_collections`, a plain (non-
+  // single) select has no ambiguous "row" state to preserve: PostgREST
+  // always returns `error: null` for a genuinely empty match on a multi-row
+  // select, so checking `error` alone cannot swallow the legitimate
+  // no-prior-refunds case. Relying on Stripe's own refund-amount validation
+  // to catch an inflated `maxRefundable` is not a self-checked guarantee —
+  // it would turn an internal miscalculation into an external API rejection
+  // rather than a clean refusal, and this exact function has already shipped
+  // one over-refund (the by_line misattribution bug documented above), so
+  // the class is not hypothetical here. Nothing in this file writes to the
+  // refund ledger, `refund_lines`, or a `payment_allocations` row before the
+  // Stripe call below (`refund_adjustment` rows are written exclusively by
+  // the separate `charge.refunded` webhook handler,
+  // `settlePaymentRequestRefund`), so refusing here strands no orphaned
+  // internal row.
+  const { data: existingAdj, error: existingAdjError } = await serviceClient
     .from("payment_allocations")
     .select("amount_minor")
     .eq("payment_intent_id", request.payment_intent_id)
     .eq("artist_id", input.artistId)
     .eq("component", "refund_adjustment");
+
+  if (existingAdjError) {
+    Sentry.captureException(existingAdjError, {
+      tags: { action: "appointment_payment_refund_existing_adjustments_read" },
+      extra: {
+        requestId: input.requestId,
+        intentId: request.payment_intent_id,
+      },
+    });
+    return {
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    };
+  }
 
   const alreadyRefunded = Math.abs(
     (existingAdj ?? []).reduce((s, a) => s + a.amount_minor, 0),
@@ -230,10 +267,35 @@ export async function refundPaymentRequestCore(input: {
     // line (an over-refund by misattribution, not by total). Names/quantities
     // are fetched only for `by_line` (never for `full`/`partial`, and never a
     // new query for a caller that omits `lineQuantities`).
-    const { data: lineRows } = await serviceClient
+    // FEE-DSP-002 sweep (task #61, widened): same discard shape as the two
+    // fixed above — consistency, not new severity: four reads in this file
+    // shared this pattern, three now guarded and one not read as "the
+    // unguarded one was deliberate" to the next person. A genuinely empty
+    // result (`data: [], error: null` — no `lineQuantities` were requested,
+    // or the ids matched nothing) is the CORRECT, pre-existing path and stays
+    // untouched: `lineDetailsById` stays empty and every line falls back to
+    // its full remaining amount, exactly the documented default for "a line
+    // named here without a quantity" (see `lineQuantities` above). A REAL
+    // read failure used to take that SAME fallback silently: a caller who
+    // explicitly requested a PARTIAL quantity for a line would have that
+    // request silently ignored and the line's FULL remaining amount refunded
+    // instead — bounded by the overall `maxRefundable` clamp (never exceeds
+    // the total available), but still more than the artist asked to give
+    // back for that specific line.
+    const { data: lineRows, error: lineRowsError } = await serviceClient
       .from("payment_request_lines")
       .select("id, name, quantity, unit_amount_minor")
       .in("id", input.lineIds);
+    if (lineRowsError) {
+      Sentry.captureException(lineRowsError, {
+        tags: { action: "appointment_payment_refund_line_details_read" },
+        extra: { requestId: input.requestId },
+      });
+      return {
+        status: "error",
+        message: "Refund could not be processed. Please try again in a moment.",
+      };
+    }
     const lineDetailsById = new Map(
       (lineRows ?? []).map((l) => [
         l.id as string,

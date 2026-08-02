@@ -1155,3 +1155,141 @@ describe("refundPaymentRequestCore: a failed payment_collections read must refus
     expect(mockStripe.refunds.create).toHaveBeenCalled();
   });
 });
+
+// FEE-DSP-002 sweep, widened per the lead's go-ahead with an overridden
+// severity read: `existingAdj` computes `alreadyRefunded`, which directly
+// inflates `maxRefundable` for EVERY refund type when the read fails and
+// silently reads as 0. A plain (non-single) select has no ambiguous "row"
+// state the way `maybeSingle()` does — PostgREST always returns
+// `error: null` for a genuinely empty match — so checking `error` alone
+// cannot swallow the legitimate no-prior-refunds case.
+describe("refundPaymentRequestCore: a failed existing-adjustments read must refuse, not compute an inflated refundable balance", () => {
+  it("refuses a full refund instead of requesting the ENTIRE original amount when a prior partial refund's adjustment can't be read", async () => {
+    // A genuine prior partial refund of 5000 exists (same fixture as
+    // "subtracts already-refunded amount from refundable balance"), so the
+    // TRUE remaining balance is 10000 — but the read that would reveal that
+    // fails.
+    queue("payment_requests:select", {
+      data: { ...REQUEST_ROW, status: "partially_refunded" },
+    });
+    queue("payment_allocations:select", { data: ALLOCATIONS }); // allocations: 15000 total
+    queue("payment_allocations:select", {
+      data: null,
+      error: { message: "connection reset", code: "08006" },
+    }); // existingAdj: the forced failure
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    // MUTATION: removing the `if (existingAdjError)` guard makes
+    // alreadyRefunded resolve to 0 (not the real 5000), so maxRefundable
+    // resolves to the full 15000 and refundMinor = maxRefundable requests
+    // the WHOLE original amount a second time instead of the true 10000
+    // remaining — verified by hand: the mutated code calls refunds.create
+    // with amount: 15000.
+    expect(result).toEqual({
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    });
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it("the DISTINCTION survives: a genuinely empty adjustments list (no error) still computes zero already-refunded, not a refusal", async () => {
+    queue("payment_requests:select", { data: REQUEST_ROW });
+    queue("payment_allocations:select", { data: ALLOCATIONS });
+    // Explicit, not just relying on setupStandardRefund()'s own default —
+    // {data: [], error: null} is the real PostgREST shape for "no prior
+    // refund adjustments", which must proceed exactly as it always has.
+    queue("payment_allocations:select", { data: [], error: null });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.refundedMinor).toBe(15000);
+    }
+    expect(mockStripe.refunds.create).toHaveBeenCalled();
+  });
+});
+
+// FEE-DSP-002 sweep, widened: the by_line line-details read has the same
+// discard shape. Fixed for consistency with the other three reads in this
+// file (all now guarded), not because this one independently rose to the
+// same severity — the over-refund it permits is bounded by the overall
+// maxRefundable clamp, unlike the two above.
+describe("refundPaymentRequestCore: a failed by_line details read must refuse, not silently refund a line's full remaining amount", () => {
+  it("refuses instead of ignoring a requested PARTIAL quantity and refunding the whole line", async () => {
+    queue("payment_requests:select", { data: REQUEST_ROW });
+    queue("payment_allocations:select", {
+      data: [
+        {
+          id: "a1",
+          line_id: "l2",
+          component: "physical_goods",
+          amount_minor: 3000,
+          currency: "eur",
+          collected_total_minor: 3000,
+        },
+      ],
+    });
+    queue("payment_allocations:select", { data: [] }); // existingAdj
+    queue("payment_request_lines:select", {
+      data: null,
+      error: { message: "connection reset", code: "08006" },
+    });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l2"],
+      lineQuantities: { l2: 1 }, // 1 of the line's 3 units — a real quantity request
+      case: "voluntary_full",
+    });
+
+    // MUTATION: removing the `if (lineRowsError)` guard makes lineDetailsById
+    // resolve empty, so the "requestedQty && details && ..." branch never
+    // fires and the line's FULL remaining 3000 is refunded instead of the
+    // requested 1-of-3 share — verified by hand: the mutated code calls
+    // refunds.create with amount: 3000 instead of refusing.
+    expect(result).toEqual({
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    });
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it("the DISTINCTION survives: a genuinely empty line-details result (no error) still falls back to the full remaining amount, unchanged", async () => {
+    queue("payment_requests:select", { data: REQUEST_ROW });
+    queue("payment_allocations:select", { data: ALLOCATIONS });
+    queue("payment_allocations:select", { data: [] }); // existingAdj
+    // Explicit — {data: [], error: null} is the real shape for "no line
+    // metadata rows matched" (e.g. lineQuantities was never provided), which
+    // is the documented default path: refund the line's full remaining
+    // amount, exactly matching pre-FD12 behaviour.
+    queue("payment_request_lines:select", { data: [], error: null });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "by_line",
+      lineIds: ["l2", "l3"],
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.refundedMinor).toBe(5000); // 3000 + 2000, full remaining
+    }
+    expect(mockStripe.refunds.create).toHaveBeenCalled();
+  });
+});
