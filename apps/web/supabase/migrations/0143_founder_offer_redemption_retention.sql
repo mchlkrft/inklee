@@ -65,8 +65,17 @@
 
 alter table founder_offer_redemptions
   alter column artist_id drop not null;
+
+-- Split into DROP-then-ADD (0138_bundle_item_variants.sql:107-108 is the same
+-- reshape, same batch). The original single two-clause ALTER TABLE had no
+-- `if exists` on the drop, so a hand-dropped constraint made the whole
+-- statement abort on re-run and the FK never came back (confirmed empirically
+-- 2026-08-02: manual drop, re-run, `pg_constraint` came back empty). `drop
+-- constraint if exists` never errors; the unconditional `add constraint`
+-- after it is the AGENTS.md convergent shape.
 alter table founder_offer_redemptions
-  drop constraint founder_offer_redemptions_artist_id_fkey,
+  drop constraint if exists founder_offer_redemptions_artist_id_fkey;
+alter table founder_offer_redemptions
   add constraint founder_offer_redemptions_artist_id_fkey
     foreign key (artist_id) references profiles(id) on delete set null;
 

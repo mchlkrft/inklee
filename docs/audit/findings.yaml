@@ -5970,6 +5970,32 @@ findings:
           (4) The route.ts guard on the durable-confirmation write is one inference beyond
           the finding as scoped. Confirm independently that it cannot suppress a legitimate
           confirmation on some path nobody enumerated."
+      - date: "2026-08-02"
+        actor: "audit-toctou (concurrency specialist, wrote none of the fix) + supervisor"
+        action: "verification-attempted"
+        note: "THE SELF-HEALING CLAIM IS HALF FALSE. Settled by EXECUTION with two real
+          concurrent connections, blocking confirmed via pg_blocking_pids, and reproduced
+          against the real single-statement `delete from profiles` cascade rather than only a
+          widened variant.
+          THE HALF THAT HOLDS, exactly as the author argued: when the delete lands BEFORE the
+          first write, that write raises 23503, nothing persists, and redelivery takes the
+          safe branch. Confirmed.
+          THE HALF HE DID NOT CONSIDER: there are TWO writes, billing_subscriptions then
+          account_overrides, and the gap BETWEEN THEM is also open. When the delete starts
+          after write 1 commits, write 1 LANDS (observed mid-flight: status active, artist_id
+          set) and write 2 raises 23503. The pair is SPLIT. Redelivery then takes the safe
+          branch, which by design writes nothing, so THE SPLIT IS NEVER REPAIRED. That is not
+          -one extra retry-, and the self-healing claim must NOT be recorded as proven.
+          WHY THIS MATTERS BEYOND THE INSTANCE: the author named this window himself, said he
+          had not proven it, and asked for it to be attacked. He was right to, and the attack
+          found a case his own framing excluded - he reasoned about the check-then-write gap
+          and not about the write-then-write gap. Reading could not have produced this; only
+          constructing the interleaving did. It is the second time in this repository that a
+          sequential probe agreed with a claim that a real interleaving contradicted.
+          STILL OWED on this entry: the mechanical basis for the -harm is low- assessment,
+          which is asserted and not yet substantiated. It is deliberately NOT recorded as low
+          here. An unqualified severity adjective gets inherited and never re-examined, which
+          is the failure mode this register exists to prevent."
 
   - id: "BDEL-RET-001"
     title: "Terms and Privacy promise post-deletion retention of billing and tax records that the
@@ -19170,3 +19196,14 @@ coverage:
       - "AUTH-MFA-001"
     recommended_next_inspection: "Whether the ESLint rule is viable at all. Roughly 113 legitimately-harmless instances would match the same syntactic shape, and a rule that noisy gets disabled, which is worse than no rule. That judgment has been put to the agent that saw the whole population rather than decided from the first ten examples."
     known_exclusions: "READ-ONLY THROUGHOUT: nothing was executed, no test was run, and no instance in the 68 was reproduced. The inventory is a classification of source shapes, so individual severities are hypotheses until each is traced the way the six confirmed findings were. Three items were flagged by the agents themselves as unverified: a count-based analog in bookings/form/actions.ts, the claim that a nightly cron reconciles truncated storage purges, and whether the public map pin feed re-derives address visibility. packages/shared was confirmed to contain zero Supabase calls by design and is genuinely out of scope rather than unchecked. The eight files already fixed earlier the same day were deliberately excluded."
+
+  - area: "Adversarial concurrency verification of the BDEL-SUB-001 reconciler fix: the self-healing claim its own author flagged as unproven"
+    subsystem: "database"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-02"
+    commit_inspected: "c39b6a0e"
+    reviewer: "audit-toctou, a concurrency specialist that wrote none of the code and was briefed to FALSIFY the claim rather than confirm it"
+    evidence: "THE CLAIM WAS HALF FALSIFIED, by execution, with two real concurrent connections and pg_blocking_pids confirming the block. The author-s framing covered the gap between the existence check and the writes, where the claim holds. It did not cover the gap BETWEEN the two writes: write 1 to billing_subscriptions commits, the delete lands, write 2 to account_overrides raises 23503, and the pair is SPLIT with no repair, because redelivery takes a safe branch that writes nothing. Reproduced against the real single-statement cascade, not only a widened variant. THIS IS THE SECOND TIME in this repository that a sequential probe has agreed with a claim a real interleaving contradicted, which is why the standing bar is that a sequential simulation does not count as evidence. The verification was possible only because the implementing engineer named the window himself and asked for it to be attacked instead of reporting the fix as complete."
+    recommended_next_inspection: "Close the split-write window, most plausibly by making the two writes atomic or by making redelivery converge rather than skip. Then re-run this same interleaving against the fix. Also outstanding on the original entry: the alert-s live-status set was reused from a neighbouring check rather than derived from Stripe-s enum, and withdrawal.ts and cancellation.ts call the reconciler directly without the guard the webhook route received."
+    known_exclusions: "One added interleaving (a late event against an ALREADY-RECONCILED subscriber) NEVER EXECUTED and is recorded as unverified, not as passing. Mid-run the local database was broken by another agent - schema-level default privileges revoked, then a reset propagated them to all 121 tables, leaving 2 readable by service_role and every db test failing 42501 - so no further execution was possible. All substantive results here predate that breakage and were obtained against a healthy fully-migrated database with FK shapes asserted in beforeAll on every green run. The harm assessment accompanying the finding is ASSERTED AND NOT SUBSTANTIATED, and is deliberately not recorded as a severity."
