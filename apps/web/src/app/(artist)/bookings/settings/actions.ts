@@ -10,6 +10,7 @@ import {
 } from "@/lib/bio-page-settings";
 import { fileNoSlotsWarning } from "@/lib/server/slots";
 import { isBookingMode } from "@inklee/shared/booking-domain";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -55,26 +56,15 @@ export async function toggleBooksOpenAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
+  const result = await updateProfileSettings(supabase, user.id, (current) => {
+    const currentBooks = parseBooksSettings(current.books_settings);
+    return {
+      ...current,
+      books_settings: { ...currentBooks, books_open: open },
+    };
+  });
 
-  const current = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentBooks = parseBooksSettings(current.books_settings);
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: {
-        ...current,
-        books_settings: { ...currentBooks, books_open: open },
-      },
-    })
-    .eq("id", user.id);
-
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   void writeAudit({
     action: open ? "books_opened" : "books_closed",
@@ -131,33 +121,22 @@ export async function saveAvailabilityAction(
     return { error: "closed message must be 280 characters or fewer" };
   }
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const current = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentBooks = parseBooksSettings(current.books_settings);
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: {
-        ...current,
-        books_settings: {
-          ...currentBooks,
-          // books_open is managed by toggleBooksOpenAction — preserve from DB
-          booking_cap: bookingCap,
-          booking_opens_at: opensAt,
-          booking_window_ends_at: windowEndsAt,
-          books_closed_message: closedMessage,
-        },
+  const result = await updateProfileSettings(supabase, user.id, (current) => {
+    const currentBooks = parseBooksSettings(current.books_settings);
+    return {
+      ...current,
+      books_settings: {
+        ...currentBooks,
+        // books_open is managed by toggleBooksOpenAction — preserve from DB
+        booking_cap: bookingCap,
+        booking_opens_at: opensAt,
+        booking_window_ends_at: windowEndsAt,
+        books_closed_message: closedMessage,
       },
-    })
-    .eq("id", user.id);
+    };
+  });
 
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/bookings/settings");
   return { success: true };
@@ -182,29 +161,18 @@ export async function saveFormAppearanceAction(
     return { error: "invalid appearance value" };
   }
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const current = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentBooks = parseBooksSettings(current.books_settings);
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: {
-        ...current,
-        books_settings: {
-          ...currentBooks,
-          form_appearance: appearance,
-        },
+  const result = await updateProfileSettings(supabase, user.id, (current) => {
+    const currentBooks = parseBooksSettings(current.books_settings);
+    return {
+      ...current,
+      books_settings: {
+        ...currentBooks,
+        form_appearance: appearance,
       },
-    })
-    .eq("id", user.id);
+    };
+  });
 
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/bookings/settings");
   revalidatePath("/bookings/booking-form");
@@ -231,36 +199,38 @@ export async function saveBookingPolicyAction(
     ((formData.get("booking_policy") as string | null) ?? "").trim() || null;
   const showOnPage = formData.get("show_policy") === "on";
 
+  // slug is read separately from settings — it is only used to revalidate the
+  // public page cache below, a display-freshness concern, not a data-merge
+  // one, so it does not need the same protected read as profiles.settings. A
+  // failed read here just skips that one revalidatePath call, same
+  // tolerance as before.
   const { data: existing } = await supabase
     .from("profiles")
-    .select("slug, settings")
+    .select("slug")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  const current = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentBio = parseBioPageSettings(current.bio_page);
-
-  // `policy` in `hidden` means the section is hidden on the booking page.
-  const hidden: BioModuleKey[] = currentBio.hidden.filter(
-    (k) => k !== "policy",
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (current) => {
+      const currentBio = parseBioPageSettings(current.bio_page);
+      // `policy` in `hidden` means the section is hidden on the booking page.
+      const hidden: BioModuleKey[] = currentBio.hidden.filter(
+        (k) => k !== "policy",
+      );
+      if (!showOnPage) hidden.push("policy");
+      const bioPage = parseBioPageSettings({
+        ...currentBio,
+        bookingPolicy: policy,
+        hidden,
+      });
+      return { ...current, bio_page: bioPage };
+    },
+    { updated_at: new Date().toISOString() },
   );
-  if (!showOnPage) hidden.push("policy");
 
-  const settings = parseBioPageSettings({
-    ...currentBio,
-    bookingPolicy: policy,
-    hidden,
-  });
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...current, bio_page: settings },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
-
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/bookings/settings");
   if (existing?.slug) revalidatePath(`/${existing.slug}`);
@@ -284,29 +254,30 @@ export async function saveShopVisibilityAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
+  // slug is read separately — display-freshness only, see the identical note
+  // in saveBookingPolicyAction above.
   const { data: existing } = await supabase
     .from("profiles")
-    .select("slug, settings")
+    .select("slug")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  const current = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentBio = parseBioPageSettings(current.bio_page);
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (current) => {
+      const currentBio = parseBioPageSettings(current.bio_page);
+      const hidden: BioModuleKey[] = currentBio.hidden.filter(
+        (k) => k !== "shop",
+      );
+      if (!showShop) hidden.push("shop");
+      const bioPage = parseBioPageSettings({ ...currentBio, hidden });
+      return { ...current, bio_page: bioPage };
+    },
+    { updated_at: new Date().toISOString() },
+  );
 
-  const hidden: BioModuleKey[] = currentBio.hidden.filter((k) => k !== "shop");
-  if (!showShop) hidden.push("shop");
-
-  const settings = parseBioPageSettings({ ...currentBio, hidden });
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...current, bio_page: settings },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
-
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/bookings/settings");
   if (existing?.slug) revalidatePath(`/${existing.slug}`);

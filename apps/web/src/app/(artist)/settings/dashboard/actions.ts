@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { DashboardWidgets } from "@/lib/dashboard-settings";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -16,14 +17,6 @@ export async function saveDashboardWidgetsAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "not authenticated" };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
-
   const widgets: DashboardWidgets = {
     pending_requests: formData.get("pending_requests") === "true",
     upcoming_appointments: formData.get("upcoming_appointments") === "true",
@@ -32,15 +25,17 @@ export async function saveDashboardWidgetsAction(
     booking_link: formData.get("booking_link") === "true",
   };
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...currentSettings, dashboard_widgets: widgets },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (currentSettings) => ({
+      ...currentSettings,
+      dashboard_widgets: widgets,
+    }),
+    { updated_at: new Date().toISOString() },
+  );
 
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/settings/dashboard");
   revalidatePath("/dashboard");

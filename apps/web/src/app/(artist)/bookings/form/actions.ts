@@ -13,6 +13,7 @@ import { buildDefaultFieldOrder, insertFieldId } from "@/lib/form-settings";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { capState } from "@/lib/server/entitlement-gates";
 import { conditionWriteAllowed } from "@/lib/server/form-entitlements";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 // Deliberately the SAME string the mobile routes serve: there is nothing to
 // steer toward here that the sentence does not already say, so the usual
 // web-may-steer / app-must-not split has nothing to split.
@@ -136,20 +137,15 @@ export async function createFieldAction(
     return { error: error.message };
   }
 
-  // Append new field ID to field_order in artist settings
-  {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("settings")
-      .eq("id", user.id)
-      .single();
-
-    const settings = (profile?.settings ?? {}) as Record<string, unknown>;
+  // Append new field ID to field_order in artist settings. A failed
+  // profiles.settings read must never fall back to a synthesized order and
+  // write it over whatever the artist's real field_order held.
+  await updateProfileSettings(supabase, user.id, async (settings) => {
     let existingOrder: string[];
     if (Array.isArray(settings.field_order)) {
       existingOrder = settings.field_order as string[];
     } else {
-      // Build default from all existing custom fields
+      // Build default from all existing custom fields.
       const { data: allFields } = await supabase
         .from("custom_fields")
         .select("id")
@@ -161,12 +157,8 @@ export async function createFieldAction(
       );
     }
     const newOrder = insertFieldId(existingOrder, inserted.id);
-
-    await supabase
-      .from("profiles")
-      .update({ settings: { ...settings, field_order: newOrder } })
-      .eq("id", user.id);
-  }
+    return { ...settings, field_order: newOrder };
+  });
 
   revalidatePath("/bookings/form");
   return { success: true };
@@ -337,25 +329,16 @@ export async function deleteFieldAction(id: string): Promise<State> {
     if (error) return { error: error.message };
   }
 
-  // Remove field from field_order
-  {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("settings")
-      .eq("id", user.id)
-      .single();
-
-    const settings = (profile?.settings ?? {}) as Record<string, unknown>;
-    if (Array.isArray(settings.field_order)) {
-      const newOrder = (settings.field_order as string[]).filter(
-        (k) => k !== id,
-      );
-      await supabase
-        .from("profiles")
-        .update({ settings: { ...settings, field_order: newOrder } })
-        .eq("id", user.id);
-    }
-  }
+  // Remove field from field_order. A no-op write (returning `settings`
+  // unchanged) when field_order isn't an array is behaviourally identical to
+  // the original "skip the write" — nothing observes the difference, and it
+  // keeps this site going through the same protected read as every other
+  // profiles.settings touch in this file.
+  await updateProfileSettings(supabase, user.id, (settings) => {
+    if (!Array.isArray(settings.field_order)) return settings;
+    const newOrder = (settings.field_order as string[]).filter((k) => k !== id);
+    return { ...settings, field_order: newOrder };
+  });
 
   revalidatePath("/bookings/form");
   return { success: true };

@@ -19,6 +19,7 @@ import {
 } from "@/lib/reminder-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import { localToUTC } from "@/lib/timezone";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -52,13 +53,6 @@ export async function saveReminderSettingsAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "not authenticated" };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
   // A form that omits a toggle means the artist turned it off → absentBooleans: "false".
   const reminderSettings: ReminderSettings = sanitizeReminderSettings(
     {
@@ -73,15 +67,17 @@ export async function saveReminderSettingsAction(
     { absentBooleans: "false" },
   );
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...currentSettings, reminder_settings: reminderSettings },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (currentSettings) => ({
+      ...currentSettings,
+      reminder_settings: reminderSettings,
+    }),
+    { updated_at: new Date().toISOString() },
+  );
 
-  if (error) return { error: error.message.toLowerCase() };
+  if (!result.ok) return { error: result.error.toLowerCase() };
 
   revalidatePath("/settings/emails");
   return { success: true };

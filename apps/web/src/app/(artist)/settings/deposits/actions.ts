@@ -15,6 +15,7 @@ import {
   type ForfeitPct,
   type TimeUnit,
 } from "@/lib/deposit-policy";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -67,23 +68,17 @@ export async function saveDepositDefaultsAction(
     note,
   };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (currentSettings) => ({
+      ...currentSettings,
+      deposit_defaults: defaults,
+    }),
+    { updated_at: new Date().toISOString() },
+  );
 
-  const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...currentSettings, deposit_defaults: defaults },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
-
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/settings/deposits");
   revalidatePath("/bookings/requests", "layout");
@@ -153,21 +148,16 @@ export async function saveDepositPolicyAction(
     lastMinute,
   };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-  const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...currentSettings, deposit_policy: policy },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
-  if (error) return { error: error.message };
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (currentSettings) => ({
+      ...currentSettings,
+      deposit_policy: policy,
+    }),
+    { updated_at: new Date().toISOString() },
+  );
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/settings/deposits");
   return { success: true };

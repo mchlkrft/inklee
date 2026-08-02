@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseBooksSettings } from "@/lib/books-settings";
 import { redirect } from "next/navigation";
 import { recordGrowthEvent } from "@/lib/growth/record-event";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | null;
 
@@ -21,19 +22,12 @@ export async function saveOnboardingAvailabilityAction(
   const closedMessage =
     (formData.get("books_closed_message") as string | null)?.trim() || null;
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const currentSettings = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentBooks = parseBooksSettings(currentSettings.books_settings);
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: {
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (currentSettings) => {
+      const currentBooks = parseBooksSettings(currentSettings.books_settings);
+      return {
         ...currentSettings,
         books_settings: {
           ...currentBooks,
@@ -42,12 +36,12 @@ export async function saveOnboardingAvailabilityAction(
             ? currentBooks.books_closed_message
             : closedMessage,
         },
-      },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+      };
+    },
+    { updated_at: new Date().toISOString() },
+  );
 
-  if (error) return { error: error.message.toLowerCase() };
+  if (!result.ok) return { error: result.error.toLowerCase() };
 
   void recordGrowthEvent(
     { event: "onboarding_step_completed", props: { step: "availability" } },

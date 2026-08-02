@@ -8,6 +8,7 @@ import { normalizeProfileFields } from "@inklee/shared/profile-validation";
 import { sanitizeCoverColor } from "@inklee/shared/cover-colors";
 import { isBookingMode } from "@inklee/shared/booking-domain";
 import { revalidatePath } from "next/cache";
+import { mergeProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -142,26 +143,31 @@ export async function updateProfileAction(
     }
   }
 
-  // Merge cover fields into existing settings JSONB without clobbering siblings.
+  // Merge cover fields into existing settings JSONB without clobbering
+  // siblings. This is the one call site that must fold the settings patch
+  // into a LARGER update touching unrelated profile columns in the same
+  // statement, so it uses the read+merge half alone (mergeProfileSettings)
+  // rather than the read+merge+write helper the other sites use — a failed
+  // read here refuses the WHOLE update (display name, bio, etc. included)
+  // rather than silently applying everything except a corrupted settings
+  // patch, since the write below is one atomic statement and cannot be
+  // split after the fact.
   let settingsPatch: Record<string, unknown> | undefined;
   if (coverImageUrl !== undefined || coverColor !== undefined) {
-    const { data: currentProfile } = await supabase
-      .from("profiles")
-      .select("settings")
-      .eq("id", user.id)
-      .single();
-
-    const current =
-      (currentProfile?.settings as Record<string, unknown> | null) ?? {};
-    settingsPatch = { ...current };
-    if (coverImageUrl !== undefined) {
-      if (coverImageUrl === null) delete settingsPatch.cover_image_url;
-      else settingsPatch.cover_image_url = coverImageUrl;
-    }
-    if (coverColor !== undefined) {
-      if (coverColor === null) delete settingsPatch.cover_color;
-      else settingsPatch.cover_color = coverColor;
-    }
+    const merged = await mergeProfileSettings(supabase, user.id, (current) => {
+      const patch = { ...current };
+      if (coverImageUrl !== undefined) {
+        if (coverImageUrl === null) delete patch.cover_image_url;
+        else patch.cover_image_url = coverImageUrl;
+      }
+      if (coverColor !== undefined) {
+        if (coverColor === null) delete patch.cover_color;
+        else patch.cover_color = coverColor;
+      }
+      return patch;
+    });
+    if (!merged.ok) return { error: merged.error };
+    settingsPatch = merged.settings;
   }
 
   const { error } = await supabase

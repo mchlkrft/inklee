@@ -25,6 +25,7 @@ import {
   MAX_HOSTED_GALLERY_IMAGES,
   type GalleryUploadResult,
 } from "@/lib/server/hub-gallery-upload";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 export type { GalleryUploadResult };
 
@@ -65,74 +66,91 @@ export async function saveBioPageAction(
   const inputBlockCount = blocksInput.value.length;
   const inputSocialCount = socialsInput.value.length;
 
+  // slug is read separately — display-freshness only (revalidatePath below),
+  // not part of the settings merge this module protects.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("slug, settings")
+    .select("slug")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  const currentSettings = (profile?.settings ?? {}) as Record<string, unknown>;
-  const currentBio = parseBioPageSettings(currentSettings.bio_page);
+  let priorBlocks: BioPageSettings["blocks"] = [];
+  let finalBio: BioPageSettings | null = null;
+  let droppedBlocks = 0;
+  let droppedSocials = 0;
+  let droppedMedia = 0;
 
-  // The Link Hub editor owns only blocks + socials. Spread the current bio_page
-  // first so bookingPolicy + module visibility (`hidden`) — edited on
-  // /bookings/settings — are preserved untouched. Round-trip through the shared
-  // parser so every field is validated + sanitized in one place.
-  const parsed: BioPageSettings = parseBioPageSettings({
-    ...currentBio,
-    blocks: blocksInput.value,
-    socials: socialsInput.value,
-  });
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    async (currentSettings) => {
+      const currentBio = parseBioPageSettings(currentSettings.bio_page);
+      priorBlocks = currentBio.blocks;
 
-  // FD8 WIRE-SAFETY: an old client that predates the goods block's
-  // destination field must not reset an artist's existing explicit choice
-  // merely by resaving an unrelated field (e.g. reordering a link). See
-  // preserveGoodsDestinationOnSave's own comment for the full reasoning.
-  const goodsSafeBlocks = preserveGoodsDestinationOnSave(
-    blocksInput.value,
-    parsed.blocks,
-    currentBio.blocks,
+      // The Link Hub editor owns only blocks + socials. Spread the current
+      // bio_page first so bookingPolicy + module visibility (`hidden`) —
+      // edited on /bookings/settings — are preserved untouched. Round-trip
+      // through the shared parser so every field is validated + sanitized
+      // in one place.
+      const parsed: BioPageSettings = parseBioPageSettings({
+        ...currentBio,
+        blocks: blocksInput.value,
+        socials: socialsInput.value,
+      });
+
+      // FD8 WIRE-SAFETY: an old client that predates the goods block's
+      // destination field must not reset an artist's existing explicit
+      // choice merely by resaving an unrelated field (e.g. reordering a
+      // link). See preserveGoodsDestinationOnSave's own comment for the
+      // full reasoning.
+      const goodsSafeBlocks = preserveGoodsDestinationOnSave(
+        blocksInput.value,
+        parsed.blocks,
+        currentBio.blocks,
+      );
+
+      // SAVE-PATH ENTITLEMENT GATE (image_gallery is a Plus rich block). The
+      // parser keeps gallery blocks regardless of plan; the write is
+      // refused here for an artist without rich_content_blocks (founder
+      // ruling FD1, 2026-08-01, SUPERSEDES the earlier appearance_custom
+      // gate), so a Free artist cannot persist a NEW or CHANGED gallery. An
+      // existing unchanged one is kept (decision D2: downgrade hides, never
+      // deletes). Mirrors the render gate (hub/page.tsx richBlocksAllowed).
+      // Fail-safe to unentitled on a plan-read blip: refuse new Plus
+      // content rather than over-grant.
+      let entitled = false;
+      try {
+        entitled = richContentBlocksAllowed(await getAccountOverrides(user.id));
+      } catch {
+        entitled = false;
+      }
+      const gated = gateMediaBlocksForSave(
+        goodsSafeBlocks,
+        currentBio.blocks,
+        entitled,
+      );
+      const bioPage: BioPageSettings = { ...parsed, blocks: gated.blocks };
+
+      droppedBlocks = inputBlockCount - parsed.blocks.length;
+      droppedSocials = inputSocialCount - bioPage.socials.length;
+      droppedMedia = gated.droppedMedia;
+      finalBio = bioPage;
+
+      return { ...currentSettings, bio_page: bioPage };
+    },
+    { updated_at: new Date().toISOString() },
   );
 
-  // SAVE-PATH ENTITLEMENT GATE (image_gallery is a Plus rich block). The parser
-  // keeps gallery blocks regardless of plan; the write is refused here for an
-  // artist without rich_content_blocks (founder ruling FD1, 2026-08-01,
-  // SUPERSEDES the earlier appearance_custom gate), so a Free artist cannot
-  // persist a NEW or CHANGED gallery. An existing unchanged one is kept
-  // (decision D2: downgrade hides, never deletes). Mirrors the render gate
-  // (hub/page.tsx richBlocksAllowed). Fail-safe to unentitled on a plan-read
-  // blip: refuse new Plus content rather than over-grant.
-  let entitled = false;
-  try {
-    entitled = richContentBlocksAllowed(await getAccountOverrides(user.id));
-  } catch {
-    entitled = false;
-  }
-  const gated = gateMediaBlocksForSave(
-    goodsSafeBlocks,
-    currentBio.blocks,
-    entitled,
-  );
-  const settings: BioPageSettings = { ...parsed, blocks: gated.blocks };
-
-  const droppedBlocks = inputBlockCount - parsed.blocks.length;
-  const droppedSocials = inputSocialCount - settings.socials.length;
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: { ...currentSettings, bio_page: settings },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
-
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
+  // `merge` always runs before updateProfileSettings resolves `ok: true`, so
+  // finalBio is always assigned on this branch.
+  const settings = finalBio!;
 
   // Orphan cleanup AFTER the write won (row-first, object-second): hosted
   // gallery objects whose URLs were dropped by this save are removed;
   // external URLs and anything outside this artist's hub namespace are
   // re-validated away inside the helper. Best-effort, never fails the save.
-  await removeDroppedHubImages(user.id, currentBio.blocks, settings.blocks);
+  await removeDroppedHubImages(user.id, priorBlocks, settings.blocks);
 
   revalidatePath("/link-hub");
   if (profile?.slug) revalidatePath(`/${profile.slug}/hub`);
@@ -150,8 +168,8 @@ export async function saveBioPageAction(
   if (parts.length > 0) {
     note = `Saved. ${parts.join(" and ")} skipped (empty, invalid, or past the limit of 10).`;
   }
-  if (gated.droppedMedia > 0) {
-    const g = `${gated.droppedMedia} gallery block${gated.droppedMedia === 1 ? "" : "s"} skipped: image galleries are a Plus feature.`;
+  if (droppedMedia > 0) {
+    const g = `${droppedMedia} gallery block${droppedMedia === 1 ? "" : "s"} skipped: image galleries are a Plus feature.`;
     note = note ? `${note} ${g}` : `Saved. ${g}`;
   }
   return note ? { success: true, settings, note } : { success: true, settings };

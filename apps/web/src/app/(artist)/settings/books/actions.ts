@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { parseBooksSettings } from "@/lib/books-settings";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -35,36 +36,25 @@ export async function saveBooksSettingsAction(
     return { error: "Closed message must be 280 characters or fewer." };
   }
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const current = (existing?.settings ?? {}) as Record<string, unknown>;
-  // Spread the parsed current books_settings so sibling keys the artist owns
-  // elsewhere (notably form_appearance, set via saveFormAppearanceAction) are
-  // preserved instead of being reset to their defaults on every save.
-  const currentBooks = parseBooksSettings(current.books_settings);
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: {
-        ...current,
-        books_settings: {
-          ...currentBooks,
-          books_open: booksOpen,
-          booking_cap: bookingCap,
-          booking_opens_at: opensAt,
-          booking_window_ends_at: windowEndsAt,
-          books_closed_message: closedMessage,
-        },
+  const result = await updateProfileSettings(supabase, user.id, (current) => {
+    // Spread the parsed current books_settings so sibling keys the artist owns
+    // elsewhere (notably form_appearance, set via saveFormAppearanceAction) are
+    // preserved instead of being reset to their defaults on every save.
+    const currentBooks = parseBooksSettings(current.books_settings);
+    return {
+      ...current,
+      books_settings: {
+        ...currentBooks,
+        books_open: booksOpen,
+        booking_cap: bookingCap,
+        booking_opens_at: opensAt,
+        booking_window_ends_at: windowEndsAt,
+        books_closed_message: closedMessage,
       },
-    })
-    .eq("id", user.id);
+    };
+  });
 
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/settings/books");
   return { success: true };

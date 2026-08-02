@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { writeAudit } from "@/lib/audit";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { canEditTemplates } from "@/lib/server/entitlement-gates";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | { success: true } | null;
 
@@ -114,31 +115,21 @@ export async function toggleTemplateAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
+  const result = await updateProfileSettings(supabase, user.id, (settings) => {
+    const disabled = new Set<string>(
+      Array.isArray(settings.disabled_emails)
+        ? (settings.disabled_emails as string[])
+        : [],
+    );
+    if (enabled) {
+      disabled.delete(type);
+    } else {
+      disabled.add(type);
+    }
+    return { ...settings, disabled_emails: [...disabled] };
+  });
 
-  const settings = (profile?.settings ?? {}) as Record<string, unknown>;
-  const disabled = new Set<string>(
-    Array.isArray(settings.disabled_emails)
-      ? (settings.disabled_emails as string[])
-      : [],
-  );
-
-  if (enabled) {
-    disabled.delete(type);
-  } else {
-    disabled.add(type);
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ settings: { ...settings, disabled_emails: [...disabled] } })
-    .eq("id", user.id);
-
-  if (error) return { error: error.message };
+  if (!result.ok) return { error: result.error };
 
   revalidatePath("/settings/emails");
   return { success: true };

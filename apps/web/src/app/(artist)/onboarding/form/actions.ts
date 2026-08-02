@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseFormSettings } from "@/lib/form-settings";
 import { redirect } from "next/navigation";
 import { recordGrowthEvent } from "@/lib/growth/record-event";
+import { updateProfileSettings } from "@/lib/server/profile-settings";
 
 type State = { error: string } | null;
 
@@ -21,19 +22,12 @@ export async function saveOnboardingFormAction(
   const requireDescription = formData.get("require_description") === "true";
   const showReferenceLink = formData.get("show_reference_link") === "true";
 
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("settings")
-    .eq("id", user.id)
-    .single();
-
-  const currentSettings = (existing?.settings ?? {}) as Record<string, unknown>;
-  const currentForm = parseFormSettings(currentSettings.form_settings);
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      settings: {
+  const result = await updateProfileSettings(
+    supabase,
+    user.id,
+    (currentSettings) => {
+      const currentForm = parseFormSettings(currentSettings.form_settings);
+      return {
         ...currentSettings,
         form_settings: {
           ...currentForm,
@@ -41,12 +35,12 @@ export async function saveOnboardingFormAction(
           require_description: requireDescription,
           show_reference_link: showReferenceLink,
         },
-      },
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+      };
+    },
+    { updated_at: new Date().toISOString() },
+  );
 
-  if (error) return { error: error.message.toLowerCase() };
+  if (!result.ok) return { error: result.error.toLowerCase() };
 
   void recordGrowthEvent(
     { event: "onboarding_step_completed", props: { step: "form" } },
