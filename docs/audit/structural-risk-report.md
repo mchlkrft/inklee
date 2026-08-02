@@ -5,16 +5,16 @@
 
 # Structural risk report
 
-**Ledger content hash:** `091f782fa234`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `d47769615952`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-139 recorded finding(s), 3 structural pattern(s), across 91 mapped area(s).
-115 remain open by remediation status. 110 are reachable (directly or conditionally) rather than latent.
-112 have not passed independent verification.
+141 recorded finding(s), 3 structural pattern(s), across 92 mapped area(s).
+117 remain open by remediation status. 112 are reachable (directly or conditionally) rather than latent.
+114 have not passed independent verification.
 181 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,7 +25,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 32 |
-| medium | 62 |
+| medium | 64 |
 | low | 39 |
 | informational | 4 |
 
@@ -35,11 +35,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 56 |
+| fixed-unverified | 59 |
 | in-progress | 2 |
 | mitigated | 2 |
 | not-applicable | 1 |
-| open | 52 |
+| open | 51 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 109 |
+| not-started | 111 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -142,7 +142,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 32 |
+| payment | 33 |
 | jobs | 14 |
 | webhook | 14 |
 | billing | 13 |
@@ -155,10 +155,10 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | public-surface | 4 |
 | governance | 3 |
 | production-config | 3 |
+| analytics | 2 |
 | ci-cd | 2 |
 | secrets | 2 |
 | tooling | 2 |
-| analytics | 1 |
 | api | 1 |
 | entitlement | 1 |
 | logging | 1 |
@@ -214,6 +214,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DRIFT-ACT-001 | medium | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
+| FEE-DSP-002 | medium | directly-reachable | actively-impacting | The artist fee-savings goods lane has been dead since it shipped: a column that does not exist, an error nobody read, and a double-count hiding underneath it |
 | FEE-STP-001 | medium | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
 | GOODS-DISC-001 | medium | directly-reachable | latent | The C1.1/C1.2/C1.3 checkout disclosures (seller identity, custom-made return exemption, durable-record receipt) were built ONLY for the standalone shop checkout; the appointment add-on checkout (booking-deposit flow) can sell the exact same custom-made product with none of them |
 | GOODS-VAR-001 | medium | conditionally-reachable | latent | reconcileVariants would hard-delete a variant sold ONLY inside a bundle, stranding the sale's snapshot and silently breaking its refund restock |
@@ -236,6 +237,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | SEED-GRT-001 | medium | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 | SEED-GRT-002 | medium | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | SHOP-DROP-001 | medium | conditionally-reachable | latent | The product drop gate is bypassed for products sold inside a bundle: bundlePurchasable consults only stock, so an undropped product refused for direct purchase is obtainable via any bundle containing it |
+| SHOP-DROP-002 | medium | conditionally-reachable | latent | The drop gate was absent from the PAYABLE add-on read while present on the display read beside it, so an undropped product was sellable where it was refused everywhere else |
 | SHOP-FUL-003 | medium | conditionally-reachable | latent | Settlement still calls the throwing expansion AFTER the paid flip: a snapshot read failure on a paid bundle order permanently skips inventory decrement (oversell), the exact shape SHOP-FUL-002 fixed on the refund side |
 | SHOP-FUL-004 | medium | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
 | SHOP-GATE-001 | medium | conditionally-reachable | latent | The standalone shop checkout ignores the artist's own goods-module switch: neither canUseGoods nor any module visibility gates the page, the action or the money-path core |
@@ -307,7 +309,9 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | CRON-IGX-001 | medium | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
+| FEE-DSP-002 | medium | fixed-unverified | not-started | 1b8671fc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
+| GOODS-DISC-001 | medium | fixed-unverified | not-started | b036075e |
 | GOODS-VAR-001 | medium | fixed-unverified | not-started | 88c9e544 |
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | HUB-GAL-004 | medium | fixed-unverified | not-started | 6bac9914 |
@@ -324,6 +328,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-010 | medium | fixed-unverified | not-started | 01003200 |
 | PAY-WHK-002 | medium | fixed-unverified | not-started | 3d308203 |
 | SEED-GRT-002 | medium | fixed-unverified | not-started | - |
+| SHOP-DROP-002 | medium | fixed-unverified | not-started | 006c3ac9 |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
 | TEST-VAC-004 | medium | fixed-unverified | not-started | 5fa0110e |
 | TEST-VAC-006 | medium | fixed-unverified | not-started | 5fa0110e |

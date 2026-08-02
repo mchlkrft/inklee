@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `091f782fa234`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `d47769615952`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (52)
+## Open (51)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -34,7 +34,6 @@ Operational view. Generated from the ledger; do not edit.
 | DRIFT-ACT-001 | medium | web | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | database | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | DRIFT-POL-001 | medium | database | currently-unreachable | latent | Production's booking_interests RLS policy name contains an embedded CRLF, so the house `drop policy if exists` repair pattern silently cannot address it |
-| GOODS-DISC-001 | medium | payment | directly-reachable | latent | The C1.1/C1.2/C1.3 checkout disclosures (seller identity, custom-made return exemption, durable-record receipt) were built ONLY for the standalone shop checkout; the appointment add-on checkout (booking-deposit flow) can sell the exact same custom-made product with none of them |
 | OPS-CIX-001 | medium | ci-cd | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | PAY-CHK-001 | medium | payment | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
 | PAY-RFD-008 | medium | payment | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
@@ -73,7 +72,7 @@ Operational view. Generated from the ledger; do not edit.
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (56)
+## Fixed but NOT verified (59)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -103,7 +102,9 @@ A commit exists. Nothing independent has confirmed it works.
 | BILL-UI-002 | medium | billing | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
 | CRON-IGX-001 | medium | jobs | directly-reachable | latent | instagram-refresh marks an account disconnected on ANY thrown error, including a transient Meta outage |
 | DATA-MIG-002 | medium | migration | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
+| FEE-DSP-002 | medium | analytics | directly-reachable | actively-impacting | The artist fee-savings goods lane has been dead since it shipped: a column that does not exist, an error nobody read, and a double-count hiding underneath it |
 | FEE-STP-001 | medium | billing | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
+| GOODS-DISC-001 | medium | payment | directly-reachable | latent | The C1.1/C1.2/C1.3 checkout disclosures (seller identity, custom-made return exemption, durable-record receipt) were built ONLY for the standalone shop checkout; the appointment add-on checkout (booking-deposit flow) can sell the exact same custom-made product with none of them |
 | GOODS-VAR-001 | medium | database | conditionally-reachable | latent | reconcileVariants would hard-delete a variant sold ONLY inside a bundle, stranding the sale's snapshot and silently breaking its refund restock |
 | HUB-GAL-001 | medium | billing | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | HUB-GAL-004 | medium | web | conditionally-reachable | latent | isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch is dead only by accident of URL bracket handling |
@@ -120,6 +121,7 @@ A commit exists. Nothing independent has confirmed it works.
 | PAY-RFD-010 | medium | payment | conditionally-reachable | latent | The appointment refund's idempotency key omitted the line selection the goods path deliberately fingerprints, and the ledger insert that caught the collision was swallowed, so the artist was told a refund succeeded while Stripe moved nothing |
 | PAY-WHK-002 | medium | webhook | conditionally-reachable | latent | charge.refunded treated an AMBIGUOUS booking lookup as absence: two rows claiming one intent silently skipped the sponsorship release and the double-refund guard |
 | SEED-GRT-002 | medium | production-config | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
+| SHOP-DROP-002 | medium | payment | conditionally-reachable | latent | The drop gate was absent from the PAYABLE add-on read while present on the display read beside it, so an undropped product was sellable where it was refused everywhere else |
 | SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
 | TEST-VAC-004 | medium | testing | currently-unreachable | latent | The sweep test claiming cancelled-on-Stripe-then-the-order-row asserts only existence, not sequence: reversing the order (the exact SHOP-ORD-002 defect ordering) survives the full suite |
 | TEST-VAC-006 | medium | testing | currently-unreachable | latent | SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full suite green, and no test references reportStockWriteFailure or either Sentry tag |
