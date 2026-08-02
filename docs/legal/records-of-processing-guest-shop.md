@@ -55,7 +55,7 @@ recorded for the platform generally in `docs/account-deletion-handoff.md`
 | Case | Rule |
 |---|---|
 | Completed order | Retain 7 years from the end of the financial year (Art. 6(1)(c)/17(3)(b); Accounting Act § 12). The guest email stays on the order as part of the financial record until then. |
-| Cancelled order | No financial-record basis. Pseudonymise the guest email 30 days after cancellation (a constant, non-identifying placeholder — the schema's own `orders_buyer_identity_check`, migration 0134, refuses a literal NULL on a booking-less order); the de-identified row is kept for statistics. |
+| Cancelled order | No financial-record basis. Pseudonymise the guest email 30 days after cancellation (a constant, non-identifying placeholder — the schema's own `orders_buyer_identity_check`, migration 0134, refuses a literal NULL on a booking-less order); the de-identified row is kept for statistics. The 30 days run from `orders.cancelled_at`, the instant the order entered the cancelled state (counsel D4, migration 0149), not from any later touch of the row. |
 | Abandoned cart | Delete entirely 30 days after last activity. |
 | Guest wishlist item | Keep while active; delete after 12 months of inactivity. |
 
@@ -67,6 +67,15 @@ recorded for the platform generally in `docs/account-deletion-handoff.md`
 lives in `apps/web/src/lib/server/retention-cutoffs.ts` and is unit-tested;
 each purge rule is DB-tested at its boundary in
 `apps/web/tests/db/shop-retention-purge.test.ts`.
+
+**Purge cadence:** weekly (`vercel.json`, `0 5 * * 1`), raised from monthly on
+2026-08-03 for counsel deviation D3. A monthly cron made every 30-day rule
+above deliver up to roughly 60 days in practice; counsel's cure was to raise
+the cadence rather than restate the period as 60 days, so the periods in this
+table are the periods that are actually delivered, within the one-week purge
+interval. Execution evidence (per-run, per-block matched-row counts, including
+runs that matched nothing) is written to `retention_purge_runs`; operating
+procedure in `docs/retention-purge-operations.md`.
 
 **Technical/organizational measures:** `shop_carts`, `shop_cart_items`,
 `shop_wishlist_items` carry RLS with zero grants to `anon`/`authenticated`

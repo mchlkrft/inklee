@@ -112,7 +112,9 @@ DPIA (section 7).
 
 ## 5. Retention
 
-`/api/cron/retention-purge` (monthly, vercel.json schedule `0 5 1 * *`) purges
+`/api/cron/retention-purge` (weekly, vercel.json schedule `0 5 * * 1`; raised
+from monthly on 2026-08-03 for counsel deviation D3, so a stated retention
+period is not silently extended by up to a month of purge latency) purges
 `analytics_events` older than 24 months (by `occurred_at`) and `artist_activity_days`
 older than 24 months (by `day`), matching the 24-month convention counsel set for
 security audit logs and the moderation log. The FK cascade covers deleted accounts; the
@@ -274,7 +276,7 @@ Whether any of this needs consent is a counsel question already flagged for the 
 
 ### Retention
 
-- `web_analytics_events` rows older than 24 months are purged by the monthly retention
+- `web_analytics_events` rows older than 24 months are purged by the weekly retention
   cron (`/api/cron/retention-purge`, by `occurred_at`), the same 24-month convention as
   the audit log and the artist analytics tables (section 5). The rows are anonymous by
   construction; the purge bounds storage anyway.

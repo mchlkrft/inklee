@@ -32,7 +32,7 @@ explains each event and where it fires. Adding or changing an event updates both
   23505, which the writer treats as expected, not as a failure.
 - **Account deletion**: `artist_id` references `profiles(id) ON DELETE CASCADE`, so deleting an
   account removes all of its events automatically.
-- **Retention**: the monthly retention purge (`/api/cron/retention-purge`) deletes
+- **Retention**: the weekly retention purge (`/api/cron/retention-purge`) deletes
   `analytics_events` (and `artist_activity_days`) rows older than 24 months, matching the audit
   retention convention.
 
