@@ -1,14 +1,32 @@
 # Go-live worklist
 
-**Written 2026-08-02. Next milestone: GO LIVE.** One ordered list, worked off
+**Written 2026-08-02, updated the same day the counsel-answer waves landed.
+Next milestone: GO LIVE.** One ordered list, worked off
 top to bottom. Every item names its evidence id so you can `grep` it in
 `docs/audit/findings.yaml` for the full reasoning, or its source doc.
 
 **Where things stand.** The product is BUILT: all thirteen FD rulings are
 implemented, the Plus/goods/payments build is complete and dark, local `master`
-is ~130 commits ahead of `origin/master` and migrations 0125-0141 are not in
-production. Web suite 3103 green, database suite 255 green, register 136
-findings / 87 coverage areas, `pnpm audit:check` clean.
+is ~145 commits ahead of `origin/master` and migrations 0125-0145 are not in
+production. Web suite 3261 green, database suite 299 green, register 141
+findings / 92 coverage areas, `pnpm audit:check` clean.
+
+**What moved since this list was written.** The counsel and accountant answers
+came back inside the handoff and have been worked off in three waves: C1.1-C1.6,
+C1.8, C1.9, C1.10, A2, A6, A7, and the Gate 0 cron cluster. Eleven commits, five
+new migrations (0141-0145). The Gate 0 items struck through below were fixed in
+those waves. Everything fixed is `fixed-unverified`, which lands in Gate 2, and
+Gate 2 is the gate that grows as the others shrink: **114 of 141 findings have
+never been checked by anyone who did not write the fix.**
+
+**Three defects from the last wave deserve attention on their own**, because
+none of them was on any list and all three were surfaced by workers reporting
+outside their assigned scope rather than by review. The artist fee-savings goods
+lane has been reporting zero since it shipped, on both web and the app: it
+selected a column that does not exist and discarded the error. The drop gate was
+missing from the payable add-on path while present on the display path in the
+same file. And the add-on receipt showed the combined deposit+goods total as the
+goods total. The first is live today; the other two sit behind the goods flag.
 
 **The honest headline for planning.** The remaining work is NOT mostly the new
 build. It is **41 open high/medium findings, the majority of them in code that
@@ -27,23 +45,32 @@ Gates are ordered by dependency. Inside a gate, order is by severity.
 These are wrong *right now*, on `origin/master`, for real users. None needs the
 new build.
 
-- [ ] **CRON-RMD-001** (high) Deposit-overdue reminder re-sends to the same
-      customer every day, forever. One production customer has already received
-      a documented run of them. Fix the once-per-booking guard.
+- [x] ~~**CRON-RMD-001** (high) Deposit-overdue reminder re-sends forever.~~
+      FIXED `9a7c3536`: an all-time cap of 5 counted from `reminder_sent` audit
+      rows, plus a 30-day staleness floor. Two independent guards, each
+      mutation-proven. **The production tail is not fixed and cannot be from
+      here**: 275 sends across 10 bookings already happened.
 - [ ] **WHK-ERR-001** (high) 17 of 23 Supabase calls in the deposit webhook
       discard their error, and the handler then reports success. Every one of
       those is a silent money-adjacent write failure. Fix as a batch.
-- [ ] **CRON-CLN-001** (high) Cleanup discards the error from the 7-year
-      financial-retention lookup, so a transient failure deletes bookings it was
-      supposed to retain. Data loss, irreversible.
-- [ ] **BDEL-TTS-001** (high) An append-only trigger on
-      `transaction_tax_snapshots` aborts the profiles cascade: account deletion
-      can fail outright. A GDPR obligation that does not complete.
-- [ ] **BDEL-SUB-001 / BILL-ENT-002** (high) Account deletion never cancels the
-      Stripe subscription. A deleted account keeps being billed.
-- [ ] **BDEL-RET-001** (high) Terms and Privacy promise post-deletion retention
-      of billing and tax records that deletion actually destroys. The document
-      and the code disagree; counsel needs the outcome either way.
+- [x] ~~**CRON-CLN-001** (high) Cleanup discards the retention-lookup error.~~
+      FIXED `9a7c3536` by failing closed: on a guard error the delete step is
+      skipped entirely for that run. The mutation did not merely go red, it
+      reproduced the incident (both fixture bookings hard-deleted).
+- [x] ~~**BDEL-TTS-001** (high) Append-only trigger aborts the profiles
+      cascade.~~ CONFIRMED FIXED BY EXECUTION rather than by reading: a db test
+      deletes a fixture profile and asserts the delete succeeds.
+- [~] **BDEL-SUB-001 / BILL-ENT-002** Cancellation is fixed; the TAIL IS OPEN
+      and in flight: the reconciler trusts Stripe metadata naming a deleted
+      profile, so a late webhook writes a dangling `artist_id` and raises 23503
+      inside a webhook handler. Severity dropped high to medium on recheck.
+- [x] ~~**BDEL-RET-001** (high) Deletion destroys records the Terms promise to
+      retain.~~ FIXED `7071ac08` across all eleven tables. **Its repair created
+      the inverse gap** (BDEL-RET-002): five tables then survived forever with no
+      purge deadline. Four are fixed in `eb1b8aed`. The fifth,
+      `transaction_tax_snapshots`, cannot be purged at all (append-only by
+      deliberate design) and is now counsel question Q1, because it makes the
+      subscriptions those snapshots reference effectively permanent too.
 - [ ] **DRIFT-ENUM-001** (high) Production's `order_status` enum holds a mangled
       label (`cancel\r\n  led`). Repair with a catalog-verified migration.
 - [ ] **ABUSE-PUB-001** (high) The public project-intake action has none of the
@@ -53,13 +80,22 @@ new build.
       bypass the eligibility RPC.
 - [ ] **CRON-SEC-001** (medium, but read it early) One `CRON_SECRET` authorises
       eleven endpoints including bulk deletion and customer email.
-- [ ] **CRON-OBS-001** (medium) No cron reports to Sentry. A missed or failed run
-      is invisible; two consecutive misses are how CRON-RMD-001 stayed unnoticed.
+- [~] **CRON-OBS-001** (medium) PARTIAL `9a7c3536`: Sentry capture on every
+      failure path of the three routes touched. The other eight cron endpoints
+      still report nothing, so this stays open. Worth stating plainly: the total
+      absence of cron observability is why CRON-RMD-001 reached a documented run
+      of 46 sends to one address before anyone noticed.
 - [ ] Remaining **CRON-\*** cluster (12 more) and **WHK-\*** cluster (9 more) —
       triage as one sweep each; they share root causes (discarded errors,
       unbounded loops, no observability).
 
 ## GATE 1 — Structural half of the 2026-08-02 audit (must precede the push)
+
+Two items were added here by the last wave, both structural rather than
+instance-level. `addon-products.ts` maintains two hand-written column lists for
+one catalogue, which is the drift that produced SHOP-DROP-002. And no sweep has
+looked for other readers that sum `booking_requests` fees alongside `orders`
+fees the way the broken fee-savings query did. Both are in flight.
 
 Deliberately not shipped blind, because these are migrations that can fail or
 lock on real production data. Each needs a duplicate/consistency check first.
@@ -91,7 +127,12 @@ lock on real production data. Each needs a duplicate/consistency check first.
 
 ## GATE 2 — Verification debt (nothing here is verified by an independent pass)
 
-45 findings sit at `fixed-unverified`, including all seven from the audit. The
+**This gate grew while the others shrank, which is the honest picture: 114 of
+141 findings are not independently verified.** Every counsel-wave fix was tested
+by the worker that wrote it, and the three most recent were written AND tested by
+the supervisor session itself, with `independent: false` recorded on each. That
+is not a reason to distrust them; it is a statement that the second pair of eyes
+has not happened. The
 highest-value subset:
 
 - [ ] **Refund arithmetic across 3+ successive partial refunds** — round 5 said
@@ -105,6 +146,9 @@ highest-value subset:
 - [ ] FD6's one-rule `resolveBundleComponent` claim and the variant pass-through
       to both inventory movers; **GOODS-VAR-001**.
 - [ ] The native revise screen (**FD12**), never exercised.
+- [ ] **The counsel-wave fixes** (C1.1-C1.6, C1.8-C1.10, A2, A6, A7, the cron
+      batch, FEE-DSP-002, SHOP-DROP-002). Route each to a different instance
+      than the one that wrote it.
 - [ ] **Run the database suite in CI**, plus the canary-proven RLS
       column-shadowing sweep as a CI step. The db suite was dark for the whole
       build and hid a real defect for a day; the policy sweep catches a class
@@ -131,8 +175,10 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
 
 ## GATE 4 — Release the build (migration-first; nothing below is deployable before it)
 
-- [ ] **FA1** Apply migrations **0125-0141** to production, catalog-verified,
-      via the release-sequencer flow. **0140 must follow 0138.** Then push
+- [ ] **FA1** Apply migrations **0125-0145** to production, catalog-verified,
+      via the release-sequencer flow. **0140 must follow 0138.** 0144 and 0145
+      were authored by two workers in parallel and have never been applied
+      together in a single isolated pass; do that before the production run. Then push
       `master`. Never a casual push: the deployed code expects every one of
       these tables.
 - [ ] **FA6** Run `migrate-deposits-key.cjs` against production.
