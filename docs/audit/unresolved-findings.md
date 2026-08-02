@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `0dfb2e433b87`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `edf0ed701a79`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -73,7 +73,7 @@ Operational view. Generated from the ledger; do not edit.
 | GAL-REL-001 | high | storage | conditionally-reachable | latent | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
 | GOODS-SET-001 | high | web | directly-reachable | latent | A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal |
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
-| MIG-DROP-001 | medium | migration | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means several migrations cannot repair a dropped constraint, including one already applied in production |
+| MIG-DROP-001 | medium | migration | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means two migrations cannot repair a dropped constraint: proven non-convergent by execution, and fixed in 0143 |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
 ## Fixed but NOT verified (63)

@@ -5,14 +5,14 @@
 
 # Structural risk report
 
-**Ledger content hash:** `0dfb2e433b87`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `edf0ed701a79`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-150 recorded finding(s), 4 structural pattern(s), across 98 mapped area(s).
+150 recorded finding(s), 4 structural pattern(s), across 99 mapped area(s).
 126 remain open by remediation status. 121 are reachable (directly or conditionally) rather than latent.
 123 have not passed independent verification.
 187 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
@@ -249,7 +249,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | HUB-GAL-008 | medium | conditionally-reachable | latent | The IPv6 blanket refusal breaks Import-from-URL for most real image hosts, and the comment justifying it asserted the opposite without measuring |
 | HUB-GAL-009 | medium | directly-reachable | latent | A downgraded artist's gallery images stayed publicly fetchable forever: the entitlement gate hid the RENDER, never the objects |
 | MAP-SSRF-001 | medium | conditionally-reachable | latent | The map coverage ingest fetched third-party URLs behind a hostname check that never resolved DNS, while the hardened resolving guard sat one import away |
-| MIG-DROP-001 | medium | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means several migrations cannot repair a dropped constraint, including one already applied in production |
+| MIG-DROP-001 | medium | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means two migrations cannot repair a dropped constraint: proven non-convergent by execution, and fixed in 0143 |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-GIT-001 | medium | directly-reachable | actively-impacting | Concurrent agents share one git index, so a bare commit captures another agent's staged work and attribution silently moves |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
