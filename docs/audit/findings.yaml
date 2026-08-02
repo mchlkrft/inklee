@@ -15950,8 +15950,8 @@ findings:
           that loses data rather than reporting it wrongly."
 
   - id: "MIG-DROP-001"
-    title: "Bare `drop constraint` without `if exists` means several migrations cannot repair a
-      dropped constraint, including one already applied in production"
+    title: "Bare `drop constraint` without `if exists` means two migrations cannot repair a dropped
+      constraint: proven non-convergent by execution, and fixed in 0143"
     summary: "0143 reshapes a foreign key with `alter table ... drop constraint <name>, add
       constraint <name> ...` and no `if exists` on the drop. Re-running the file after the
       constraint has been dropped by hand aborts the whole two-clause ALTER, so the object does NOT
@@ -16011,8 +16011,10 @@ findings:
       reachability: "conditionally-reachable"
       impact_status: "latent"
       affected_users_or_systems: "Whoever is repairing a production schema under time pressure."
-      production_exposure: "0129's instances are live and unfixable in place. 0143 is not yet
-        applied and is fixable now."
+      production_exposure: "NONE. Neither file is in production: 0129 is absent from origin/master
+        entirely and 0125-0145 are all unapplied. An earlier version of THIS FIELD said 0129's
+        instances were live and unfixable, which was the supervisor's error; see history. Both
+        files are editable, 0143 is already fixed, and 0129's five sites remain."
       exploit_preconditions: "Not attacker-driven; requires an operator attempting a repair."
       remaining_uncertainty: "The full inventory across all migrations has not been taken. A
         reading-based sweep is assigned, split by applied-versus-unapplied."
@@ -16032,10 +16034,15 @@ findings:
       verified_by: "queued"
       verified_at: "2026-08-02"
       verification_commit: "508c33d5"
-      verification_method: "Supervisor confirmed the line in 0143, the safer precedent in 0138, and
-        the five-to-zero count in 0129, by reading. THE BEHAVIOUR IS NOT YET PROBED: nobody has
-        applied 0143, dropped the constraint and re-run it. That probe is assigned to an instance
-        with database access. The prediction is stated so it can be falsified."
+      verification_method: "PROBED AND CONFIRMED by execution on 2026-08-02, after being recorded
+        as an unproven prediction so it could be falsified. It was not falsified. The FK was
+        dropped by hand and the original 0143 re-run: `ERROR: constraint ... does not exist`, the
+        two-clause ALTER aborted on its first clause, and pg_constraint came back EMPTY - the
+        constraint was never restored. The fixed file was then re-run against the same
+        hand-dropped state and restored it. A SECOND FOOTGUN was found during the probe and is
+        worth more than the finding itself: psql exits 0 on that error without ON_ERROR_STOP, so
+        the shell exit code is not a reliable signal of a migration having worked. Only reading
+        the output is."
       residual_risk: "The reading is confident but unproven. If the probe contradicts it, this
         entry is wrong and must be corrected rather than quietly closed."
     disclosure:
@@ -16060,6 +16067,28 @@ findings:
           from me while I was telling everyone else not to infer facts from reading. The reviewer
           also widened the sweep to the whole folder unasked, which is what turned two known sites
           into a complete inventory of six with a proven-empty (a) bucket."
+      - date: "2026-08-02"
+        actor: "db-exec-worker (probes and fix) + supervisor session"
+        action: "fix-committed"
+        note: "0143 FIXED, in 38d4cfde (attribution: swept into a supervisor commit by the
+          OPS-GIT-001 race, see that finding). Split into `drop constraint if exists` on its
+          own statement plus an unconditional add, matching 0138. Re-verified both ways: the
+          fixed file restores a hand-dropped constraint, and a plain re-run with nothing
+          tampered is clean.
+          THE WORKER CAUGHT A REAL DEFECT IN THIS REGISTER, not in the code, and it is the
+          more useful half of its report. The 0129-is-in-production correction was recorded in
+          this finding-s HISTORY earlier today, but the TITLE and PRODUCTION_EXPOSURE fields
+          were never updated and still asserted it as current fact. Those two fields feed the
+          generated summary tables in structural-risk-report.md and unresolved-findings.md,
+          which are exactly what someone scans during an incident. So the correction existed
+          and was invisible where it mattered. Both fields are now fixed. LESSON: correcting a
+          finding means correcting every field that repeats the claim, not appending a history
+          entry and considering it done - a history entry is the audit trail, not the
+          statement of fact.
+          0129 NOT edited, deliberately: five sites remain at lines 28, 36, 48, 77 and 85. It
+          is editable, so this is a scheduling decision rather than a constraint.
+          The literal docs question was answered: no document claims re-running 0129 repairs
+          it. The only misleading claim was this register-s own stale framing."
 
   - id: "AUTH-MFA-001"
     title: "The MFA step-up gate fails OPEN on a transient failure, in production, and the page it
@@ -19351,3 +19380,14 @@ coverage:
     evidence: "THE CLAIM WAS HALF FALSIFIED, by execution, with two real concurrent connections and pg_blocking_pids confirming the block. The author-s framing covered the gap between the existence check and the writes, where the claim holds. It did not cover the gap BETWEEN the two writes: write 1 to billing_subscriptions commits, the delete lands, write 2 to account_overrides raises 23503, and the pair is SPLIT with no repair, because redelivery takes a safe branch that writes nothing. Reproduced against the real single-statement cascade, not only a widened variant. THIS IS THE SECOND TIME in this repository that a sequential probe has agreed with a claim a real interleaving contradicted, which is why the standing bar is that a sequential simulation does not count as evidence. The verification was possible only because the implementing engineer named the window himself and asked for it to be attacked instead of reporting the fix as complete."
     recommended_next_inspection: "Close the split-write window, most plausibly by making the two writes atomic or by making redelivery converge rather than skip. Then re-run this same interleaving against the fix. Also outstanding on the original entry: the alert-s live-status set was reused from a neighbouring check rather than derived from Stripe-s enum, and withdrawal.ts and cancellation.ts call the reconciler directly without the guard the webhook route received."
     known_exclusions: "CORRECTED: an earlier version of this row said one interleaving never executed and was unverified. That was WRONG - the supervisor wrote it while the reporting agent was mid-transcript, and the stack had already been restored by another agent, after which all NINE tests ran green on the rebuilt schema. Nothing here is unverified for that reason. What IS outside the evidence: Stripe redelivery after the 500 was simulated by re-calling reconcile rather than observed from Stripe, and interleaving III-s window against the production delete is roughly 10ms wide so REACHABILITY is proven and FREQUENCY is not. Mid-run the local database was broken by another agent - schema-level default privileges revoked, then a reset propagated them to all 121 tables, leaving 2 readable by service_role and every db test failing 42501 - so no further execution was possible. All substantive results here predate that breakage and were obtained against a healthy fully-migrated database with FK shapes asserted in beforeAll on every green run. The harm assessment accompanying the finding is ASSERTED AND NOT SUBSTANTIATED, and is deliberately not recorded as a severity."
+
+  - area: "Execution half of the 0142-0145 migration review: convergence probes, the never-run 0144+0145 combined pass, and the three missing db tests"
+    subsystem: "database"
+    coverage: "comprehensive"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "38d4cfde"
+    reviewer: "db-exec-worker, running the probes a READ-ONLY reviewer had correctly refused to guess at; the supervisor had mis-briefed that reviewer and re-routed the execution here"
+    evidence: "ALL FOUR of the reading-based predictions were confirmed by execution and NONE was falsified, which is worth stating precisely because they were recorded as falsifiable rather than as fact. 0142, 0144 and 0145 converge; 0143 did not, and the probe reproduced the exact predicted failure - the two-clause ALTER aborts on its first clause and pg_constraint comes back empty. THE 0144+0145 COMBINED PASS, never run by anyone before, is CLEAN: migrations moved out, reset to a 0000-0141 baseline, objects confirmed absent, then only 0144 and 0145 applied. A full clean 0000-0145 single-pass replay including the fixed 0143 was also clean, which is the closest available simulation of the production push. A SECOND FOOTGUN surfaced that generalises beyond this finding: psql exits 0 on a failed ALTER without ON_ERROR_STOP, so a migration-s shell exit code is not evidence it worked. Three db tests written for the three surfaces that had none, each with its stated mutation, and the gallery-archive test documents TWO vacuous-pass traps its author hit and avoided - list returns empty-not-error for a hidden bucket, and downloading a path that never existed 404s for everyone - so it uploads a real object as a positive control first. Full db suite 27 files, 324 passing."
+    recommended_next_inspection: "0129-s five remaining bare-drop sites. It is editable, so this is scheduling, not a constraint. Then Task 5, which is HONESTLY UNRESOLVED: the `select distinct status from tax_thresholds` pre-flight could not be answered from local data because the seeder requires TLS the local stack does not offer. The code-level argument that no out-of-vocabulary value can exist is sound but was not re-derived from data."
+    known_exclusions: "Task 5 unresolved on the data side, as above, and reported as such rather than papered over with the code-level reasoning. The 0144+0145 isolated pass ran against an empty tax_thresholds, so 0145-s data-UPDATE half was a no-op in THAT harness; it was exercised separately against hand-inserted rows matching the real seed values. 0129 was read but not probed. Production was never touched: every probe ran against local Docker, which was left restored to a clean seeded 0000-0145 state."
