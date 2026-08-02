@@ -5,16 +5,16 @@
 
 # Structural risk report
 
-**Ledger content hash:** `98d926a8e369`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0dfb2e433b87`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-149 recorded finding(s), 4 structural pattern(s), across 98 mapped area(s).
-125 remain open by remediation status. 120 are reachable (directly or conditionally) rather than latent.
-122 have not passed independent verification.
+150 recorded finding(s), 4 structural pattern(s), across 98 mapped area(s).
+126 remain open by remediation status. 121 are reachable (directly or conditionally) rather than latent.
+123 have not passed independent verification.
 187 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -25,7 +25,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 37 |
-| medium | 66 |
+| medium | 67 |
 | low | 40 |
 | informational | 4 |
 
@@ -35,11 +35,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 62 |
-| in-progress | 6 |
+| fixed-unverified | 63 |
+| in-progress | 5 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 51 |
+| open | 52 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 119 |
+| not-started | 120 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -161,9 +161,9 @@ The single most productive defect shape in this repository. A Supabase call is d
 | Domain | Findings |
 | --- | --- |
 | payment | 34 |
+| billing | 14 |
 | jobs | 14 |
 | webhook | 14 |
-| billing | 13 |
 | web | 13 |
 | database | 12 |
 | testing | 8 |
@@ -222,6 +222,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | WHK-TOK-001 | high | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
 | BDEL-CON-001 | medium | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
 | BDEL-RET-002 | medium | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
+| BILL-BST-001 | medium | conditionally-reachable | latent | The deleted-profile safe branch never advances last_reconciled_at, so every dead row is re-picked forever and can STARVE the backstop that exists to catch lost webhooks |
 | BILL-ENT-001 | medium | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
 | BILL-UI-001 | medium | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
@@ -314,6 +315,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | --- | --- | --- | --- | --- |
 | AUTH-RPC-001 | critical | fixed-unverified | not-started | 364a10f |
 | PAY-DEP-001 | critical | fixed-unverified | not-started | 7e59c79 |
+| AUTH-MFA-001 | high | fixed-unverified | not-started | 63262398 |
 | BDEL-PAY-001 | high | fixed-unverified | not-started | 7071ac08 |
 | BDEL-PAY-002 | high | fixed-unverified | not-started | 40191929 |
 | BDEL-RET-001 | high | fixed-unverified | not-started | 7071ac08 |
