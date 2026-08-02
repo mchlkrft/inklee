@@ -41,11 +41,26 @@ export type GalleryRelocationOutcome = {
  *  URL never changes when an object is relocated, only what is reachable at
  *  it, so this reads the SAME settings row either way. */
 async function ownedGalleryPaths(artistId: string): Promise<string[]> {
-  const { data: profile } = await serviceClient
+  const { data: profile, error } = await serviceClient
     .from("profiles")
     .select("settings")
     .eq("id", artistId)
     .maybeSingle();
+  // A discarded error here used to be indistinguishable from a genuine
+  // zero-image artist: both resolve `profile` to a falsy value, so the caller
+  // would see `moved: 0` / `ok: true` and permanently mark this artist
+  // handled (relocate) or restored (restore) without ever having looked at
+  // their actual gallery. Throw instead — moveAll has no images to iterate
+  // either way, but the caller's try/catch (relocateArtistGallery /
+  // restoreArtistGallery) turns this into `ok: false` and leaves the marker
+  // untouched, which is what makes the artist retryable by the nightly sweep.
+  // A genuinely absent/empty profile row (data: null, error: null) still
+  // resolves to zero paths below, exactly as before.
+  if (error) {
+    throw new Error(
+      `ownedGalleryPaths: could not read profile ${artistId}: ${error.message}`,
+    );
+  }
   const bio = parseBioPageSettings(
     ((profile?.settings ?? {}) as Record<string, unknown>).bio_page,
   );
@@ -72,8 +87,14 @@ async function ownedGalleryPaths(artistId: string): Promise<string[]> {
  *  false-negative / the caller not yet having recorded success (the object is
  *  no longer publicly reachable either way, which is the property that
  *  matters — treat as done rather than retry a move that has nothing left to
- *  move). Only "still present at the source AND absent at the destination" is
- *  a genuine, retry-worthy failure. */
+ *  move). This checks ONLY presence at the source: "still present at
+ *  `fromBucket`" is the one retry-worthy failure signal implemented below,
+ *  not "absent from `fromBucket` AND confirmed present at `toBucket`" — a
+ *  second round trip against the destination is deliberately not made, to
+ *  keep the single-round-trip design above true for the retry path too. If
+ *  the `list` call itself errors, source presence is unconfirmed and this
+ *  reports "failed" rather than guessing "already_done": an unconfirmed move
+ *  must stay in the retry set, not silently count as handled. */
 async function moveOneObject(
   path: string,
   fromBucket: string,
@@ -86,9 +107,14 @@ async function moveOneObject(
 
   const dir = path.split("/").slice(0, -1).join("/");
   const base = path.split("/").pop() ?? path;
-  const { data: stillAtSource } = await serviceClient.storage
+  const { data: stillAtSource, error: listError } = await serviceClient.storage
     .from(fromBucket)
     .list(dir, { search: base });
+  if (listError) {
+    // Could not determine source presence at all; do not let an unrelated
+    // storage read failure masquerade as "already moved".
+    return "failed";
+  }
   const presentAtSource = (stillAtSource ?? []).some((f) => f.name === base);
   if (!presentAtSource) {
     // Gone from the source one way or another; it is not publicly reachable

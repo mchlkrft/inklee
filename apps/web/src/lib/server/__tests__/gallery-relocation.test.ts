@@ -25,6 +25,8 @@ const h = vi.hoisted(() => {
     "gallery-archive": new Set(),
   };
   const forceFail = new Set<string>();
+  const forceListFail = new Set<string>();
+  const forceProfileFail = new Set<string>();
   const captureMessage = vi.fn();
   const captureException = vi.fn();
 
@@ -140,11 +142,18 @@ const h = vi.hoisted(() => {
         artistId = val;
         return b;
       },
-      maybeSingle: () =>
-        Promise.resolve({
+      maybeSingle: () => {
+        if (artistId && forceProfileFail.has(artistId)) {
+          return Promise.resolve({
+            data: null,
+            error: { message: "connection reset" },
+          });
+        }
+        return Promise.resolve({
           data: artistId ? (profiles[artistId] ?? null) : null,
           error: null,
-        }),
+        });
+      },
     };
     return b;
   }
@@ -177,6 +186,9 @@ const h = vi.hoisted(() => {
           const full = dir
             ? `${dir}/${opts?.search ?? ""}`
             : (opts?.search ?? "");
+          if (forceListFail.has(full)) {
+            return { data: null, error: { message: "list boom" } };
+          }
           const present = buckets[bucket]?.has(full);
           return {
             data: present ? [{ name: opts?.search ?? "" }] : [],
@@ -192,6 +204,8 @@ const h = vi.hoisted(() => {
     overrides,
     buckets,
     forceFail,
+    forceListFail,
+    forceProfileFail,
     serviceClient,
     captureMessage,
     captureException,
@@ -238,6 +252,8 @@ beforeEach(() => {
   h.buckets.logos = new Set();
   h.buckets["gallery-archive"] = new Set();
   h.forceFail.clear();
+  h.forceListFail.clear();
+  h.forceProfileFail.clear();
   h.captureMessage.mockClear();
   h.captureException.mockClear();
 });
@@ -267,6 +283,23 @@ describe("relocateArtistGallery", () => {
 
     expect(result).toEqual({ ok: true, moved: 0, failed: 0, failedPaths: [] });
     expect(h.overrides.u2.gallery_relocated_at).toBeTruthy();
+  });
+
+  it("does NOT mark archived when the profile read fails (must not be confused with zero images)", async () => {
+    // Same shape of profile row as the genuine no-images artist above (no
+    // gallery-image blocks), but this artist's OWN read is forced to error.
+    // Before the fix, the discarded error made this indistinguishable from
+    // u2 above: both resolved to `paths: []` and got marked archived despite
+    // the artist's actual gallery never having been inspected.
+    h.profiles.u2b = { settings: { bio_page: { blocks: [], socials: [] } } };
+    h.overrides.u2b = { artist_id: "u2b" };
+    h.forceProfileFail.add("u2b");
+
+    const result = await relocateArtistGallery("u2b");
+
+    expect(result).toEqual({ ok: false, moved: 0, failed: 0, failedPaths: [] });
+    expect(h.overrides.u2b.gallery_relocated_at ?? null).toBeNull();
+    expect(h.captureException).toHaveBeenCalled();
   });
 
   it("a half-failed relocation leaves the marker NULL and is observable via Sentry", async () => {
@@ -339,6 +372,31 @@ describe("relocateArtistGallery", () => {
     expect(result).toEqual({ ok: true, moved: 1, failed: 0, failedPaths: [] });
     expect(h.overrides.u5.gallery_relocated_at).toBeTruthy();
   });
+
+  it("a storage list failure after a failed move counts as still-failing, not already_done", async () => {
+    // The move itself fails AND the follow-up presence check also errors, so
+    // there is no confirmation either way. Before the fix, a null `data` from
+    // the failed `list` call made `presentAtSource` false by default, so this
+    // was misclassified as "already_done" and counted toward `moved` — the
+    // object was still sitting in the public bucket while the sweep reported
+    // it archived.
+    h.profiles.u9 = galleryProfile("u9", "bad.webp");
+    h.overrides.u9 = { artist_id: "u9" };
+    h.buckets[GALLERY_PUBLIC_BUCKET].add("u9/hub/bad.webp");
+    h.forceFail.add("u9/hub/bad.webp");
+    h.forceListFail.add("u9/hub/bad.webp");
+
+    const result = await relocateArtistGallery("u9");
+
+    expect(result.ok).toBe(false);
+    expect(result.moved).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(result.failedPaths).toEqual(["u9/hub/bad.webp"]);
+    // Still physically public — a false "already_done" here would have left
+    // it exactly here while reporting success.
+    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u9/hub/bad.webp")).toBe(true);
+    expect(h.overrides.u9.gallery_relocated_at ?? null).toBeNull();
+  });
 });
 
 describe("restoreArtistGallery", () => {
@@ -387,6 +445,33 @@ describe("restoreArtistGallery", () => {
     );
     expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u8/hub/ok.webp")).toBe(true);
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u8/hub/bad.webp")).toBe(true);
+  });
+
+  it("does NOT clear the marker when the profile read fails during restore", async () => {
+    // Symmetric to the relocate-side profile-read-failure test above. The
+    // artist IS archived (gallery_relocated_at set), so moveAll runs and
+    // calls ownedGalleryPaths, which is forced to fail here. Before the fix
+    // this resolved to zero paths, `moved: 0`/`ok: true`, and the marker was
+    // cleared — leaving the images stranded in the private archive bucket
+    // while the account was recorded as fully restored.
+    h.profiles.u8b = galleryProfile("u8b", "a.webp");
+    h.overrides.u8b = {
+      artist_id: "u8b",
+      gallery_relocated_at: "2026-07-01T00:00:00.000Z",
+    };
+    h.buckets[GALLERY_ARCHIVE_BUCKET].add("u8b/hub/a.webp");
+    h.forceProfileFail.add("u8b");
+
+    const result = await restoreArtistGallery("u8b");
+
+    expect(result).toEqual({ ok: false, moved: 0, failed: 0, failedPaths: [] });
+    expect(h.overrides.u8b.gallery_relocated_at).toBe(
+      "2026-07-01T00:00:00.000Z",
+    );
+    // Untouched in storage too — still archived, still privately reachable.
+    expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u8b/hub/a.webp")).toBe(true);
+    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u8b/hub/a.webp")).toBe(false);
+    expect(h.captureException).toHaveBeenCalled();
   });
 });
 
