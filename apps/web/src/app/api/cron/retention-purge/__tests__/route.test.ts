@@ -10,9 +10,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // (mocked wholesale here — their own correctness is DB-tested in
 // tests/db/shop-retention-purge.test.ts) merge into the same response shape.
 
-const { mockCaptureException, mockRunShopRetentionPurges } = vi.hoisted(() => ({
+const {
+  mockCaptureException,
+  mockRunShopRetentionPurges,
+  mockRunBillingRecordRetentionPurges,
+} = vi.hoisted(() => ({
   mockCaptureException: vi.fn(),
   mockRunShopRetentionPurges: vi.fn(),
+  mockRunBillingRecordRetentionPurges: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -21,6 +26,13 @@ vi.mock("@sentry/nextjs", () => ({
 }));
 vi.mock("@/lib/server/shop-retention", () => ({
   runShopRetentionPurges: (...a: unknown[]) => mockRunShopRetentionPurges(...a),
+}));
+// BDEL-RET-002: mocked wholesale here — their own correctness (including the
+// FK dependency ordering) is DB-tested in
+// tests/db/billing-record-retention-purge.test.ts.
+vi.mock("@/lib/server/billing-record-retention", () => ({
+  runBillingRecordRetentionPurges: (...a: unknown[]) =>
+    mockRunBillingRecordRetentionPurges(...a),
 }));
 
 type Reply = { data?: unknown; error?: unknown };
@@ -61,11 +73,25 @@ const SHOP_STEPS_ALL_OK = {
   purged_inactive_wishlist_items: { ok: true as const, count: 0 },
 };
 
+const BILLING_STEPS_ALL_OK = {
+  purged_deleted_account_withdrawal_cases: { ok: true as const, count: 0 },
+  purged_deleted_account_billing_contract_confirmations: {
+    ok: true as const,
+    count: 0,
+  },
+  purged_deleted_account_billing_consent_records: {
+    ok: true as const,
+    count: 0,
+  },
+  purged_deleted_account_billing_subscriptions: { ok: true as const, count: 0 },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.CRON_SECRET = "test-secret";
   tableReplies.clear();
   mockRunShopRetentionPurges.mockResolvedValue(SHOP_STEPS_ALL_OK);
+  mockRunBillingRecordRetentionPurges.mockResolvedValue(BILLING_STEPS_ALL_OK);
 });
 
 describe("retention-purge sequencing: every step is independent", () => {
@@ -156,6 +182,30 @@ describe("retention-purge sequencing: every step is independent", () => {
     expect(body.errors).toEqual(
       expect.arrayContaining([
         { step: "purged_cancelled_standalone_order_emails", error: "boom" },
+      ]),
+    );
+  });
+
+  it("merges a BDEL-RET-002 billing-record-retention step failure into the same error list without blocking the others", async () => {
+    mockRunBillingRecordRetentionPurges.mockResolvedValue({
+      purged_deleted_account_withdrawal_cases: { ok: false, error: "boom" },
+      purged_deleted_account_billing_contract_confirmations: {
+        ok: true,
+        count: 3,
+      },
+      purged_deleted_account_billing_consent_records: { ok: true, count: 0 },
+      purged_deleted_account_billing_subscriptions: { ok: true, count: 0 },
+    });
+
+    const res = await GET(req());
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(res.status).toBe(500);
+    expect(body.purged_deleted_account_billing_contract_confirmations).toBe(3);
+    expect(body.purged_deleted_account_withdrawal_cases).toBeUndefined();
+    expect(body.errors).toEqual(
+      expect.arrayContaining([
+        { step: "purged_deleted_account_withdrawal_cases", error: "boom" },
       ]),
     );
   });

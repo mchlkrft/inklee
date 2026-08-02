@@ -2625,3 +2625,70 @@ code changes in between.
 `orders_buyer_identity_check` conflict above, and the pre-existing
 zero-test/non-independent-step state of `retention-purge/route.ts` before
 this change.
+
+## C1.4 follow-up: BDEL-RET-002, the inverse retention gap (2026-08-02, ready for review)
+
+Relayed mid-task by the team lead from the account-deletion worker
+(`docs/audit/findings.yaml` `BDEL-RET-002`): migration 0129 moved five
+billing tables from CASCADE to `ON DELETE SET NULL` so they survive account
+deletion, correctly fixing the retention promise, but gave them no purge
+deadline — so a deleted account's billing/tax/consent rows now survive
+INDEFINITELY, the same compliance failure counsel §8 forbids, just pointing
+the other way. Landed in the same commit family as C1.4 per the team lead's
+request, reusing the exact same 7-year-from-financial-year-end arithmetic.
+
+**What shipped.** New `apps/web/src/lib/server/billing-record-retention.ts`:
+`purgeDeletedAccountWithdrawalCases`, `purgeDeletedAccountBillingContract
+Confirmations`, `purgeDeletedAccountBillingConsentRecords`,
+`purgeDeletedAccountBillingSubscriptions`, and an orchestrator
+`runBillingRecordRetentionPurges` wired into the same `retention-purge`
+cron via the same independent-step pattern. Scope is deliberately narrow:
+ONLY rows already de-identified by 0129 (`artist_id IS NULL`) — a row still
+attached to a live artist is ordinary ongoing billing history, not this
+gap, and purging it is a separate, bigger question this does not answer.
+
+**A fifth table is deliberately excluded, not silently dropped.**
+`transaction_tax_snapshots` has an append-only trigger
+(`tts_no_mutation`/`tts_block_mutation()`, migrations 0106/0129) that
+raises on EVERY delete unconditionally — "transaction_tax_snapshots is
+append-only; corrections are new rows." That is a deliberate
+accounting-ledger immutability control, not an oversight, and this task
+does not touch it: whether tax snapshots should ever become deletable is a
+separate decision this worker is not authorized to make unilaterally.
+Flagged to the team lead rather than resolved. One direct, correct
+consequence: `billing_subscriptions.purge` also excludes any subscription
+still referenced by a `transaction_tax_snapshots` row, which in practice
+means a subscription that ever had a real tax event is retained
+indefinitely too — matching the permanence of the ledger entry that points
+to it, not a bug in the exclusion logic.
+
+**FK ordering, proven not just asserted.** None of the FKs among the four
+purged tables carry `ON DELETE CASCADE`/`SET NULL` on each other (only the
+`artist_id` FK to `profiles` does), so deleting a row still referenced by
+another EXISTING row throws 23503. Purge order is leaf-to-root
+(`withdrawal_cases` and `billing_contract_confirmations` first, unconditional
+past their own cutoff; `billing_consent_records` next, excluding ids still
+referenced by a REMAINING — not-yet-cutoff — withdrawal_case;
+`billing_subscriptions` last, excluding ids referenced by any remaining
+confirmation, withdrawal_case, or tax snapshot). `tests/db/billing-record-
+retention-purge.test.ts` (16 tests) proves the full chain converges: a
+young withdrawal_case protects both its consent record and its subscription
+in one run; once that same case ages past its own cutoff, a single later
+run purges the whole freed chain in the correct order with no FK violation.
+A separate test proves the tax-snapshot block is permanent (checked 100
+years in the future).
+
+**Validation.** `npx tsc --noEmit` clean (one real error fixed: a dynamic
+`.select(column)` on a service-role client returns a `GenericStringError`-
+shaped type that doesn't structurally overlap `Record<string, unknown>`;
+cast through `unknown` first). `eslint` clean on every touched file. Full
+`npx vitest run`: 186 files, 3160 passed + 1 expected fail (this addition:
+1 new merge-test in `route.test.ts`). `pnpm test:db` full run: 21 files,
+297/297 green (up from 281/281 by exactly this task's 16 new tests, zero
+regressions).
+
+**Not decided here, needs the team lead's call:** whether
+`transaction_tax_snapshots`'s permanent retention is acceptable as-is
+(likely yes, given it is a deliberate accounting-immutability control) or
+whether it needs its own counsel-reviewed decision about ever becoming
+deletable.

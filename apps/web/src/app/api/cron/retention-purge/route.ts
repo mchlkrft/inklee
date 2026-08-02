@@ -6,6 +6,7 @@ import {
   monthsAgoCutoff,
 } from "@/lib/server/retention-cutoffs";
 import { runShopRetentionPurges } from "@/lib/server/shop-retention";
+import { runBillingRecordRetentionPurges } from "@/lib/server/billing-record-retention";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,15 @@ export const runtime = "nodejs";
 //     last activity, delete an inactive wishlist item after 12 months —
 //     delegated to shop-retention.ts, which is unit- and DB-tested on its
 //     own.
+//   • BDEL-RET-002: four of the five billing tables migration 0129 moved to
+//     ON DELETE SET NULL (so they survive account deletion) — a DELETED
+//     account's (artist_id IS NULL) withdrawal_cases, billing_contract_
+//     confirmations, billing_consent_records and billing_subscriptions rows,
+//     7 years from the end of the financial year, dependency-ordered so a
+//     row is never purged while another still-retained row references it.
+//     `transaction_tax_snapshots` (the fifth) is deliberately NOT purged
+//     here — see billing-record-retention.ts for why. Delegated to
+//     billing-record-retention.ts, which is DB-tested on its own.
 //
 // SEQUENCING: every step below runs independently via `runStep`/
 // `runShopRetentionPurges`. This used to be eight sequential blocks that each
@@ -170,6 +180,11 @@ export async function GET(request: Request) {
 
   const shopSteps = await runShopRetentionPurges(now);
   for (const [name, result] of Object.entries(shopSteps)) {
+    steps[name] = result;
+  }
+
+  const billingSteps = await runBillingRecordRetentionPurges(now);
+  for (const [name, result] of Object.entries(billingSteps)) {
     steps[name] = result;
   }
 
