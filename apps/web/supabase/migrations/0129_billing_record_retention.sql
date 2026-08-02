@@ -22,10 +22,23 @@
 
 -- 1. billing_consent_records — consent evidence (terms acceptance, business-
 --    use declaration, immediate-performance request, withdrawal ack).
+--
+-- MIG-DROP-001: split into DROP-then-ADD. The original single two-clause
+-- ALTER TABLE had no `if exists` on the drop, so a hand-dropped constraint
+-- aborted the whole statement on re-run and the FK never came back (same
+-- shape confirmed empirically on 0143's identical reshape, 2026-08-02:
+-- manual drop, re-run, pg_constraint came back empty). `drop constraint if
+-- exists` never errors; the unconditional `add constraint` after it is the
+-- AGENTS.md convergent shape (0138_bundle_item_variants.sql:107-108 is the
+-- reference). This file was believed applied to production and therefore
+-- unfixable; that belief was wrong (confirmed via `git ls-tree -r
+-- origin/master`, which does not contain this file at all) and is corrected
+-- here rather than left as an accepted permanent risk.
 alter table billing_consent_records
   alter column artist_id drop not null;
 alter table billing_consent_records
-  drop constraint billing_consent_records_artist_id_fkey,
+  drop constraint if exists billing_consent_records_artist_id_fkey;
+alter table billing_consent_records
   add constraint billing_consent_records_artist_id_fkey
     foreign key (artist_id) references profiles(id) on delete set null;
 
@@ -33,7 +46,8 @@ alter table billing_consent_records
 alter table billing_subscriptions
   alter column artist_id drop not null;
 alter table billing_subscriptions
-  drop constraint billing_subscriptions_artist_id_fkey,
+  drop constraint if exists billing_subscriptions_artist_id_fkey;
+alter table billing_subscriptions
   add constraint billing_subscriptions_artist_id_fkey
     foreign key (artist_id) references profiles(id) on delete set null;
 
@@ -45,7 +59,8 @@ alter table billing_subscriptions
 alter table transaction_tax_snapshots
   alter column artist_id drop not null;
 alter table transaction_tax_snapshots
-  drop constraint transaction_tax_snapshots_artist_id_fkey,
+  drop constraint if exists transaction_tax_snapshots_artist_id_fkey;
+alter table transaction_tax_snapshots
   add constraint transaction_tax_snapshots_artist_id_fkey
     foreign key (artist_id) references profiles(id) on delete set null;
 
@@ -74,7 +89,8 @@ end $$;
 alter table billing_contract_confirmations
   alter column artist_id drop not null;
 alter table billing_contract_confirmations
-  drop constraint billing_contract_confirmations_artist_id_fkey,
+  drop constraint if exists billing_contract_confirmations_artist_id_fkey;
+alter table billing_contract_confirmations
   add constraint billing_contract_confirmations_artist_id_fkey
     foreign key (artist_id) references profiles(id) on delete set null;
 
@@ -82,6 +98,7 @@ alter table billing_contract_confirmations
 alter table withdrawal_cases
   alter column artist_id drop not null;
 alter table withdrawal_cases
-  drop constraint withdrawal_cases_artist_id_fkey,
+  drop constraint if exists withdrawal_cases_artist_id_fkey;
+alter table withdrawal_cases
   add constraint withdrawal_cases_artist_id_fkey
     foreign key (artist_id) references profiles(id) on delete set null;
