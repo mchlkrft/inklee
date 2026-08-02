@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `0d6c0e8fe2a9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `9f23f5a2ff99`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -15,7 +15,6 @@ Operational view. Generated from the ledger; do not edit.
 | --- | --- | --- | --- | --- | --- |
 | ABUSE-PUB-001 | high | public-surface | directly-reachable | latent | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
 | AUTH-RLS-003 | high | authorization | directly-reachable | latent | product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items |
-| BDEL-SUB-001 | high | billing | conditionally-reachable | latent | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
 | BILL-ENT-002 | high | billing | conditionally-reachable | latent | OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile |
 | DRIFT-ENUM-001 | high | database | conditionally-reachable | latent | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
 | PAY-ORD-001 | high | payment | conditionally-reachable | latent | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
@@ -59,6 +58,7 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-AUD-001 | low | payment | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | payment | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
 | SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
+| SHOP-VIS-002 | low | public-surface | conditionally-reachable | latent | A product hidden from the public shop is still sellable through the appointment add-on checkout, which contradicts the decision already settled for the shop reads |
 | WHK-CUR-001 | low | webhook | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |
 | BDEL-POL-001 | informational | governance | currently-unreachable | theoretical | UNRATIFIED: no product policy exists for what deletion does to an active subscription; the period-end rule in Terms is scoped to cancellation, not deletion |
@@ -73,7 +73,7 @@ Operational view. Generated from the ledger; do not edit.
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (60)
+## Fixed but NOT verified (61)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -84,6 +84,7 @@ A commit exists. Nothing independent has confirmed it works.
 | BDEL-PAY-001 | high | billing | directly-reachable | latent | Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it |
 | BDEL-PAY-002 | high | data-retention | conditionally-reachable | latent | Account deletion's deposit read discarded its error, so a transient read failure let deletion proceed as though the artist had no deposits at all |
 | BDEL-RET-001 | high | data-retention | conditionally-reachable | latent | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
+| BDEL-SUB-001 | high | billing | conditionally-reachable | latent | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
 | BDEL-TTS-001 | high | billing | conditionally-reachable | latent | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
 | CRON-CLN-001 | high | jobs | conditionally-reachable | latent | cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records |
 | CRON-RMD-001 | high | jobs | directly-reachable | actively-impacting | Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46 |
@@ -159,10 +160,11 @@ _None._
 | HUB-GAL-002 | low | web | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | SHOP-MIG-002 | low | database | currently-unreachable | latent | order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the repo convention uses to make cross-artist rows unstorable |
 
-## Mitigated but not fixed (2)
+## Mitigated but not fixed (3)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
+| OPS-GIT-001 | medium | governance | directly-reachable | actively-impacting | Concurrent agents share one git index, so a bare commit captures another agent's staged work and attribution silently moves |
 | OPS-GOV-001 | medium | governance | currently-unreachable | historically-impacting | A build agent violated an explicit stand-down order and committed to the shared checkout, including writes to the supervisor-only audit ledger |
 | BILL-CONF-001 | low | billing | conditionally-reachable | latent | Durable purchase confirmation could silently ship without the inline Terms text on a fail-soft path |
 

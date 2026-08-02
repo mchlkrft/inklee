@@ -5,17 +5,17 @@
 
 # Structural risk report
 
-**Ledger content hash:** `0d6c0e8fe2a9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `9f23f5a2ff99`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-143 recorded finding(s), 3 structural pattern(s), across 93 mapped area(s).
-119 remain open by remediation status. 114 are reachable (directly or conditionally) rather than latent.
-116 have not passed independent verification.
-185 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+145 recorded finding(s), 3 structural pattern(s), across 94 mapped area(s).
+121 remain open by remediation status. 116 are reachable (directly or conditionally) rather than latent.
+118 have not passed independent verification.
+186 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -25,8 +25,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 34 |
-| medium | 64 |
-| low | 39 |
+| medium | 65 |
+| low | 40 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,9 +35,9 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 60 |
+| fixed-unverified | 61 |
 | in-progress | 2 |
-| mitigated | 2 |
+| mitigated | 3 |
 | not-applicable | 1 |
 | open | 52 |
 | risk-accepted | 2 |
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 113 |
+| not-started | 115 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -151,9 +151,9 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | testing | 8 |
 | data-retention | 6 |
 | authorization | 5 |
+| public-surface | 5 |
+| governance | 4 |
 | migration | 4 |
-| public-surface | 4 |
-| governance | 3 |
 | production-config | 3 |
 | analytics | 2 |
 | ci-cd | 2 |
@@ -226,6 +226,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | HUB-GAL-009 | medium | directly-reachable | latent | A downgraded artist's gallery images stayed publicly fetchable forever: the entitlement gate hid the RENDER, never the objects |
 | MAP-SSRF-001 | medium | conditionally-reachable | latent | The map coverage ingest fetched third-party URLs behind a hostname check that never resolved DNS, while the hardened resolving guard sat one import away |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
+| OPS-GIT-001 | medium | directly-reachable | actively-impacting | Concurrent agents share one git index, so a bare commit captures another agent's staged work and attribution silently moves |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
 | PAY-AUTHZ-003 | medium | conditionally-reachable | latent | The appointment refund read allocations and updated payment_collections keyed on the intent id alone, held up only by an undocumented accident |
 | PAY-CHK-001 | medium | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
@@ -279,6 +280,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | SHOP-FUL-002 | low | conditionally-reachable | latent | A bundle-snapshot read failure during a FULL goods refund permanently loses the restock, the discount-redemption release and the audit row, because the throw lands after the once-only flip has been consumed and no retry can re-enter |
 | SHOP-FUL-005 | low | conditionally-reachable | latent | A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal falls entirely to the daily sweep: worst case roughly two days with money captured and the order still pending |
 | SHOP-ORD-003 | low | conditionally-reachable | latent | The intent-aware sweep is unbounded and serial inside a cron with no maxDuration, and skipped rows never reach the audit payload |
+| SHOP-VIS-002 | low | conditionally-reachable | latent | A product hidden from the public shop is still sellable through the appointment add-on checkout, which contradicts the decision already settled for the shop reads |
 | WHK-CUR-001 | low | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | OPS-DOC-001 | informational | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
@@ -291,6 +293,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | BDEL-PAY-001 | high | fixed-unverified | not-started | 7071ac08 |
 | BDEL-PAY-002 | high | fixed-unverified | not-started | 40191929 |
 | BDEL-RET-001 | high | fixed-unverified | not-started | 7071ac08 |
+| BDEL-SUB-001 | high | fixed-unverified | not-started | c39b6a0e |
 | BDEL-TTS-001 | high | fixed-unverified | not-started | - |
 | CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | CRON-RMD-001 | high | fixed-unverified | not-started | 9a7c3536 |
@@ -410,6 +413,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Other tables where a function enforces business logic but RLS permits direct bypass: flash items, discount codes, any table with both a restrictive function and a permissive DELETE policy.
 - Other webhook handlers that mutate money-adjacent counters were not enumerated by me for the delta-vs-converge property. The AGENTS.md rule is general but I verified it only for the sponsorship release path.
 - PUT /api/mobile/goods/:id/variants and POST /api/mobile/goods/:id/image were not read; whether either can strand a partial write was not assessed.
+- Prior multi-agent commits in this build have not been checked for swept-in files. The same race was possible throughout.
 - Resend-side suppression/rate limiting was not inspected.
 - Statement-level or deferred constraint triggers were not enumerated (I filtered on row-level DELETE/UPDATE tgtype bits).
 - Stripe PaymentIntents left uncancelled by an abandoned standalone checkout were NOT inspected (they expire on Stripe's side; nothing reconciles them back).
