@@ -5857,7 +5857,9 @@ findings:
         - "withdrawal.ts was only grepped, so whether an in-flight withdrawal case interacts with
           deletion is unassessed."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "c39b6a0e"
+      fixed_at: "2026-08-02"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -5907,6 +5909,39 @@ findings:
           orphaned-subscription Sentry alert on EVERY Plus-subscriber deletion, which is a
           product and alerting trade rather than a bug fix, and not one to make silently
           inside a compliance commit."
+      - date: "2026-08-02"
+        actor: "bdel-sub-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "TAIL FIXED in c39b6a0e (see the attribution note below; the commit message describes
+          different work). reconcile.ts gains a profileExists() check before either write, and
+          a deleted profile is treated as nothing-to-reconcile. THE WORKER WIDENED THE FINDING
+          BEYOND THE BRIEF, correctly: my brief described only the INSERT/fallthrough path, and
+          it proved live against Postgres that the UPDATE path 23503s too, because Postgres
+          enforces the FK on UPDATE of the referencing column. So an ALREADY-RECONCILED
+          subscription was exposed, not just a new one. The alerting design is the load-bearing
+          judgment and it is right: a new `deletedProfile` result distinct from `orphaned`,
+          because reusing `orphaned` would fire a Sentry error on every routine
+          deletion-cancel echo, which is the same alert-fatigue trade this finding had already
+          rejected once for a different mitigation. It alerts ONLY when the event still names a
+          LIVE Stripe status against the deleted profile, which is the genuine money condition.
+          profileExists THROWS on a read error rather than returning false: the wrong choice
+          there would silently skip reconciling a live subscription, which is the
+          fail-to-zero shape found three times elsewhere today. A related gap in
+          billing-webhook/route.ts (the durable-confirmation write read reconciled.artistId
+          without the same guard) was closed in the same commit, in scope because route.ts is
+          one of this finding's own cited files."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "evidence-added"
+        note: "ATTRIBUTION, recorded because the commit boundary is not where anyone would look for it.
+          The fix for this finding lives in c39b6a0e, whose message is 'refactor(goods): unify
+          the products column list and row mapping (SHOP-DROP-002)' and does not mention it.
+          Cause: several agents share one working tree and one git index; this worker's
+          `git commit` failed with 'fatal: cannot lock ref HEAD' against a concurrent commit,
+          and its already-staged files were swept into the other worker's commit. Both workers
+          reported it independently and neither attempted a rewrite, which was the right call
+          with two commits already on top. Content verified byte-identical to the intended fix
+          and re-validated at HEAD. Recorded as OPS-GIT-001."
 
   - id: "BDEL-RET-001"
     title: "Terms and Privacy promise post-deletion retention of billing and tax records that the
@@ -15152,6 +15187,21 @@ findings:
         action: "fix-committed"
         note: "Recorded against myself: I nearly dismissed this after a partial read that found the
           columns present in the FILE without checking which of the two functions held them."
+      - date: "2026-08-02"
+        actor: "refund-disclosure-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "STRUCTURAL HALF NOW FIXED in c39b6a0e, which is the part that matters: the two reads now
+          share one exported PRODUCT_SELECT_COLUMNS constant and one mapProductRow function,
+          so the drift that produced this finding cannot recur silently. The drift-proofing
+          test is worth reading as a method. The worker's first attempt compared each call
+          site's select string to the shared constant with .toBe(); it mutation-tested that
+          test by re-forking a call site into a byte-identical inline literal and found the
+          test STAYED GREEN, because value equality cannot distinguish a shared constant from
+          a fresh fork. A fork that has not diverged yet is precisely this finding's
+          precondition, so the test was blind exactly where it was needed. Replaced with a
+          source-level test asserting two calls BY IDENTIFIER and zero inline literals shaped
+          like this column list; the naive test was kept with a comment recording why it is
+          insufficient. Supervisor re-ran that mutation independently and confirmed the red."
 
   - id: "BDEL-PAY-002"
     title: "Account deletion's deposit read discarded its error, so a transient read failure let
@@ -15364,6 +15414,185 @@ findings:
         note: "Reported and explicitly NOT fixed, pending an owner's go on a money path. Recording
           the restraint because it was correct: the review it prompted found a worse consequence
           than the one reported."
+
+  - id: "OPS-GIT-001"
+    title: "Concurrent agents share one git index, so a bare commit captures another agent's staged
+      work and attribution silently moves"
+    summary: "Several agents run against ONE working tree and ONE git index. Staging and committing
+      are not atomic with respect to each other, so an agent can stage narrowly, verify with `git
+      status --porcelain` that only its own files are staged, and still produce a commit containing
+      another agent's files, because that agent's `git add` landed in the shared index in between.
+      Observed twice on 2026-08-02: commit c39b6a0e carries four files belonging to a different
+      task under a message describing neither, and the losing agent's own commit failed with
+      'fatal: cannot lock ref HEAD'."
+    classification:
+      domain: "governance"
+      category: "process-gap"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "both affected workers independently, each flagging it unprompted"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "c39b6a0e"
+      environment: "local"
+      discovery_context: "Neither worker was asked to look for this. One noticed its commit
+        contained files it had never touched; the other noticed its commit had failed while its
+        content had nonetheless landed."
+    location:
+      files:
+        - "docs/product/plus-build-progress.md"
+    evidence:
+      observed_facts:
+        - "c39b6a0e contains reconcile.ts, reconcile.test.ts, billing-webhook/route.ts and a new
+          db test, none of which its author touched, under a message about a goods refactor."
+        - "The other worker's commit failed with 'fatal: cannot lock ref HEAD' while its staged
+          content was already captured elsewhere."
+        - "`git status --porcelain` was checked between staging and committing and showed the
+          correct narrow set. It still happened."
+      reproduction: "`git show --stat c39b6a0e` lists the four foreign files alongside the two the
+        commit message describes. Checkable from the repository at any time; it does not depend on
+        either worker's account of events."
+      inspected_comparables_without_issue:
+        - "No content was lost in either incident. Both trees verified clean afterwards and the
+          committed content is byte-identical to what each worker intended."
+    assessment:
+      interpretation: "The check everyone reaches for - stage, verify, commit - is structurally
+        incapable of preventing this, because the verification and the commit are separate
+        operations against mutable shared state. That makes it a tooling problem, not a
+        carefulness problem, and it will recur for as long as agents share an index."
+      root_cause_hypothesis: "Multi-agent parallelism was adopted without isolating the git state
+        each agent commits against."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      affected_users_or_systems: "The audit trail. Every finding whose fix_commit is recorded from
+        a worker's report rather than from the tree."
+      production_exposure: "None. This is a repository-integrity and record-keeping problem, not a
+        runtime one."
+      exploit_preconditions: "Two agents committing within the same short window."
+      remaining_uncertainty: "Whether earlier commits in this build carry the same
+        misattribution. Not audited."
+    relationships:
+      related_findings:
+        - "OPS-GOV-001"
+      analogous_uninspected_areas:
+        - "Prior multi-agent commits in this build have not been checked for swept-in files. The
+          same race was possible throughout."
+    remediation:
+      status: "mitigated"
+      proposed_action: "IMMEDIATE mitigation, in force: explicit pathspec on every commit
+        (`git commit -- path/one path/two`), never bare. That bounds a commit to its author's files
+        regardless of index state. The DURABLE fix is isolation - one worktree per agent - which
+        removes the shared index entirely and is the only thing that makes the guarantee
+        structural rather than procedural. Not adopted yet; it is a change to how the team runs,
+        not to the repository."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "c39b6a0e"
+      verification_method: "Not verified. The pathspec mitigation is asserted from git semantics,
+        not demonstrated against a reproduced race."
+      residual_risk: "The mitigation is procedural and depends on every agent remembering it. One
+        of the two workers involved was ALREADY using explicit pathspecs, for this exact reason,
+        having hit the problem earlier in the session; the other was not. That asymmetry is the
+        argument for worktree isolation over a rule."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "refund-disclosure-worker and bdel-sub-worker, independently"
+        action: "opened"
+        note: "Both flagged it unprompted and neither attempted a history rewrite with commits
+          already on top. The cheapness of the correction is entirely due to their reporting it."
+
+  - id: "SHOP-VIS-002"
+    title: "A product hidden from the public shop is still sellable through the appointment add-on
+      checkout, which contradicts the decision already settled for the shop reads"
+    summary: "SHOP-VIS-001 was resolved by ADDING an is_public_visible filter to both standalone
+      shop reads, so a hidden product is refused there. getAddonProducts, the appointment add-on
+      read, filters is_public_visible nowhere, and says in its own comment that add-ons are
+      deliberately decoupled from public-shop visibility. Both cannot be the intended product rule
+      at once: the same column now governs one surface and is ignored by another, and an artist who
+      hides a product to stop selling it will find it still sells."
+    classification:
+      domain: "public-surface"
+      category: "divergent-implementation"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "refund-disclosure-worker, during the sibling-read audit that followed the
+        SHOP-DROP-002 unification"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "c39b6a0e"
+      environment: "repository-only"
+      discovery_context: "Reported explicitly as an asymmetry worth a second opinion rather than as
+        a defect, with the reasoning that it is used identically on both display and payable paths
+        so it carries no DRIFT risk. That reading is correct; the open question is not drift."
+    location:
+      files:
+        - "apps/web/src/lib/addon-products.ts"
+    evidence:
+      observed_facts:
+        - "getAddonProducts applies no is_public_visible predicate; the two standalone shop reads
+          apply one, added by the SHOP-VIS-001 fix and independently verified."
+        - "SHOP-VIS-001's own proposed_action anticipated this fork, noting that if the product
+          decision were instead that hidden products remain sellable, the decision needed recording
+          rather than assuming."
+      references:
+        - "apps/web/src/lib/addon-products.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+      inspected_comparables_without_issue:
+        - "product_bundles: publicBundlesForArtist and resolveBundleLines select identical gating
+          columns, with the payable side stricter."
+        - "product_variants: never a standalone gating select; every read computing purchasability
+          includes status and stock_quantity."
+    assessment:
+      interpretation: "Not a bug and not drift. It is a product decision that was made in a code
+        comment on one surface and made the opposite way, deliberately and with a test, on
+        another."
+      root_cause_hypothesis: "The two surfaces were built at different times and the second never
+        revisited the first's settled answer."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Artists who hide a product expecting it to stop selling."
+      production_exposure: "None realised: goods commerce has never been enabled in production."
+      exploit_preconditions: "An artist hides a product that is also flagged as a checkout add-on."
+      remaining_uncertainty: "Which behaviour is intended. That is a founder decision and is NOT
+        made here."
+    relationships:
+      related_findings:
+        - "SHOP-VIS-001"
+        - "SHOP-DROP-002"
+    remediation:
+      status: "open"
+      proposed_action: "FOUNDER DECISION, not an engineering one. Either add the filter so hiding a
+        product stops all sale of it, or record that add-ons are intentionally exempt and say so in
+        the artist-facing copy, because the current behaviour is only discoverable by an artist
+        noticing a sale they thought they had prevented. Do not resolve this by consistency
+        argument alone; the decoupling may well be the right product answer."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "c39b6a0e"
+      verification_method: "Established by reading both reads and confirming the SHOP-VIS-001 fix
+        is present and verified on the shop side."
+      residual_risk: "None technical; the risk is an unrecorded product decision."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "refund-disclosure-worker"
+        action: "opened"
+        note: "Reported as an asymmetry needing a second opinion, not fixed. Correct restraint: the
+          supervisor's judgment was that it is a product question, which a worker should not settle
+          inside a refactor."
 
 patterns:
 
@@ -18294,3 +18523,17 @@ coverage:
       - "PAY-RFD-009"
     recommended_next_inspection: "Run the same three-axis check against reads that have nothing to do with fees. The mechanism is orthogonal to the subject and the highest-value targets are the ones nobody has a reason to grep for."
     known_exclusions: "pnpm test:db was NOT run: another worker held the single local Docker instance for a migration-touching task, and concurrent runs produce failures that look like real defects. The remaining discarded-error reads inside account-deletion.ts (profiles ~92, auth.admin.getUserById ~101) were seen and deliberately left, correctly, rather than widening a fee-scoped sweep into a statutory path unasked; both are now assigned. Mobile /api/mobile/payments/requests/* refund responses not covered. Drizzle db/schema.ts confirmed unused by the application and therefore excluded."
+
+  - area: "SHOP-DROP-002 structural repair (one shared column list for the products catalogue), the BDEL-SUB-001 reconciler tail, and the sibling-read audit of products, product_bundles and product_variants"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "7dd1d0ac"
+    reviewer: "two workers implemented and tested; the supervisor session independently re-ran the decisive mutation for each (a byte-identical call-site fork, and disabling the profileExists guard) rather than accepting either proof"
+    evidence: "Both fixes land in c39b6a0e, which is also the OPS-GIT-001 incident: its message names only the goods refactor. Reconciler verified live against Postgres, including the UPDATE path the supervisor-s brief had MISSED - Postgres enforces the FK on UPDATE of the referencing column, so an already-reconciled subscription was exposed, not only a new one. Disabling the guard reproduces the exact 23503 on both paths. THE METHOD LESSON OF THIS WAVE is the drift test: the obvious implementation compared select strings by value and could not distinguish a shared constant from a byte-identical fork, which is exactly the precondition SHOP-DROP-002 required. Its author found that by mutation-testing its own test, and replaced it with a source-level assertion. A test that has not been made to fail is not evidence, and this is the clearest instance of it in the register."
+    findings_produced:
+      - "OPS-GIT-001"
+      - "SHOP-VIS-002"
+    recommended_next_inspection: "Independent verification of both fixes by an instance that wrote neither. Then decide SHOP-VIS-002, which is a founder question and not an engineering one, and adopt worktree isolation so OPS-GIT-001 stops depending on every agent remembering a rule."
+    known_exclusions: "The sibling audit covered products, product_bundles and product_variants and found no further drop-gate risk; it did NOT cover discount codes, collections or any non-catalogue table. Prior multi-agent commits were not audited for swept-in files, so earlier misattribution in this build is possible and unchecked. account-deletion.ts was failing typecheck at review time due to a THIRD worker-s in-flight edit, so no full-tree gate was run at this commit; each fix was gated in isolation."
