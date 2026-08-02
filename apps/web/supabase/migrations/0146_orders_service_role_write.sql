@@ -55,13 +55,21 @@
 -- unpushed and production carries no orders yet, so this is expected to
 -- return nothing -- "expected" is not "verified"; verify before applying.
 
+-- CONVERGENCE: drop the NEW name as well as the old one. Drop-then-create is
+-- only convergent when it drops the name it creates; this block renames, so a
+-- second run found the old name already gone and the new name already present
+-- and errored on the create. Caught by re-running the file against an
+-- already-migrated database, which is the AGENTS.md standard and the only
+-- thing that finds this -- it reads as correct.
 drop policy if exists "artist can read own orders" on orders;
+drop policy if exists "artist reads own orders" on orders;
 create policy "artist reads own orders" on orders
   for select to authenticated using (artist_id = auth.uid());
 
 revoke insert, update, delete, truncate on orders from anon, authenticated;
 
 drop policy if exists "artist can read own order items" on order_items;
+drop policy if exists "artist reads own order items" on order_items;
 create policy "artist reads own order items" on order_items
   for select to authenticated using (
     exists (
