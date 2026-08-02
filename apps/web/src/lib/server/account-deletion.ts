@@ -86,13 +86,31 @@ export async function deleteOwnAccountCore(
     await serviceClient.auth.admin.getUserById(userId);
   const userEmail = authUserData?.user?.email ?? null;
 
-  const { data: depositRows } = await serviceClient
+  // FEE-DSP-002 sweep: this read used to discard its error (`const { data } =`
+  // with no `error` bound), unlike every other read in this function past this
+  // point (orders/payment_requests/lines/collections/allocations below all
+  // check + throw). A silent failure here does not just misreport a display
+  // number the way the fee-savings dashboard did — it makes `rows` (and so
+  // `liveUnpaid`) empty, which skips cancelling a genuinely live unpaid
+  // deposit intent (step 2) and skips retaining a genuinely paid deposit's
+  // record (step 3), i.e. the exact two guarantees counsel §3/§4 require. Fail
+  // closed, matching this file's own established pattern for every read after
+  // it: a read failure is a transient ERROR, not "zero deposits".
+  const { data: depositRows, error: depositRowsError } = await serviceClient
     .from("booking_requests")
     .select(
       "id, deposit_payment_intent_id, deposit_paid_at, deposit_amount, deposit_currency",
     )
     .eq("artist_id", userId)
     .not("deposit_payment_intent_id", "is", null);
+  if (depositRowsError) {
+    return {
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
+    };
+  }
   const rows = (depositRows ?? []) as DepositBookingRow[];
 
   // A paid deposit is "resolved" (no client money owed) if it was refunded OR
