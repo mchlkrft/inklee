@@ -155,7 +155,7 @@ export async function getAddonProducts(
   const { data } = await serviceClient
     .from("products")
     .select(
-      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, custom_made, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, custom_made, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", artistId)
     .eq("is_checkout_addon", true)
@@ -181,6 +181,17 @@ export async function getAddonProducts(
     // always false for every add-on line, regardless of the artist's actual
     // flag — the exemption claim silently never fired.
     customMade: p.custom_made === true,
+    // DROP GATE ON THE PAYABLE PATH (2026-08-02). These two were selected and
+    // mapped by getInterestEligibleProducts above but NOT here, so
+    // computeAddonLines read `product.availableFrom ?? null` as null on every
+    // add-on line and productAvailability could never see a future drop: an
+    // undropped product was sellable through the appointment add-on checkout
+    // while being refused everywhere else. Exactly the SHOP-DROP-001 shape
+    // that bundles had, on the other payable path — a column omitted from a
+    // SELECT makes a downstream gate silently pass, which no test of the gate
+    // itself can catch.
+    availableFrom: p.available_from ?? null,
+    preorder: p.preorder === true,
     variants: [...(p.product_variants ?? [])]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((v) => ({

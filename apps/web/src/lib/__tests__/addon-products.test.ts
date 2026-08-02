@@ -139,3 +139,46 @@ describe("getAddonProducts: custom_made pass-through (GOODS-DISC-001)", () => {
     expect(rows[0].customMade).toBe(false);
   });
 });
+
+describe("getAddonProducts drop gate (payable path)", () => {
+  // 2026-08-02. available_from and preorder were selected and mapped by the
+  // INTEREST read but not by this PAYABLE one, so computeAddonLines saw null
+  // and productAvailability could never refuse an undropped product on the
+  // appointment add-on checkout - while the SAME product was correctly refused
+  // on the standalone shop. Same shape as SHOP-DROP-001 (bundles): a column
+  // omitted from a SELECT makes a downstream gate silently pass, which no test
+  // of the gate itself can catch.
+  //
+  // FAILS IF either column is dropped from the select string or from the
+  // mapping: availableFrom comes back null and the drop time is lost.
+  it("carries availableFrom and preorder through to the compositor", async () => {
+    mockServiceClient.from.mockImplementation(
+      fakeClient({
+        profiles: { data: CHARGE_READY_ARTIST },
+        products: {
+          data: [
+            {
+              id: "p_drop",
+              title: "Future drop",
+              image_url: null,
+              price_amount: 20,
+              currency: "eur",
+              status: "active",
+              is_checkout_addon: true,
+              quantity: 5,
+              custom_made: false,
+              available_from: "9999-01-01T00:00:00.000Z",
+              preorder: false,
+              product_variants: [],
+            },
+          ],
+        },
+      }),
+    );
+
+    const products = await getAddonProducts("artist_1");
+    expect(products).toHaveLength(1);
+    expect(products[0].availableFrom).toBe("9999-01-01T00:00:00.000Z");
+    expect(products[0].preorder).toBe(false);
+  });
+});
