@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `fb1bf604378b`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0b14d531b449`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -40,6 +40,7 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 - **PAT-001** (systemic, confidence high): A safety property is asserted in a comment or commit message before it has ever been executed, and the assertion then suppresses the next reader's inspection. Findings: DATA-RACE-001, DATA-MIG-002, AUTH-RLS-001, AUTH-RLS-002, TEST-VAC-001.
 - **PAT-002** (systemic, confidence high): Independent adversarial verification is the only mechanism in this repo that has ever caught a defect in a fix, and on the money path it has caught one every ti. Findings: PAY-DEP-001, PAY-SPON-001, TEST-VAC-001, AUTH-RLS-002, PAY-FEE-001.
 - **PAT-003** (systemic, confidence high): A PostgREST error is discarded, so a transient failure is indistinguishable from a legitimate empty result. Findings: PAY-DEP-001, WHK-ERR-001, CRON-CLN-001, CRON-PRG-001, CRON-CCH-001.
+- **PAT-004** (systemic, confidence confirmed): A database read whose error is never bound, degrading silently to a plausible empty value that the caller then acts on. Findings: FEE-DSP-002, BDEL-PAY-002, PAY-RFD-011, GOODS-SET-001, GAL-REL-001, AUTH-MFA-001.
 
 ## Highest-priority sampling areas
 
@@ -52,6 +53,7 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | AUTH-RPC-001 | critical | not-started | false | book_flash_item and increment_fee_sponsored_used were callable by anon via PostgREST until 0060 revoked the grants |
 | PAY-DEP-001 | critical | not-started | false | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
 | ABUSE-PUB-001 | high | not-started | false | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
+| AUTH-MFA-001 | high | not-started | true | The MFA step-up gate fails OPEN on a transient failure, in production, and the page it redirects to fails open in the same direction |
 | AUTH-RLS-001 | high | passed | true | product_collections shipped RLS-enabled with a SELECT-only policy while every write runs on the user-scoped client |
 | AUTH-RLS-002 | high | passed | true | discount_codes had the identical SELECT-only RLS defect, live in production on the revenue path, from 0118 until 2026-07-29 |
 | AUTH-RLS-003 | high | not-started | false | product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items |
