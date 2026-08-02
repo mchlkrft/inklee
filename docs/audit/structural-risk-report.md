@@ -5,17 +5,17 @@
 
 # Structural risk report
 
-**Ledger content hash:** `d47769615952`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0d6c0e8fe2a9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-141 recorded finding(s), 3 structural pattern(s), across 92 mapped area(s).
-117 remain open by remediation status. 112 are reachable (directly or conditionally) rather than latent.
-114 have not passed independent verification.
-181 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+143 recorded finding(s), 3 structural pattern(s), across 93 mapped area(s).
+119 remain open by remediation status. 114 are reachable (directly or conditionally) rather than latent.
+116 have not passed independent verification.
+185 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -24,7 +24,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Severity | Count |
 | --- | --- |
 | critical | 2 |
-| high | 32 |
+| high | 34 |
 | medium | 64 |
 | low | 39 |
 | informational | 4 |
@@ -35,11 +35,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 59 |
+| fixed-unverified | 60 |
 | in-progress | 2 |
 | mitigated | 2 |
 | not-applicable | 1 |
-| open | 51 |
+| open | 52 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 111 |
+| not-started | 113 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -142,15 +142,15 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 33 |
+| payment | 34 |
 | jobs | 14 |
 | webhook | 14 |
 | billing | 13 |
 | database | 12 |
 | web | 12 |
 | testing | 8 |
+| data-retention | 6 |
 | authorization | 5 |
-| data-retention | 5 |
 | migration | 4 |
 | public-surface | 4 |
 | governance | 3 |
@@ -173,6 +173,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | AUTH-RLS-002 | high | directly-reachable | historically-impacting | discount_codes had the identical SELECT-only RLS defect, live in production on the revenue path, from 0118 until 2026-07-29 |
 | AUTH-RLS-003 | high | directly-reachable | latent | product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items |
 | BDEL-PAY-001 | high | directly-reachable | latent | Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it |
+| BDEL-PAY-002 | high | conditionally-reachable | latent | Account deletion's deposit read discarded its error, so a transient read failure let deletion proceed as though the artist had no deposits at all |
 | BDEL-RET-001 | high | conditionally-reachable | latent | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
 | BDEL-SUB-001 | high | conditionally-reachable | latent | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
 | BDEL-TTS-001 | high | conditionally-reachable | latent | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
@@ -189,6 +190,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-ORD-001 | high | conditionally-reachable | latent | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
 | PAY-ORD-002 | high | conditionally-reachable | latent | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
 | PAY-RFD-001 | high | conditionally-reachable | latent | A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status |
+| PAY-RFD-011 | high | conditionally-reachable | latent | The refund path cannot tell a failed payment_collections read from an absent row, and the fallback can retain processor cost from the buyer twice |
 | PAY-SPON-001 | high | directly-reachable | historically-impacting | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | SHOP-ORD-002 | high | conditionally-reachable | latent | The 24h stale-order sweep cancels the ORDER but leaves the PaymentIntent live and payable: a buyer paying after the sweep is charged with no order, no inventory, no receipt and no artist visibility |
 | TEST-VAC-001 | high | directly-reachable | historically-impacting | Tests incapable of failing, found in at least five independent rounds, including the suite written specifically to prove an RLS repair |
@@ -287,6 +289,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | AUTH-RPC-001 | critical | fixed-unverified | not-started | 364a10f |
 | PAY-DEP-001 | critical | fixed-unverified | not-started | 7e59c79 |
 | BDEL-PAY-001 | high | fixed-unverified | not-started | 7071ac08 |
+| BDEL-PAY-002 | high | fixed-unverified | not-started | 40191929 |
 | BDEL-RET-001 | high | fixed-unverified | not-started | 7071ac08 |
 | BDEL-TTS-001 | high | fixed-unverified | not-started | - |
 | CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
@@ -384,6 +387,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - I did not check whether any of the 68 tables' inline constraints have actually diverged in production — that needs a live pg_constraint comparison I did not run.
 - I scanned only `create table if not exists` blocks. Sibling non-convergent shapes were NOT scanned: `create index if not exists` where the definition later changed, `create policy` without a preceding `drop policy if exists`, `create trigger` guarded by existence rather than dropped and recreated.
 - Migrations 0108, 0109 and 0110 add further billing objects; I confirmed only that they contain no `references profiles(id)` lines. Whether they create tables with other cascade paths to profiles was NOT checked.
+- Mobile /api/mobile/payments/requests/* refund responses.
 - Mutating the shared compositor's totalAmount reddened exactly ONE test in the whole 2702-test suite (the C2 happy path). That suggests other consumers of computeAddonLines mock it. NOT inspected.
 - My grep excluded *.md but covered the whole tree; only scripts/ matched, so apps/ appears clean, but I did not separately audit apps/mobile config files.
 - No check was made for mangling in object COMMENTS, ACL grantee names, or the auth/storage schemas.
@@ -421,6 +425,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The accepted residual — 'a refund that is itself later reversed does not re-debit, since the ledger only converges upward' (bcb45d5) — is recorded as known and handled by hand. No tooling for it was inspected.
 - The account-deletion path uses the same ORDER_MONEY_STATES carve-out (account-deletion-logic.ts:44) and was not re-checked for the same discarded-error shape in this pass.
 - The add-on order path (request/[token]/actions.ts:541-560) creates pending orders too; its rows DO carry booking_id, so the cleanup sweep can see the booking, but whether a pending add-on order is ever cancelled was NOT inspected here.
+- The allocations read at ~line 135 in the same file, same discard shape, feeds collectedMinor.
 - The appointment add-on / deposit checkout settlement + receipt path (file not identified in this task).
 - The artist cancel path's forfeiture branch
 - The billing-webhook endpoint's subscription set
@@ -448,6 +453,8 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The other Plus block families (feature blocks, featured_collection) at save: featured_collection is render-gated via the collection read; the six feature blocks are not appearance_custom-gated at render either, so their save-path status was not changed here and should be confirmed when those blocks are entitlement-gated.
 - The project intake's uploaded storage objects have no orphan-cleanup job that I looked for. Whether one exists was not checked.
 - The project portal token path, apps/web/src/app/project/[token]/page.tsx:89
+- The refund path's payment_collections read, recorded separately as PAY-RFD-011.
+- The remaining discarded-error reads in account-deletion.ts itself: the profiles select (~line 92) and the auth.admin.getUserById call (~line 101). Same shape, deliberately not widened into during a fee-scoped sweep, now assigned.
 - The same collision shape could exist between any future append-only guard and any cascading FK. No lint or test exists to catch it.
 - The same composite invariant on the deposit path: a booking whose deposit PaymentIntent succeeded after a payment_failed. apps/web/src/app/api/stripe/webhook/route.ts is imported by no test.
 - The same question for SEQUENCES and for `revoke ... from public` on tables was not asked.
@@ -541,35 +548,37 @@ These are the register's highest-value entries for an auditor: places a recorded
 6. **ABUSE-PUB-001** (high, unverified): The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe
 7. **AUTH-RLS-003** (high, unverified): product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items
 8. **BDEL-PAY-001** (high, unverified): Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it
-9. **BDEL-RET-001** (high, unverified): Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them
-10. **BDEL-SUB-001** (high, unverified): Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records
-11. **BDEL-TTS-001** (high, unverified): An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents
-12. **BILL-ENT-002** (high, unverified): OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile
-13. **CRON-CLN-001** (high, unverified): cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records
-14. **CRON-RMD-001** (high, unverified): Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46
-15. **DATA-MIG-001** (high, unverified): `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks
-16. **DRIFT-ENUM-001** (high, unverified): Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production
-17. **PAY-AUTHZ-001** (high, unverified): refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION
-18. **PAY-AUTHZ-002** (high, unverified): refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from
-19. **PAY-BAL-001** (high, unverified): deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production
-20. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
-21. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
-22. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
-23. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
-24. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
-25. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
-26. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
-27. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
-28. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
-29. **WEB-XSS-001** (high, unverified): Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper
-30. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
-31. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
-32. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
-33. **Uninspected**: Mobile client (Expo app) / mobile
-34. **Uninspected**: Background jobs and crons / jobs
-35. **Uninspected**: Dependency security / secops
-36. **Uninspected**: Production configuration / platform
-37. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
+9. **BDEL-PAY-002** (high, unverified): Account deletion's deposit read discarded its error, so a transient read failure let deletion proceed as though the artist had no deposits at all
+10. **BDEL-RET-001** (high, unverified): Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them
+11. **BDEL-SUB-001** (high, unverified): Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records
+12. **BDEL-TTS-001** (high, unverified): An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents
+13. **BILL-ENT-002** (high, unverified): OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile
+14. **CRON-CLN-001** (high, unverified): cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records
+15. **CRON-RMD-001** (high, unverified): Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46
+16. **DATA-MIG-001** (high, unverified): `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks
+17. **DRIFT-ENUM-001** (high, unverified): Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production
+18. **PAY-AUTHZ-001** (high, unverified): refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION
+19. **PAY-AUTHZ-002** (high, unverified): refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from
+20. **PAY-BAL-001** (high, unverified): deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production
+21. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
+22. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
+23. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
+24. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
+25. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
+26. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
+27. **PAY-RFD-011** (high, unverified): The refund path cannot tell a failed payment_collections read from an absent row, and the fallback can retain processor cost from the buyer twice
+28. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
+29. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
+30. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
+31. **WEB-XSS-001** (high, unverified): Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper
+32. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+33. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+34. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+35. **Uninspected**: Mobile client (Expo app) / mobile
+36. **Uninspected**: Background jobs and crons / jobs
+37. **Uninspected**: Dependency security / secops
+38. **Uninspected**: Production configuration / platform
+39. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 
