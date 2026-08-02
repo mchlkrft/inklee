@@ -145,3 +145,125 @@ describe("deleteOwnAccountCore: the booking_requests deposit read must not disca
     });
   });
 });
+
+// Widened per the lead's explicit go-ahead: the SAME discard-error shape sat
+// in the two reads BEFORE the deposit read. Each is fixed to distinguish a
+// REAL failure (fail closed) from a GENUINE "already gone" (proceed exactly
+// as before) — the retry-after-partial-success case this file's own account-
+// deletion.ts comments describe (a caller retries the whole delete after an
+// earlier attempt got past `profiles`/the auth user but failed later).
+describe("deleteOwnAccountCore: the profiles read must not discard a REAL error, but must still tolerate a genuinely absent row", () => {
+  it("halts with a transient ERROR when the profiles read genuinely fails", async () => {
+    h.fromImpl.mockImplementation((table: string) => {
+      if (table === "profiles") {
+        return {
+          select: () =>
+            chain({ data: null, error: { message: "connection reset" } }),
+        };
+      }
+      throw new Error(
+        `unexpected table reached after the profiles read should have halted: ${table}`,
+      );
+    });
+
+    const result = await deleteOwnAccountCore(
+      "33333333-3333-3333-3333-333333333333",
+      { surface: "web" },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
+    });
+  });
+
+  it("proceeds when the profile is genuinely absent (maybeSingle: no error, null data) — the retry-after-partial-success case", async () => {
+    const tablesReached: string[] = [];
+    h.fromImpl.mockImplementation((table: string) => {
+      tablesReached.push(table);
+      if (table === "profiles") {
+        return { select: () => chain({ data: null, error: null }) };
+      }
+      // Anything else: a benign empty/null reply. This test only cares
+      // whether the function got PAST the profiles read, not about modelling
+      // every later step (that is the deposit-read describe block above).
+      return {
+        select: () => chain({ data: [], error: null }),
+        delete: () => chain({ data: null, error: null }),
+      };
+    });
+
+    await deleteOwnAccountCore("44444444-4444-4444-4444-444444444444", {
+      surface: "web",
+    });
+
+    // A genuinely absent profile (no error) must NOT halt the function the
+    // way an actual read failure does — it must still reach the next step,
+    // exactly as it did before this fix (retry-tolerance preserved).
+    expect(tablesReached).toContain("booking_requests");
+  });
+});
+
+describe("deleteOwnAccountCore: auth.admin.getUserById must not discard a REAL error, but must still tolerate a genuinely absent user", () => {
+  it("halts with a transient ERROR when getUserById genuinely fails (not a 'not found')", async () => {
+    h.getUserById.mockResolvedValue({
+      data: null,
+      error: { message: "rate limited" },
+    });
+    h.fromImpl.mockImplementation((table: string) => {
+      if (table === "profiles") {
+        return {
+          select: () =>
+            chain({ data: { stripe_account_id: null }, error: null }),
+        };
+      }
+      throw new Error(
+        `unexpected table reached after getUserById should have halted: ${table}`,
+      );
+    });
+
+    const result = await deleteOwnAccountCore(
+      "55555555-5555-5555-5555-555555555555",
+      { surface: "web" },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
+    });
+  });
+
+  it("proceeds when getUserById reports the user not found — the retry-after-partial-success case (userEmail resolves to null, matching the file's own tolerance for auth.admin.deleteUser)", async () => {
+    h.getUserById.mockResolvedValue({
+      data: null,
+      error: { message: "User not found" },
+    });
+    const tablesReached: string[] = [];
+    h.fromImpl.mockImplementation((table: string) => {
+      tablesReached.push(table);
+      if (table === "profiles") {
+        return {
+          select: () =>
+            chain({ data: { stripe_account_id: null }, error: null }),
+        };
+      }
+      // Anything else: a benign empty/null reply, same as the profiles-
+      // absent test above — this test only cares whether the function got
+      // PAST getUserById.
+      return {
+        select: () => chain({ data: [], error: null }),
+        delete: () => chain({ data: null, error: null }),
+      };
+    });
+
+    await deleteOwnAccountCore("66666666-6666-6666-6666-666666666666", {
+      surface: "web",
+    });
+
+    expect(tablesReached).toContain("booking_requests");
+  });
+});

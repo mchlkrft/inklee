@@ -132,6 +132,17 @@ export async function refundPaymentRequestCore(input: {
   // `partially_paid` — an undocumented accident one feature away from
   // dissolving. `payment_allocations.artist_id` exists; use it, so the scope
   // is a property of the query rather than of the rest of the system.
+  // FEE-DSP-002 sweep (task #61): this discards its error too, but it is
+  // ALREADY GUARDED, checked rather than assumed — a failed read (`data`
+  // undefined) and a genuinely empty result (`data: []`) both fail the
+  // `!allocations || allocations.length === 0` check below and take the
+  // SAME early-return refusal. Nothing downstream (`collectedMinor` at
+  // `allocations[0]?.collected_total_minor`, the final response's `currency`
+  // fallback) is ever reached with missing-but-uncaught data. The only
+  // residual gap is the error MESSAGE ("No allocations found" reads as "this
+  // payment never collected anything" even when the read genuinely failed),
+  // which is an observability nit, not a money-safety one — left as-is per
+  // the instruction to leave an already-guarded read alone.
   const { data: allocations } = await serviceClient
     .from("payment_allocations")
     .select(
@@ -308,13 +319,51 @@ export async function refundPaymentRequestCore(input: {
         : latestCharge.application_fee.id
       : null;
 
-  const { data: collection } = await serviceClient
+  const { data: collection, error: collectionError } = await serviceClient
     .from("payment_collections")
     .select(
       "processor_cost_minor, processor_cost_status, fee_refund_policy_version, processor_cost_retained_minor, application_fee_minor",
     )
     .eq("payment_intent_id", request.payment_intent_id)
     .maybeSingle();
+
+  // FEE-DSP-002 sweep (task #61): a FAILED read used to be indistinguishable
+  // from a genuinely absent collection row (`maybeSingle()` returns
+  // `{data: null, error: null}` for that case, which is the CORRECT,
+  // pre-existing fallback path below and must stay untouched — a collection
+  // settled before this table existed legitimately has no row). A failed
+  // read silently took that same fallback, computing a refund outcome from
+  // three degraded inputs instead of refusing outright:
+  //   1. feeChargedMinor would read Stripe's INTENT metadata — what was
+  //      INTENDED at quote time, never what settlement actually booked
+  //      (money-path rule: never trust intent metadata for a settled fact,
+  //      the same principle the sponsorship-release rule applies to a
+  //      neighbouring field).
+  //   2. alreadyRetainedMinor would read 0 instead of the real cumulative
+  //      amount. This is the one that moves money: across successive
+  //      partial refunds on the SAME collection, a non-recoverable
+  //      processor cost already retained from a prior refund would be
+  //      retained AGAIN — real money taken from the artist twice, and
+  //      invisibly, since nothing else cross-checks this value.
+  //   3. policyVersion would fall back to today's ACTIVE_FEE_REFUND_POLICY_
+  //      VERSION instead of the version this collection actually settled
+  //      under — the exact FEE-STP-001 shape already fixed once for the
+  //      deposit fee schedule, reappearing here for the refund policy.
+  // A read failure must refuse the refund outright, using this function's
+  // OWN error shape rather than inventing a new one.
+  if (collectionError) {
+    Sentry.captureException(collectionError, {
+      tags: { action: "appointment_payment_refund_collection_read" },
+      extra: {
+        requestId: input.requestId,
+        intentId: request.payment_intent_id,
+      },
+    });
+    return {
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    };
+  }
 
   const feeChargedMinor =
     collection?.application_fee_minor ??

@@ -89,17 +89,62 @@ export async function deleteOwnAccountCore(
   opts: { surface: "mobile" | "web" | "admin" },
 ): Promise<DeleteAccountResult> {
   // 1. Profile (for the Connect account) + deposit bookings (money pre-flight).
-  const { data: profile } = await serviceClient
+  //
+  // FEE-DSP-002 sweep (widened per lead's go-ahead): this used `.single()` +
+  // a discarded error. `.single()` treats "no row" as an ERROR (PGRST116),
+  // which this file's own later steps tolerate for a retried delete on an
+  // ALREADY-deleted profile (nothing after this point re-reads `profiles`,
+  // so a retry-from-scratch after a partial prior success is otherwise
+  // harmless). Switched to `.maybeSingle()` so "genuinely absent" (no error,
+  // `profile === null`, the retry case) stays exactly as tolerant as before,
+  // while a REAL read failure (network/permissions/schema) now fails closed
+  // instead of silently writing `stripe_account_id: null` into the
+  // counsel-mandated financial archive below (step 3) for an artist who
+  // actually had a Connect account — a false premise on a legally retained
+  // record, the same class as the booking_requests fix above.
+  const { data: profile, error: profileReadError } = await serviceClient
     .from("profiles")
     .select("stripe_account_id")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
+  if (profileReadError) {
+    return {
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
+    };
+  }
 
   // Capture the auth email up front — needed to purge this person's single-
   // purpose mobile launch-waitlist row(s) (keyed by email, no FK so the cascade
   // never reaches them), and it is gone once the auth user is deleted at step 6.
-  const { data: authUserData } =
+  //
+  // Same sweep, same reasoning, adapted to the GoTrue admin API's error shape:
+  // a genuinely absent auth user (the retry-after-partial-success case again)
+  // surfaces as an ERROR here rather than a null-with-no-error row, so the
+  // tolerance test mirrors the EXISTING one this file already uses for
+  // `auth.admin.deleteUser` below (~line 388: `!/not found|does not exist/i`)
+  // rather than failing closed on it. Anything else (rate limit, network,
+  // auth failure) fails closed: a silently-null `userEmail` here would make
+  // step 6c's `mobile_waitlist` purge a no-op with no other path to it (no
+  // FK reaches that table), permanently leaving this person's email behind
+  // after an account deletion whose whole point is erasing it — a false
+  // premise causing a REQUIRED erasure step to be silently skipped, the same
+  // class as the booking_requests fix above.
+  const { data: authUserData, error: authUserError } =
     await serviceClient.auth.admin.getUserById(userId);
+  if (
+    authUserError &&
+    !/not found|does not exist/i.test(authUserError.message)
+  ) {
+    return {
+      ok: false,
+      code: "ERROR",
+      message:
+        "Account deletion is temporarily unavailable. Please try again in a moment.",
+    };
+  }
   const userEmail = authUserData?.user?.email ?? null;
 
   // FEE-DSP-002 sweep: this read used to discard its error (`const { data } =`

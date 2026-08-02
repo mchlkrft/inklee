@@ -1029,3 +1029,129 @@ describe("refundPaymentRequestCore FD12: quantity refunds + ledger + over-refund
     }
   });
 });
+
+// FEE-DSP-002 sweep (task #61, lead's explicit go-ahead): the payment_collections
+// read used to discard its error, making a FAILED read indistinguishable from a
+// GENUINELY ABSENT row. `{data: null, error: null}` (every test above that never
+// calls queueCollection()) is the correct, pre-existing fallback and every one of
+// those tests still passes unchanged — this file proves the OTHER half: a REAL
+// error must refuse the refund outright rather than silently computing an outcome
+// from three degraded inputs. Each case below names ONE of the three consequences
+// and states the specific wrong value the old code would have used.
+describe("refundPaymentRequestCore: a failed payment_collections read must refuse, never degrade", () => {
+  function queueFailedCollectionRead() {
+    queue("payment_collections:select", {
+      data: null,
+      error: { message: "connection reset", code: "08006" },
+    });
+  }
+
+  it("consequence 1 (feeChargedMinor): never falls back to Stripe's INTENT metadata for a settled fact", async () => {
+    setupStandardRefund();
+    queueFailedCollectionRead();
+    // A wrong/stale value on the intent's own metadata (a real stored
+    // collection would carry 450, matching queueCollection()'s default) — if
+    // the code silently fell back to this, feeChargedMinor would resolve to
+    // 999 instead of the real settled 450.
+    mockStripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      id: "pi_test",
+      amount: 15000,
+      metadata: { application_fee_minor: "999" },
+      latest_charge: { id: "ch_test", application_fee: "fee_test" },
+    });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    // MUTATION: removing the `if (collectionError)` guard makes this resolve
+    // status:"ok" with feeChargedMinor sourced from the 999 metadata value —
+    // verified by hand (temporarily reverting the guard reproduces exactly
+    // that: refunds.create IS called, computed off the wrong fee).
+    expect(result).toEqual({
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    });
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it("consequence 2 (alreadyRetainedMinor, the one that moves money twice): never reads 0 in place of a real retained amount", async () => {
+    setupStandardRefund();
+    queueFailedCollectionRead();
+    // If this read had succeeded, it would have shown 200 already retained
+    // from a prior partial refund (same shape as the "does not retain the
+    // same cost twice" test above, which proves 200-already-retained
+    // correctly retains nothing further WHEN THE READ SUCCEEDS).
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    // MUTATION: removing the guard makes alreadyRetainedMinor resolve to 0
+    // (collection is null), so the fee-refund policy computes a FRESH
+    // retention on top of the 200 already taken — verified by hand: the
+    // collectionUpdate() call then records processor_cost_retained_minor
+    // as 0 + retainMinor instead of correctly recognising 200 is already
+    // retained. This is real processor cost taken from the artist twice,
+    // invisibly, which is why this is the case the lead most wanted proven.
+    expect(result).toEqual({
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    });
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+    expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    expect(collectionUpdate()).toBeUndefined();
+  });
+
+  it("consequence 3 (policyVersion): never falls back to today's ACTIVE policy in place of the version this collection actually settled under", async () => {
+    setupStandardRefund();
+    queueFailedCollectionRead();
+    // If this read had succeeded, it would have shown fee_refund_policy_
+    // version: v1 (retain_non_recoverable for artist_cancellation).
+    // ACTIVE_FEE_REFUND_POLICY_VERSION is v0 (return_full for the same
+    // case) — the exact FEE-STP-001 shape already fixed once for the
+    // deposit fee schedule, reappearing here for the refund policy.
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "artist_cancellation",
+    });
+
+    // MUTATION: removing the guard makes policyVersion resolve to v0
+    // (ACTIVE), flipping the treatment from retain_non_recoverable to
+    // return_full — verified by hand: refund_application_fee then comes
+    // back true and the artist's proven non-recoverable processor cost is
+    // returned to the client instead of retained by Inklee.
+    expect(result).toEqual({
+      status: "error",
+      message: "Refund could not be processed. Please try again in a moment.",
+    });
+    expect(mockStripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it("the DISTINCTION survives: a genuinely absent row (no error) still takes the existing correct fallback", async () => {
+    setupStandardRefund();
+    // Explicit, not just relying on the unqueued default — {data: null,
+    // error: null} is the real PostgREST shape for "no row matched"
+    // (maybeSingle()), which must NOT be refused the way an actual error is.
+    queue("payment_collections:select", { data: null, error: null });
+
+    const result = await refundPaymentRequestCore({
+      artistId: "artist_1",
+      requestId: "req_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    expect(result.status).toBe("ok");
+    expect(mockStripe.refunds.create).toHaveBeenCalled();
+  });
+});
