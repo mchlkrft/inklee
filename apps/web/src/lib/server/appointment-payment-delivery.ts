@@ -3,6 +3,10 @@ import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/send";
 import { buildEmailHtml } from "@/lib/email/booking-templates";
+import {
+  isPartialRefundForBuyer,
+  partialRefundBuyerNotice,
+} from "@/lib/server/refund-buyer-notice";
 
 // LINK DELIVERY for appointment payment requests (Track A slice 3).
 //
@@ -243,6 +247,11 @@ export async function sendRefundConfirmationEmail(
     refundedMinor: number;
     remainingRefundableMinor: number;
     currency: string;
+    /** C1.8: the named lines THIS refund covered (by-line refunds only).
+     *  Empty for a full/bare-amount refund — the notice falls back to
+     *  counsel's "part of your order" wording, or is not needed at all when
+     *  the refund is not partial (see isPartialRefundForBuyer). */
+    lineNames?: string[];
   },
 ): Promise<boolean> {
   try {
@@ -256,16 +265,21 @@ export async function sendRefundConfirmationEmail(
 
     const artistName = await resolveArtistName(supabase, args.artistId);
     const amount = formatAmount(args.refundedMinor, args.currency);
-    const remaining =
-      args.remainingRefundableMinor > 0
-        ? `\n\n${formatAmount(args.remainingRefundableMinor, args.currency)} of your original payment remains, unaffected by this refund.`
-        : "";
+
+    // C1.8: a refund that leaves a remaining balance gets counsel's verbatim
+    // partial-refund paragraph instead of the plain full-refund wording — see
+    // refund-buyer-notice.ts's own doc comment for why this is exactly
+    // `remainingRefundableMinor > 0` and not a check on `refundType`.
+    const mainParagraph = isPartialRefundForBuyer(args.remainingRefundableMinor)
+      ? partialRefundBuyerNotice({
+          amountLabel: amount,
+          lineNames: args.lineNames ?? [],
+        })
+      : `${artistName} has refunded ${amount} to your original payment method.\n\nRefunds typically appear on your statement within 5 to 10 business days, depending on your bank.`;
 
     const body = `Hi,
 
-${artistName} has refunded ${amount} to your original payment method.
-
-Refunds typically appear on your statement within 5 to 10 business days, depending on your bank.${remaining}
+${mainParagraph}
 
 If anything looks wrong, contact ${artistName} directly.`;
 

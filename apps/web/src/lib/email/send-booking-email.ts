@@ -9,6 +9,12 @@ import {
   type EmailGoodsDecision,
 } from "./booking-templates";
 import type { CustomAnswerSnapshot } from "@/lib/custom-fields";
+import {
+  buildOrderReceiptBody,
+  summarizeReturnDisclosure,
+  type CompleteSellerData,
+  type ReturnDisclosureItem,
+} from "@inklee/shared/consumer-disclosures";
 
 type EmailType =
   | "customer_booking_submitted"
@@ -152,12 +158,26 @@ ${magicLink}`;
 // Goods order confirmation (Slice 75) — sent to the customer after a combined
 // deposit + goods payment succeeds. Standalone (not artist-customisable),
 // built on the shared branded HTML wrapper. No em-dashes in customer copy.
+//
+// GOODS-DISC-001: this add-on order sells the SAME custom_made-capable
+// catalogue as the standalone shop, so its receipt needs the SAME C1.1/C1.3
+// durable-record content the standalone shop's receipt already has
+// (buildOrderReceiptBody) — a bare item/total list, with no seller identity
+// and no return-right disclosure, is exactly the gap GOODS-DISC-001 named.
+// `seller` is REQUIRED (not optional): the money path (prepareCheckoutAction,
+// via addonGoodsSellerGate) refuses to create goods lines at all when the
+// artist's seller data is incomplete, so a call reaching here with goods
+// lines always has complete seller data by construction; a caller that
+// somehow violates that invariant should fail loud rather than send a
+// receipt silently missing its required disclosures.
 export async function sendGoodsOrderConfirmation({
   to,
   artistName,
   lines,
   total,
   currency,
+  seller,
+  supportEmail,
 }: {
   to: string;
   artistName: string;
@@ -166,28 +186,32 @@ export async function sendGoodsOrderConfirmation({
     variant: string | null;
     quantity: number;
     total: number;
+    customMade: boolean;
   }[];
   total: number;
   currency: string;
+  seller: CompleteSellerData;
+  supportEmail: string;
 }): Promise<void> {
   try {
     const code = currency.toUpperCase();
-    const itemsText = lines
-      .map(
-        (l) =>
-          `- ${l.title}${l.variant ? ` (${l.variant})` : ""} x${l.quantity}: ${code} ${l.total.toFixed(2)}`,
-      )
-      .join("\n");
-    const body = `Your payment to ${artistName} is confirmed.
-
-Goods reserved for pickup at your appointment:
-${itemsText}
-
-Total paid: ${code} ${total.toFixed(2)}
-
-Your goods will be waiting for you at your appointment.
-
-Inklee`;
+    const disclosure = summarizeReturnDisclosure(
+      lines.map((l): ReturnDisclosureItem => ({ customMade: l.customMade })),
+    );
+    const body = buildOrderReceiptBody({
+      artistName,
+      seller,
+      supportEmail,
+      items: lines.map((l) => ({
+        title: l.title,
+        variant: l.variant,
+        quantity: l.quantity,
+      })),
+      totalLabel: `${code} ${total.toFixed(2)}`,
+      disclosure,
+      fulfillmentNote:
+        "Your goods will be waiting for you at your appointment.",
+    });
     const { buildEmailHtml: build } = await import("./booking-templates");
     await sendEmail({
       to,

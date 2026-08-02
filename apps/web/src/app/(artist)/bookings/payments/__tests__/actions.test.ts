@@ -68,6 +68,7 @@ beforeEach(() => {
     refundId: "re1",
     refundedMinor: 5000,
     remainingRefundableMinor: 0,
+    retainedProcessorCostMinor: 0,
   });
 });
 
@@ -277,6 +278,7 @@ describe("refundPaymentRequestAction", () => {
       ok: true,
       refundedMinor: 5000,
       remainingRefundableMinor: 0,
+      retainedProcessorCostMinor: 0,
     });
     expect(refundCore).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -287,6 +289,28 @@ describe("refundPaymentRequestAction", () => {
       }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/bookings/payments/r1");
+  });
+
+  it("A6: passes the core's retained processor cost through unchanged", async () => {
+    refundCore.mockResolvedValue({
+      status: "ok",
+      refundId: "re1",
+      refundedMinor: 5000,
+      remainingRefundableMinor: 2500,
+      retainedProcessorCostMinor: 40,
+    });
+    const r = await refundPaymentRequestAction({
+      id: "r1",
+      refundType: "partial",
+      amountMinor: 5000,
+      case: "voluntary_partial",
+    });
+    expect(r).toEqual({
+      ok: true,
+      refundedMinor: 5000,
+      remainingRefundableMinor: 2500,
+      retainedProcessorCostMinor: 40,
+    });
   });
 
   it("forwards a by_line refund's lineIds and lineQuantities to the core (FD12)", async () => {

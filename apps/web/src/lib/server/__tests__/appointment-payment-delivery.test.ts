@@ -17,6 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   deliverPaymentRequestLink,
   sendPaymentReceiptEmail,
+  sendRefundConfirmationEmail,
 } from "@/lib/server/appointment-payment-delivery";
 
 type Row = Record<string, unknown> | null;
@@ -179,5 +180,73 @@ describe("sendPaymentReceiptEmail", () => {
     });
     expect(await sendPaymentReceiptEmail(c, ARGS)).toBe(false);
     expect(captureException).toHaveBeenCalled();
+  });
+});
+
+// C1.8 (docs/legal/counsel-accountant-handoff-2026-08.md Part 4): a refund
+// that leaves a balance gets the verbatim partial-refund paragraph; one that
+// doesn't keeps the plain full-refund wording. Named failure mode: swap the
+// `isPartialRefundForBuyer` check for its negation and every assertion below
+// that pins WHICH wording appeared flips.
+describe("sendRefundConfirmationEmail", () => {
+  const REFUND_ARGS = {
+    artistId: "artist1",
+    requestId: "r1",
+    bookingId: "b1",
+    projectId: null,
+    refundedMinor: 5000,
+    currency: "eur",
+  };
+
+  it("uses the plain full-refund wording when nothing remains (remainingRefundableMinor: 0)", async () => {
+    const c = client({
+      booking_requests: { customer_email: "client@example.com" },
+      profiles: { display_name: "Mika Ink" },
+    });
+    const ok = await sendRefundConfirmationEmail(c, {
+      ...REFUND_ARGS,
+      remainingRefundableMinor: 0,
+    });
+    expect(ok).toBe(true);
+    const html = (sendEmail.mock.calls[0]![0] as { html: string }).html;
+    expect(html).toContain(
+      "has refunded 50.00 EUR to your original payment method",
+    );
+    expect(html).not.toContain("We have refunded");
+    expect(html).not.toContain("right of return");
+  });
+
+  it("uses counsel's verbatim C1.8 wording, naming 'part of your order', when a bare partial refund leaves a balance", async () => {
+    const c = client({
+      booking_requests: { customer_email: "client@example.com" },
+      profiles: { display_name: "Mika Ink" },
+    });
+    const ok = await sendRefundConfirmationEmail(c, {
+      ...REFUND_ARGS,
+      remainingRefundableMinor: 2500,
+    });
+    expect(ok).toBe(true);
+    const html = (sendEmail.mock.calls[0]![0] as { html: string }).html;
+    expect(html).toContain(
+      "We have refunded 50.00 EUR for part of your order.",
+    );
+    expect(html).toContain(
+      "your right of return for the remaining items (where it applies) is unaffected.",
+    );
+  });
+
+  it("names the specific lines instead of the generic fallback when lineNames is given", async () => {
+    const c = client({
+      booking_requests: { customer_email: "client@example.com" },
+      profiles: { display_name: "Mika Ink" },
+    });
+    await sendRefundConfirmationEmail(c, {
+      ...REFUND_ARGS,
+      remainingRefundableMinor: 2500,
+      lineNames: ["Print"],
+    });
+    const html = (sendEmail.mock.calls[0]![0] as { html: string }).html;
+    expect(html).toContain("We have refunded 50.00 EUR for Print.");
+    expect(html).not.toContain("part of your order");
   });
 });

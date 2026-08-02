@@ -39,6 +39,9 @@ type RawProduct = {
   quantity: number | null;
   available_from?: string | null;
   preorder?: boolean;
+  /** Art. 16(c) exemption (C1.2), artist-set. Optional so the interest-only
+   *  read below (which does not select it) keeps compiling. */
+  custom_made?: boolean | null;
   product_variants: RawVariant[] | null;
 };
 
@@ -152,7 +155,7 @@ export async function getAddonProducts(
   const { data } = await serviceClient
     .from("products")
     .select(
-      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, custom_made, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", artistId)
     .eq("is_checkout_addon", true)
@@ -174,6 +177,10 @@ export async function getAddonProducts(
     status: (isProductStatus(p.status) ? p.status : "active") as ProductStatus,
     isCheckoutAddon: p.is_checkout_addon,
     quantity: p.quantity,
+    // GOODS-DISC-001: without this, computeAddonLines' `customMade` was
+    // always false for every add-on line, regardless of the artist's actual
+    // flag — the exemption claim silently never fired.
+    customMade: p.custom_made === true,
     variants: [...(p.product_variants ?? [])]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((v) => ({

@@ -58,6 +58,7 @@ no decision against it), ~ = partial.
 | Account deletion (+ re-auth) | ✅ | ✅ shared deleteOwnAccountCore | ✅ |
 | Deposit card-vs-manual predictor | getDepositCollection | SAME server predictor via /settings/payouts (D19 fixed in 8c07894) | ✅ |
 | Tier-aware appointment-fee display (G1, FEE-DSP-001) | request-detail accept dialog + /settings/payouts read `getDepositCollection().feeDisplay` (appointmentFeeDisplay, tier-resolved bps/percentLabel); flat PLATFORM_FEE_PERCENT constant retired from both | `appointmentFeeBps`/`appointmentFeePercentLabel` ADDITIVE on GET/POST `/api/mobile/settings/payouts` (MobilePayouts); BookingActions.tsx reads them with a fallback to the shared PLATFORM_FEE_PERCENT constant for an older server that predates the fields (version-skew pattern) | ✅ |
+| "No separate card-processing fees" commercial claim (A7, counsel-accountant-handoff-2026-08.md) | /settings/payouts copy, now bound to `noSeparateCardProcessingFeesClaimVisible` (@inklee/shared/platform-fee: payer-is-application AND a founder-recorded `billing_activation_approvals` row), not to the fee rate; **suppressed** until the founder records the row | The mobile payouts screen has never rendered this claim string at all (only the raw `appointmentFeeBps`/`appointmentFeePercentLabel` numbers, no derived sentence) — deliberate web-only decision, not a gap. If a native payouts screen ever adds an equivalent sentence, it MUST read the same shared predicate + the same approval row rather than re-deriving its own rate-based condition | 🌐 by decision |
 | Entitlement caps on create paths (fields/trips/studios/legs) | ✅ | ✅ capState on all 4 mobile routes | ✅ |
 | Payouts / Connect onboarding + ID document | ✅ | ✅ (connect-link via in-app browser) | ✅ |
 | Data export | ✅ /settings/export | — | ⬜ (low priority; web download) |
@@ -342,6 +343,36 @@ Two things follow, both done here:
   🌐. A native-created or native-edited product's `custom_made` defaults to
   `false` (returnable), which is the safe default (never silently claims an
   exemption) but is not parity.
+
+- **2026-08-02 — C1.8 partial-refund buyer notice, A6 retained-cost line, and
+  GOODS-DISC-001 (add-on checkout consumer-law disclosures).** Three related
+  changes, all 🌐 web-only BY DECISION for this pass:
+  (1) both refund confirmation emails (`appointment-payment-delivery.ts`,
+  `goods-order-refund.ts`) now send counsel's verbatim partial-refund wording
+  when a refund leaves a balance behind, via the new shared
+  `refund-buyer-notice.ts` — buyer-facing email content only, no route/wire
+  change, so nothing for the app to mirror.
+  (2) the artist-facing refund result (`RefundControl`, `GoodsRefundControl`)
+  now shows the retained non-recoverable processing cost as its own line
+  (`retainedProcessorCostMinor`, threaded through `refundPaymentRequestCore` /
+  `refundGoodsOrderCore` -> the web actions). The mobile refund route
+  (`/api/mobile/payments/requests/:id/refund`) does NOT return this field —
+  it already omits `remainingRefundableMinor` too (see the P9 A7 entry
+  below), so this is consistent with that route's existing scope, not a new
+  gap; if the app ever gets a refund-result screen, both fields land
+  together as one additive wire change.
+  (3) the appointment add-on checkout (`request/[token]`, which has no native
+  equivalent — the whole customer portal is a web-only magic-link surface)
+  now applies the SAME C1.1 seller-data gate and C1.2/C1.3 disclosures the
+  standalone shop uses, closing GOODS-DISC-001: `getAddonProducts` now
+  selects `custom_made`, `prepareCheckoutAction` refuses to add goods lines
+  when the artist's seller data is incomplete, order items snapshot
+  `custom_made_snapshot` (previously never written for this lane), and both
+  the checkout screen and the buyer's receipt (`sendGoodsOrderConfirmation`,
+  now built on the shared `buildOrderReceiptBody`) render the seller block
+  and the applicable return-right / custom-made notice. Entirely inside a
+  customer-facing web surface with no mobile counterpart, so no route or
+  wire-type change follows from it.
 
 - **2026-07-31 — Product bundles, native route + screen (Stage 3, slice 3,
   branch-only).** Closes the bundles native gap opened by slice 2:

@@ -8,6 +8,8 @@ import {
   RECEIPT_DURABLE_CLOSING_LINE,
   summarizeReturnDisclosure,
   buildOrderReceiptBody,
+  addonGoodsSellerGate,
+  addonCheckoutDisclosureSections,
 } from "@inklee/shared/consumer-disclosures";
 
 const SELLER = {
@@ -214,5 +216,121 @@ describe("buildOrderReceiptBody", () => {
       termsSection: null,
     });
     expect(body.trim().endsWith(RECEIPT_DURABLE_CLOSING_LINE)).toBe(true);
+  });
+
+  it("omits the fulfillment note by default (byte-identical to before the option existed)", () => {
+    const withoutNote = buildOrderReceiptBody({
+      ...base,
+      disclosure: "all_returnable",
+    });
+    expect(withoutNote).not.toContain("waiting for you");
+  });
+
+  it("inserts the fulfillment note, right after the total, when supplied (GOODS-DISC-001)", () => {
+    const body = buildOrderReceiptBody({
+      ...base,
+      disclosure: "all_returnable",
+      fulfillmentNote:
+        "Your goods will be waiting for you at your appointment.",
+    });
+    expect(body).toContain(
+      "Your goods will be waiting for you at your appointment.",
+    );
+    // Ordering: after the total, before the return notice.
+    const totalIdx = body.indexOf("Total paid:");
+    const noteIdx = body.indexOf("waiting for you");
+    const noticeIdx = body.indexOf("Right of return.");
+    expect(totalIdx).toBeGreaterThan(-1);
+    expect(noteIdx).toBeGreaterThan(totalIdx);
+    expect(noticeIdx).toBeGreaterThan(noteIdx);
+  });
+});
+
+describe("addonGoodsSellerGate", () => {
+  it("never blocks a deposit-only checkout, even with no seller data at all", () => {
+    expect(
+      addonGoodsSellerGate({
+        hasGoodsLines: false,
+        seller: { tradingName: null, address: null, contact: null },
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("blocks goods lines when the artist's seller data is incomplete", () => {
+    expect(
+      addonGoodsSellerGate({
+        hasGoodsLines: true,
+        seller: { tradingName: null, address: null, contact: null },
+      }),
+    ).toEqual({ ok: false, reason: "seller_data_incomplete" });
+  });
+
+  it("allows goods lines once seller data is complete", () => {
+    expect(
+      addonGoodsSellerGate({ hasGoodsLines: true, seller: SELLER }),
+    ).toEqual({ ok: true });
+  });
+
+  it("named failure mode: a gate that ignores hasGoodsLines would wrongly block deposit-only checkouts", () => {
+    // If addonGoodsSellerGate ever collapsed to `sellerDataComplete(seller)`
+    // alone (dropping the hasGoodsLines branch), this deposit-only case would
+    // flip to blocked — the exact regression this test pins.
+    const incompleteSeller = {
+      tradingName: null,
+      address: null,
+      contact: null,
+    };
+    const depositOnly = addonGoodsSellerGate({
+      hasGoodsLines: false,
+      seller: incompleteSeller,
+    });
+    const withGoods = addonGoodsSellerGate({
+      hasGoodsLines: true,
+      seller: incompleteSeller,
+    });
+    expect(depositOnly.ok).toBe(true);
+    expect(withGoods.ok).toBe(false);
+  });
+});
+
+describe("addonCheckoutDisclosureSections", () => {
+  it("returns nothing for an empty selection (deposit-only basket)", () => {
+    expect(addonCheckoutDisclosureSections([], SELLER, SUPPORT_EMAIL)).toEqual(
+      [],
+    );
+  });
+
+  it("includes the seller block and the standard return notice for an all-returnable selection", () => {
+    const sections = addonCheckoutDisclosureSections(
+      [{ customMade: false }],
+      SELLER,
+      SUPPORT_EMAIL,
+    );
+    expect(sections[0]).toContain(
+      "Sold by Mika Ink Studio, 12 Ink Street, Berlin, Germany.",
+    );
+    expect(sections.join("\n")).toContain("Right of return.");
+    expect(sections.join("\n")).not.toContain(CUSTOM_MADE_NOTICE);
+  });
+
+  it("shows the custom-made exemption instead of the return notice when everything selected is flagged", () => {
+    const sections = addonCheckoutDisclosureSections(
+      [{ customMade: true }],
+      SELLER,
+      SUPPORT_EMAIL,
+    );
+    expect(sections.join("\n")).toContain(CUSTOM_MADE_NOTICE);
+    expect(sections.join("\n")).not.toContain("Right of return.");
+  });
+
+  it("shows BOTH notices for a mixed selection — the named cross-cutting failure mode", () => {
+    const sections = addonCheckoutDisclosureSections(
+      [{ customMade: true }, { customMade: false }],
+      SELLER,
+      SUPPORT_EMAIL,
+    );
+    const joined = sections.join("\n");
+    expect(joined).toContain(CUSTOM_MADE_NOTICE);
+    expect(joined).toContain("Right of return.");
   });
 });

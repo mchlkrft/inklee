@@ -43,6 +43,7 @@ export function RefundControl({
   const [result, setResult] = useState<{
     refundedMinor: number;
     remainingRefundableMinor: number;
+    retainedProcessorCostMinor: number;
   } | null>(null);
 
   // A line already fully refunded has nothing left to select.
@@ -133,6 +134,7 @@ export function RefundControl({
     setResult({
       refundedMinor: r.refundedMinor,
       remainingRefundableMinor: r.remainingRefundableMinor,
+      retainedProcessorCostMinor: r.retainedProcessorCostMinor,
     });
     setExpanded(false);
     router.refresh();
@@ -140,12 +142,25 @@ export function RefundControl({
 
   if (result) {
     return (
-      <p className="rounded-md border border-border px-3 py-2 text-sm text-foreground">
-        Refunded {formatMinor(result.refundedMinor, currency)}.{" "}
-        {result.remainingRefundableMinor > 0
-          ? `${formatMinor(result.remainingRefundableMinor, currency)} still refundable.`
-          : "Nothing further is refundable on this request."}
-      </p>
+      <div className="space-y-1 rounded-md border border-border px-3 py-2 text-sm text-foreground">
+        <p>
+          Refunded {formatMinor(result.refundedMinor, currency)}.{" "}
+          {result.remainingRefundableMinor > 0
+            ? `${formatMinor(result.remainingRefundableMinor, currency)} still refundable.`
+            : "Nothing further is refundable on this request."}
+        </p>
+        {/* A6 (accountant, 2026-08-02): a SEPARATE line, never folded into the
+            sentence above — the retained cost is not part of what moved back
+            to the client, it is what Inklee did not return of its own fee. */}
+        {result.retainedProcessorCostMinor > 0 && (
+          <p className="text-muted-foreground">
+            Retained processing cost:{" "}
+            {formatMinor(result.retainedProcessorCostMinor, currency)} of
+            Inklee&apos;s fee, kept to cover a non-recoverable card-processing
+            cost on this refund.
+          </p>
+        )}
+      </div>
     );
   }
 

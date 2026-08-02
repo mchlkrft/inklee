@@ -27,6 +27,10 @@ import {
 } from "@/lib/order-fulfillment";
 import { sendEmail } from "@/lib/email/send";
 import { buildEmailHtml } from "@/lib/email/booking-templates";
+import {
+  isPartialRefundForBuyer,
+  partialRefundBuyerNotice,
+} from "@/lib/server/refund-buyer-notice";
 
 // ARTIST-INITIATED GOODS ORDER REFUND (FD12). The by-line/quantity/custom-amount
 // engine `goods-refund.ts` never had: that file is the WEBHOOK convergence
@@ -74,6 +78,12 @@ export type GoodsRefundResult =
       refundId: string;
       refundedMinor: number;
       remainingRefundableMinor: number;
+      /** A6 (accountant, 2026-08-02): the non-recoverable card-processing
+       *  cost THIS refund event retained from Inklee's own fee, in minor
+       *  units. See appointment-payment-refund.ts's identical field for the
+       *  full rationale — same number, same source (`decision`'s
+       *  `retainedAppliedMinor`), same "presentation only" scope. */
+      retainedProcessorCostMinor: number;
     }
   | { status: "error"; message: string };
 
@@ -549,6 +559,9 @@ export async function refundGoodsOrderCore(
       itemsTotalMinor - newAlreadyRefundedMinor,
     ),
     currency: (order.currency as string) ?? "eur",
+    // C1.8: a bare custom amount names no lines (falls back to "part of your
+    // order"); full/by_line refunds name exactly what refundLines recorded.
+    lineNames: bareAmountOnly ? [] : refundLines.map((l) => l.nameSnapshot),
   });
 
   return {
@@ -559,6 +572,7 @@ export async function refundGoodsOrderCore(
       0,
       itemsTotalMinor - newAlreadyRefundedMinor,
     ),
+    retainedProcessorCostMinor: decision.retainedAppliedMinor,
   };
 }
 
@@ -580,6 +594,10 @@ async function sendGoodsRefundConfirmationEmail(args: {
   refundedMinor: number;
   remainingRefundableMinor: number;
   currency: string;
+  /** C1.8: the named lines THIS refund covered (by-line/full refunds only —
+   *  empty for a bare custom amount, which falls back to counsel's "part of
+   *  your order" wording). */
+  lineNames?: string[];
 }): Promise<void> {
   try {
     let clientEmail = args.clientEmail;
@@ -602,16 +620,20 @@ async function sendGoodsRefundConfirmationEmail(args: {
     const artistName = (profile?.display_name as string | null) || "the artist";
 
     const amount = formatMinorAmount(args.refundedMinor, args.currency);
-    const remaining =
-      args.remainingRefundableMinor > 0
-        ? `\n\n${formatMinorAmount(args.remainingRefundableMinor, args.currency)} of your original order remains, unaffected by this refund.`
-        : "";
+
+    // C1.8: see appointment-payment-delivery.ts's identical branch — the
+    // partial-refund wording applies exactly when something is left over,
+    // never based on which refund-type string was used.
+    const mainParagraph = isPartialRefundForBuyer(args.remainingRefundableMinor)
+      ? partialRefundBuyerNotice({
+          amountLabel: amount,
+          lineNames: args.lineNames ?? [],
+        })
+      : `${artistName} has refunded ${amount} to your original payment method.\n\nRefunds typically appear on your statement within 5 to 10 business days, depending on your bank.`;
 
     const body = `Hi,
 
-${artistName} has refunded ${amount} to your original payment method.
-
-Refunds typically appear on your statement within 5 to 10 business days, depending on your bank.${remaining}
+${mainParagraph}
 
 If anything looks wrong, contact ${artistName} directly.`;
 

@@ -15,7 +15,14 @@ import { isArtistInitiatedFeeRefundCase } from "@inklee/shared/fee-refund-policy
 const LIST_PATH = "/goods/sales";
 
 export type GoodsRefundActionResult =
-  | { ok: true; refundedMinor: number; remainingRefundableMinor: number }
+  | {
+      ok: true;
+      refundedMinor: number;
+      remainingRefundableMinor: number;
+      /** A6: shown as its OWN line on the artist-facing refund result, never
+       *  folded into `refundedMinor`. */
+      retainedProcessorCostMinor: number;
+    }
   | { ok: false; error: string };
 
 export async function refundGoodsOrderAction(input: {
@@ -51,5 +58,6 @@ export async function refundGoodsOrderAction(input: {
     ok: true,
     refundedMinor: result.refundedMinor,
     remainingRefundableMinor: result.remainingRefundableMinor,
+    retainedProcessorCostMinor: result.retainedProcessorCostMinor,
   };
 }

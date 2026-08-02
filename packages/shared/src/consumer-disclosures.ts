@@ -99,6 +99,34 @@ export const CUSTOM_MADE_NOTICE =
 export const RECEIPT_DURABLE_CLOSING_LINE =
   "This message is your order confirmation on a durable medium.";
 
+/**
+ * GOODS-DISC-001. The appointment add-on checkout sells the SAME
+ * `custom_made`-capable catalogue as the standalone shop, riding on a
+ * booking's deposit PaymentIntent (`computeAddonLines`, shared by both). The
+ * two checkouts differ in what the buyer is primarily there for (a service
+ * deposit vs. a goods purchase), so this gate is scoped to whether a GOODS
+ * SALE is actually happening on THIS attempt, never to whether add-on
+ * products merely exist: a deposit-only checkout (no goods lines selected)
+ * has no goods contract to disclose, so an artist's incomplete seller data
+ * must never block it.
+ *
+ * The moment goods lines are non-empty, though, the add-on path is doing
+ * exactly what the standalone shop does when it enforces `sellerDataComplete`
+ * on its own money path (createStandaloneGoodsCheckoutCore) rather than only
+ * at the page layer: selling goods with no disclosable seller is the harm
+ * C1.1's prerequisite exists to prevent, and it is not less true because the
+ * sale happens to share a PaymentIntent with a deposit.
+ */
+export function addonGoodsSellerGate(input: {
+  hasGoodsLines: boolean;
+  seller: SellerData;
+}): { ok: true } | { ok: false; reason: "seller_data_incomplete" } {
+  if (!input.hasGoodsLines) return { ok: true };
+  return sellerDataComplete(input.seller)
+    ? { ok: true }
+    : { ok: false, reason: "seller_data_incomplete" };
+}
+
 export type ReturnDisclosureItem = { customMade: boolean };
 
 export type ReturnDisclosureSummary =
@@ -128,6 +156,44 @@ export function summarizeReturnDisclosure(
   const anyReturnable = items.some((i) => !i.customMade);
   if (anyCustom && anyReturnable) return "mixed";
   return anyCustom ? "all_custom_made" : "all_returnable";
+}
+
+/**
+ * GOODS-DISC-001: the return-right disclosure sections for the appointment
+ * ADD-ON checkout SCREEN — the seller block plus whichever notice(s) the
+ * CURRENT SELECTION needs, empty when nothing is selected. Distinct from
+ * `buildOrderReceiptBody` (which assembles the finished RECEIPT, "your
+ * order") because this describes a still-editable basket ("your selected
+ * items"), but it rests on the exact same primitives
+ * (`summarizeReturnDisclosure`, `sellerDisclosureBlock`, `returnRightNotice`,
+ * `CUSTOM_MADE_NOTICE`) so the two surfaces can never independently drift on
+ * WHICH notice applies, only on how it is introduced.
+ */
+export function addonCheckoutDisclosureSections(
+  selectedItems: ReturnDisclosureItem[],
+  seller: CompleteSellerData,
+  supportEmail: string,
+): string[] {
+  const summary = summarizeReturnDisclosure(selectedItems);
+  if (summary === "empty") return [];
+  const sections = [sellerDisclosureBlock(seller, { supportEmail })];
+  const notice = returnRightNotice({
+    sellerContact: seller.contact,
+    supportEmail,
+  });
+  if (summary === "all_custom_made") {
+    sections.push(CUSTOM_MADE_NOTICE);
+  } else if (summary === "mixed") {
+    sections.push(
+      "Some of your selected items are custom-made and cannot be returned:",
+      CUSTOM_MADE_NOTICE,
+      "The rest qualify for the standard return right:",
+      notice,
+    );
+  } else {
+    sections.push(notice);
+  }
+  return sections;
 }
 
 /** One line per purchased item, matching the pre-existing receipt format
@@ -167,6 +233,13 @@ export function buildOrderReceiptBody(input: {
    *  unavailable — the receipt still sends without it (a receipt failure
    *  must never fail settlement), but this should not happen in practice. */
   termsSection?: string | null;
+  /** GOODS-DISC-001: an optional line inserted right after the total, before
+   *  the return-right disclosure — e.g. the add-on checkout's "reserved for
+   *  pickup at your appointment" (goods paid for alongside a deposit are not
+   *  shipped/collected the same way a standalone-shop order is). Omitted by
+   *  default, so the standalone shop's receipt is byte-identical to before
+   *  this option existed. */
+  fulfillmentNote?: string | null;
 }): string {
   const sections: string[] = [
     `Thanks for your order from ${input.artistName}.`,
@@ -174,6 +247,7 @@ export function buildOrderReceiptBody(input: {
     input.items.map(formatReceiptLine).join("\n"),
     `Total paid: ${input.totalLabel}.`,
   ];
+  if (input.fulfillmentNote) sections.push(input.fulfillmentNote);
 
   const returnNotice = returnRightNotice({
     sellerContact: input.seller.contact,

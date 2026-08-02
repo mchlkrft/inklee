@@ -234,6 +234,7 @@ describe("refundPaymentRequestCore", () => {
       refundId: "re_test_123",
       refundedMinor: 15000,
       remainingRefundableMinor: 0,
+      retainedProcessorCostMinor: 0,
     });
 
     expect(mockStripe.refunds.create).toHaveBeenCalledWith(
@@ -457,6 +458,11 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(collectionUpdate()?.payload).toEqual({
       processor_cost_retained_minor: 200,
     });
+    // A6 (accountant, 2026-08-02): the SAME 200 the artist-facing UI now
+    // shows as its own line, sourced from this exact field.
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(200);
+    }
   });
 
   it("v1 retains nothing when the proven cost is zero", async () => {
@@ -474,6 +480,9 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(lastRefundCall().refund_application_fee).toBe(true); // full fee back
     expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
     expect(collectionUpdate()).toBeUndefined();
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(0);
+    }
   });
 
   it("v1 caps retention at the fee when the cost meets or exceeds it", async () => {
@@ -495,6 +504,9 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(collectionUpdate()?.payload).toEqual({
       processor_cost_retained_minor: 450,
     });
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(450);
+    }
   });
 
   it("v1 allocates retained cost proportionally on a partial refund", async () => {
@@ -521,6 +533,9 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(collectionUpdate()?.payload).toEqual({
       processor_cost_retained_minor: 100,
     });
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(100);
+    }
   });
 
   it("v1 does not retain the same cost twice across repeated refunds", async () => {
@@ -539,6 +554,11 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
     expect(lastRefundCall().refund_application_fee).toBe(true);
     expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
     expect(collectionUpdate()).toBeUndefined();
+    // This EVENT retained nothing (it had already been retained by a prior
+    // one) — the artist-facing line for THIS refund must read 0, not 200.
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(0);
+    }
   });
 
   it("v1 FAILS SAFE when the processor cost is unavailable: returns the full fee, never retains it", async () => {
@@ -641,6 +661,7 @@ describe("refundPaymentRequestCore v1 non-recoverable cost retention", () => {
       refundId: "re_test_123",
       refundedMinor: 15000,
       remainingRefundableMinor: 0,
+      retainedProcessorCostMinor: 0,
     });
     expect(lastRefundCall().reverse_transfer).toBe(true);
   });

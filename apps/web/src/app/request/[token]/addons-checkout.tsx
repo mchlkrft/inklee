@@ -12,6 +12,10 @@ import { Minus, Plus } from "lucide-react";
 import { prepareCheckoutAction } from "./actions";
 import { MAX_ADDON_QUANTITY } from "@/lib/orders";
 import { formatPrice } from "@/lib/goods";
+import {
+  addonCheckoutDisclosureSections,
+  type CompleteSellerData,
+} from "@inklee/shared/consumer-disclosures";
 
 export type AddonVariantView = {
   id: string;
@@ -25,6 +29,8 @@ export type AddonProductView = {
   imageUrl: string | null;
   price: number;
   stock: number | null;
+  /** Art. 16(c) exemption (C1.2), artist-set on the product. */
+  customMade: boolean;
   variants: AddonVariantView[];
 };
 
@@ -36,6 +42,7 @@ type Row = {
   sublabel: string | null;
   price: number;
   stock: number | null;
+  customMade: boolean;
 };
 
 function buildRows(products: AddonProductView[]): Row[] {
@@ -51,6 +58,7 @@ function buildRows(products: AddonProductView[]): Row[] {
           sublabel: v.name,
           price: v.price,
           stock: v.stock,
+          customMade: p.customMade,
         });
       }
     } else {
@@ -62,6 +70,7 @@ function buildRows(products: AddonProductView[]): Row[] {
         sublabel: null,
         price: p.price,
         stock: p.stock,
+        customMade: p.customMade,
       });
     }
   }
@@ -73,11 +82,19 @@ function CheckoutInner({
   depositAmount,
   currency,
   rows,
+  seller,
+  supportEmail,
 }: {
   token: string;
   depositAmount: number;
   currency: string;
   rows: Row[];
+  /** GOODS-DISC-001: null when the artist's seller data is incomplete. The
+   *  page that builds `products` already omits every add-on row in that
+   *  case (so `rows` is empty and this prop is moot), but the type stays
+   *  honest about the precondition rather than asserting non-null. */
+  seller: CompleteSellerData | null;
+  supportEmail: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -107,6 +124,23 @@ function CheckoutInner({
   // here: the client showing a reduction the server did not grant is the one
   // way this feature can lie about a price.
   const total = depositAmount + goodsTotal - discountEur;
+
+  // GOODS-DISC-001: the disclosure set is scoped to whether a GOODS SALE is
+  // actually happening (goodsTotal > 0), never to whether add-on products are
+  // merely on offer — a deposit-only basket has nothing to disclose. `seller`
+  // is only null when the page already omitted every add-on row (the money
+  // path enforces the same rule server-side), so goodsTotal can only be > 0
+  // here when `seller` is non-null.
+  const disclosureSections =
+    goodsTotal > 0 && seller
+      ? addonCheckoutDisclosureSections(
+          rows
+            .filter((r) => (qty[r.key] ?? 0) > 0)
+            .map((r) => ({ customMade: r.customMade })),
+          seller,
+          supportEmail,
+        )
+      : [];
 
   const selectionsPayload = () =>
     JSON.stringify(
@@ -283,6 +317,16 @@ function CheckoutInner({
         </div>
       </div>
 
+      {disclosureSections.length > 0 && (
+        <div className="space-y-2 rounded-md border border-border/60 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+          {disclosureSections.map((section, i) => (
+            <p key={i} className="whitespace-pre-line">
+              {section}
+            </p>
+          ))}
+        </div>
+      )}
+
       {goodsTotal > 0 && (
         <div className="space-y-1.5">
           <label
@@ -362,6 +406,8 @@ export default function AddonsCheckout({
   clientSecret,
   publishableKey,
   products,
+  seller,
+  supportEmail,
 }: {
   token: string;
   depositAmount: number;
@@ -369,6 +415,11 @@ export default function AddonsCheckout({
   clientSecret: string;
   publishableKey: string;
   products: AddonProductView[];
+  /** GOODS-DISC-001: null when the artist's seller data is incomplete. The
+   *  page never populates `products` in that case, so this only matters as a
+   *  defensive default. */
+  seller: CompleteSellerData | null;
+  supportEmail: string;
 }) {
   // Keep the Stripe promise + rows stable so the PaymentElement isn't remounted
   // when the selection changes (which would reset entered card details).
@@ -400,6 +451,8 @@ export default function AddonsCheckout({
           depositAmount={depositAmount}
           currency={currency}
           rows={rows}
+          seller={seller}
+          supportEmail={supportEmail}
         />
       </Elements>
     </div>

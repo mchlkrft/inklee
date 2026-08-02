@@ -12,6 +12,7 @@ const {
   mockStripe,
   mockExpand,
   mockRestock,
+  mockSendEmail,
 } = vi.hoisted(() => ({
   mockServiceClient: { from: vi.fn() },
   mockWriteAudit: vi.fn(),
@@ -22,6 +23,7 @@ const {
   },
   mockExpand: vi.fn(),
   mockRestock: vi.fn(),
+  mockSendEmail: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -43,6 +45,9 @@ vi.mock("@/lib/stripe-connect", () => ({
 vi.mock("@/lib/order-fulfillment", () => ({
   expandInventoryMovements: (...a: unknown[]) => mockExpand(...a),
   restockInventory: (...a: unknown[]) => mockRestock(...a),
+}));
+vi.mock("@/lib/email/send", () => ({
+  sendEmail: (...a: unknown[]) => mockSendEmail(...a),
 }));
 
 import { refundGoodsOrderCore } from "@/lib/server/goods-order-refund";
@@ -110,6 +115,7 @@ beforeEach(() => {
   // prove WHICH items/quantities this engine hands to it.
   mockExpand.mockImplementation(async (items: unknown[]) => items);
   mockRestock.mockResolvedValue(undefined);
+  mockSendEmail.mockResolvedValue(undefined);
   mockStripe.paymentIntents.retrieve.mockResolvedValue({
     id: "pi_test",
     amount: 10000,
@@ -678,6 +684,11 @@ describe("refundGoodsOrderCore: fee + processor-cost treatment", () => {
     expect(orderCostUpdate?.payload).toEqual({
       processor_cost_retained_minor: 40,
     });
+    // A6 (accountant, 2026-08-02): the SAME 40 the artist-facing UI shows as
+    // its own line.
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(40);
+    }
   });
 
   it("never retains the same processor cost twice across repeated refunds", async () => {
@@ -703,6 +714,11 @@ describe("refundGoodsOrderCore: fee + processor-cost treatment", () => {
     // Nothing left to retain -> the fee is returned in full this time.
     expect(lastRefundCall().refund_application_fee).toBe(true);
     expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    // This EVENT retained nothing (a prior one already retained the cost) —
+    // the artist-facing line for THIS refund must read 0, not 40.
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(0);
+    }
   });
 
   it("fails safe (returns the full fee) when the processor cost is unavailable, e.g. on an add-on order", async () => {
@@ -727,6 +743,91 @@ describe("refundGoodsOrderCore: fee + processor-cost treatment", () => {
     expect(result.status).toBe("ok");
     expect(lastRefundCall().refund_application_fee).toBe(true);
     expect(mockStripe.applicationFees.createRefund).not.toHaveBeenCalled();
+    if (result.status === "ok") {
+      expect(result.retainedProcessorCostMinor).toBe(0);
+    }
+  });
+});
+
+// C1.8 wiring, end to end through the real core (not just the pure notice
+// module): a by-line refund that leaves a balance must name the refunded
+// line and use counsel's partial wording; a bare custom amount falls back to
+// "part of your order"; a refund that drains the order keeps the plain
+// full-refund wording. Named failure mode: if refundGoodsOrderCore stopped
+// passing `lineNames`/the remaining balance through to the email, these
+// would regress to the generic "has refunded X" text this suite pins against.
+describe("refundGoodsOrderCore: C1.8 buyer notice wiring", () => {
+  function emailHtml(): string {
+    return (mockSendEmail.mock.calls.at(-1)?.[0] as { html: string }).html;
+  }
+
+  it("names the refunded line and uses the partial-refund wording when a balance remains (by-line)", async () => {
+    setupOrder({ client_email: "buyer@example.com" });
+    claimOk();
+    alreadyRefundedForItem(0); // item_1 only — item_2 (5000) remains after this
+    queue("profiles:select:single", { data: { display_name: "Mika Ink" } });
+
+    await refundGoodsOrderCore({
+      artistId: "artist_1",
+      orderId: "order_1",
+      refundType: "by_line",
+      lines: [{ orderItemId: "item_1" }],
+      case: "voluntary_full",
+    });
+
+    expect(mockSendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "buyer@example.com" }),
+    );
+    const html = emailHtml();
+    expect(html).toContain("We have refunded 50.00 EUR for Mug.");
+    expect(html).toContain(
+      "your right of return for the remaining items (where it applies) is unaffected.",
+    );
+  });
+
+  it("falls back to 'part of your order' for a bare custom amount that leaves a balance", async () => {
+    setupOrder({ client_email: "buyer@example.com" });
+    claimOk();
+    queue("profiles:select:single", { data: { display_name: "Mika Ink" } });
+
+    await refundGoodsOrderCore({
+      artistId: "artist_1",
+      orderId: "order_1",
+      refundType: "partial",
+      amountMinor: 1500,
+      case: "voluntary_partial",
+    });
+
+    const html = emailHtml();
+    expect(html).toContain(
+      "We have refunded 15.00 EUR for part of your order.",
+    );
+  });
+
+  it("keeps the plain full-refund wording when the refund drains the whole order", async () => {
+    setupOrder({
+      discount_code_id: "disc_1",
+      client_email: "buyer@example.com",
+    });
+    claimOk();
+    alreadyRefundedForItem(0);
+    alreadyRefundedForItem(0);
+    queue("orders:update:list", { data: [{ id: "order_1" }] });
+    queue("profiles:select:single", { data: { display_name: "Mika Ink" } });
+
+    await refundGoodsOrderCore({
+      artistId: "artist_1",
+      orderId: "order_1",
+      refundType: "full",
+      case: "voluntary_full",
+    });
+
+    const html = emailHtml();
+    expect(html).toContain(
+      "has refunded 100.00 EUR to your original payment method",
+    );
+    expect(html).not.toContain("We have refunded");
+    expect(html).not.toContain("right of return");
   });
 });
 

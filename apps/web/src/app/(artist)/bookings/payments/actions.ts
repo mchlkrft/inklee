@@ -161,7 +161,14 @@ export async function revisePaymentRequestAction(
 }
 
 export type RefundPaymentRequestResult =
-  | { ok: true; refundedMinor: number; remainingRefundableMinor: number }
+  | {
+      ok: true;
+      refundedMinor: number;
+      remainingRefundableMinor: number;
+      /** A6: shown as its OWN line on the artist-facing refund result, never
+       *  folded into `refundedMinor`. */
+      retainedProcessorCostMinor: number;
+    }
   | { ok: false; error: string };
 
 /** Refund a paid request. The fee-refund CASE decides Inklee's fee treatment, so
@@ -199,5 +206,6 @@ export async function refundPaymentRequestAction(input: {
     ok: true,
     refundedMinor: result.refundedMinor,
     remainingRefundableMinor: result.remainingRefundableMinor,
+    retainedProcessorCostMinor: result.retainedProcessorCostMinor,
   };
 }

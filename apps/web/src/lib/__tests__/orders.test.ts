@@ -258,3 +258,45 @@ describe("computeAddonLines and drops", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+// GOODS-DISC-001: computeAddonLines is the shared line composer for BOTH the
+// standalone shop and the appointment add-on checkout — the disclosure chain
+// for the add-on lane (checkout notices, order snapshot, receipt) depends
+// entirely on `customMade` surviving this step honestly. Named failure mode:
+// flip `customMade: product.customMade === true` (orders.ts) to a constant
+// `false`, or drop the field, and every assertion below fails.
+describe("computeAddonLines and the custom-made flag (C1.2)", () => {
+  it("snapshots customMade: true onto the line for a flagged product", () => {
+    const flagged: AddonProduct = { ...print, customMade: true };
+    const r = ok(
+      computeAddonLines(
+        [flagged],
+        [{ productId: "p-print", variantId: null, quantity: 1 }],
+      ),
+    );
+    expect(r.lines[0].customMade).toBe(true);
+  });
+
+  it("snapshots customMade: false for an explicitly unflagged product", () => {
+    const unflagged: AddonProduct = { ...print, customMade: false };
+    const r = ok(
+      computeAddonLines(
+        [unflagged],
+        [{ productId: "p-print", variantId: null, quantity: 1 }],
+      ),
+    );
+    expect(r.lines[0].customMade).toBe(false);
+  });
+
+  it("defaults to customMade: false when the field is absent (pre-C1.2 callers/fixtures)", () => {
+    // `print` itself carries no `customMade` key, matching every fixture that
+    // predates the flag.
+    const r = ok(
+      computeAddonLines(
+        [print],
+        [{ productId: "p-print", variantId: null, quantity: 1 }],
+      ),
+    );
+    expect(r.lines[0].customMade).toBe(false);
+  });
+});

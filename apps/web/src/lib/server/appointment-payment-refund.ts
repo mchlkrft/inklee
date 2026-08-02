@@ -37,6 +37,17 @@ export type RefundResult =
        *  units. Computed from the same allocation math as `maxRefundable`
        *  above (FD12), so it needs no extra query. */
       remainingRefundableMinor: number;
+      /** A6 (accountant, 2026-08-02): the non-recoverable card-processing
+       *  cost THIS refund event retained from Inklee's own fee, in minor
+       *  units — zero unless `retain_non_recoverable` actually applied one.
+       *  Exactly `retainedAppliedMinor` below: the amount recorded on
+       *  `payment_collections.processor_cost_retained_minor` and on this
+       *  event's own `refunds` row, never the fee-treatment's theoretical
+       *  `feeOutcome.retainMinor` (which can be non-null in a fail-safe path
+       *  that retained nothing). The accountant's requirement is presentation
+       *  only — this number was already computed and stored; it was never
+       *  surfaced past the audit log until now. */
+      retainedProcessorCostMinor: number;
     }
   | { status: "error"; message: string };
 
@@ -650,6 +661,9 @@ export async function refundPaymentRequestCore(input: {
     refundedMinor: refundMinor,
     remainingRefundableMinor,
     currency: allocations[0]?.currency ?? "eur",
+    // C1.8: only populated for by_line — empty for full/partial, which is
+    // exactly when counsel's "part of your order" fallback applies.
+    lineNames: refundLinePlan.map((p) => p.name),
   });
 
   return {
@@ -657,5 +671,6 @@ export async function refundPaymentRequestCore(input: {
     refundId: refund.id,
     refundedMinor: refundMinor,
     remainingRefundableMinor,
+    retainedProcessorCostMinor: retainedAppliedMinor,
   };
 }

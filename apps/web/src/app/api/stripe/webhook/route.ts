@@ -34,6 +34,7 @@ import {
   settlePaymentRequestDispute,
   settlePaymentRequestFailure,
 } from "@/lib/server/appointment-payment-settlement";
+import { SUPPORT_INBOX_EMAIL } from "@/lib/server/support";
 
 export const runtime = "nodejs";
 
@@ -844,6 +845,9 @@ export async function POST(request: Request) {
       variant: string | null;
       quantity: number;
       total: number;
+      // GOODS-DISC-001: sale-time snapshot, needed to build the receipt's
+      // return-right disclosure (summarizeReturnDisclosure).
+      customMade: boolean;
     }[] = [];
     let orderFlippedThisCall = false;
     if (order && order.status !== "paid") {
@@ -862,10 +866,12 @@ export async function POST(request: Request) {
         const { data: itemRows } = await serviceClient
           .from("order_items")
           .select(
-            "product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
+            "product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount, custom_made_snapshot",
           )
           .eq("order_id", order.id);
-        const items = (itemRows ?? []) as PaidOrderItem[];
+        const items = (itemRows ?? []) as (PaidOrderItem & {
+          custom_made_snapshot?: boolean | null;
+        })[];
         const lowStock = await decrementInventory(items);
 
         // Low-stock alerts (P5c). Inside the once-only flip gate, and each hit
@@ -907,6 +913,7 @@ export async function POST(request: Request) {
             variant: r.variant_snapshot,
             quantity: Number(r.quantity),
             total: Number(r.total_amount),
+            customMade: r.custom_made_snapshot === true,
           }));
         orderFlippedThisCall = true;
       }
@@ -919,17 +926,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, skipped: true });
     }
 
-    // Artist display name for the emails/notification below.
+    // Artist display name for the emails/notification below. Seller fields
+    // (GOODS-DISC-001) are read here too, defensively: the checkout-time gate
+    // (addonGoodsSellerGate in prepareCheckoutAction) is what actually
+    // guarantees complete seller data for any order carrying goods lines, so
+    // these fallbacks only cover that invariant being violated some other
+    // way, same posture as settleStandaloneGoodsOrder's own fallback.
     const { data: artistProfile } = await serviceClient
       .from("profiles")
-      .select("display_name")
+      .select(
+        "display_name, seller_trading_name, seller_address, seller_contact",
+      )
       .eq("id", booking.artist_id)
       .single();
     const artistDisplayName = artistProfile?.display_name ?? "the artist";
+    const goodsSeller = {
+      tradingName:
+        (artistProfile?.seller_trading_name as string | null) ||
+        artistDisplayName,
+      address: (artistProfile?.seller_address as string | null) || "",
+      contact:
+        (artistProfile?.seller_contact as string | null) || SUPPORT_INBOX_EMAIL,
+    };
     const depositEur = booking.deposit_amount
       ? Number(booking.deposit_amount)
       : 0;
     const goodsCount = goodsLines.reduce((n, l) => n + l.quantity, 0);
+    const goodsTotal = goodsLines.reduce((n, l) => n + l.total, 0);
 
     // Customer: itemised goods confirmation. Fires whenever the order flip
     // landed in THIS call (`orderFlippedThisCall`), even on a catch-up
@@ -943,8 +966,17 @@ export async function POST(request: Request) {
         to: booking.customer_email,
         artistName: artistDisplayName,
         lines: goodsLines,
-        total: order ? Number(order.subtotal_amount) : depositEur,
+        // GOODS-DISC-001 (found while wiring this): this used to read
+        // `order.subtotal_amount`, which is the DEPOSIT + goods combined
+        // (see prepareCheckoutAction) — a goods-only receipt claiming that
+        // number as "Total paid" overstated the goods total by the deposit
+        // every time. The deposit gets its own separate receipt
+        // (sendClientDepositReceiptEmail below); this one is goods-only, so
+        // its total must be too.
+        total: goodsTotal,
         currency: intent.currency,
+        seller: goodsSeller,
+        supportEmail: SUPPORT_INBOX_EMAIL,
       });
     }
 
@@ -986,7 +1018,7 @@ export async function POST(request: Request) {
           amountEur: depositEur,
           currency: intent.currency,
           goodsLines,
-          goodsTotal: goodsLines.reduce((n, l) => n + l.total, 0),
+          goodsTotal,
           placement: afd?.placement ?? "",
           date: booking.preferred_date ?? "",
         });

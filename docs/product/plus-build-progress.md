@@ -2794,3 +2794,152 @@ before merge.
 actions.ts`) was read but not modified — the nightly sweep covers it
 passively (see above) rather than adding a fourth explicit hook, to stay
 inside the assigned gallery-surface scope.
+
+## C1.8 + A6 + GOODS-DISC-001: partial-refund buyer notice, retained-cost
+line, add-on checkout disclosures (2026-08-02, ready for review)
+
+Three items from `docs/legal/counsel-accountant-handoff-2026-08.md` Part 4,
+plus the `GOODS-DISC-001` gap the C1.1-C1.3 task above raised proactively
+(`confidence: hypothesis`, unreproduced) and left open.
+
+**C1.8 — the partial-refund buyer notice.** New pure module
+`apps/web/src/lib/server/refund-buyer-notice.ts`: `isPartialRefundForBuyer`
+(true exactly when `remainingRefundableMinor > 0` — a `full` refund always
+drains to zero by construction, and a `by_line`/`partial` refund that
+happens to drain the LAST remaining balance correctly falls through to the
+existing full-refund wording instead of claiming an unchanged "rest of your
+order" that no longer exists) and `partialRefundBuyerNotice`, counsel's
+wording verbatim with the `[items/lines, or "part of your order"]` bracket
+filled from whichever line names the refund actually named (empty for a bare
+custom amount). Wired into BOTH lanes' buyer emails
+(`appointment-payment-delivery.ts`'s `sendRefundConfirmationEmail`,
+`goods-order-refund.ts`'s `sendGoodsRefundConfirmationEmail`), each now
+branching on `isPartialRefundForBuyer` instead of the old ad hoc "X remains"
+addendum. **Not wired:** counsel's "where the refund follows a return,
+reference it" clause exists as a `followsReturnOf` parameter but no caller
+populates it — neither refund core records a trustworthy "this event
+followed a CONFIRMED return" signal (the goods lane's `restocked` flag fires
+on every by-line/full refund regardless of whether the buyer ever shipped
+anything back, so it is not a safe proxy). Needs either an artist-supplied
+flag at refund time or a real return-confirmation record before it can be
+wired safely.
+
+**A6 — the retained processing cost gets its own line.** The arithmetic
+(`feeRefundOutcome` / `decideFeeTreatment`) was already correct and already
+stored the retained amount separately (`refunds.processor_cost_retained_minor`,
+migration `0139`) — it was simply never surfaced past the audit log. Both
+refund cores now return `retainedProcessorCostMinor` (the exact amount THIS
+event retained, not the fee-treatment's theoretical value, which can be
+non-null on a fail-safe path that retained nothing), threaded through both
+web actions (`bookings/payments/actions.ts`, `goods/sales/actions.ts`) to
+`RefundControl` / `GoodsRefundControl`, which now render it as its own
+labelled paragraph, never folded into the "Refunded X" sentence. Presentation
+only, per the accountant's own framing — no arithmetic changed. The mobile
+refund route does not return this field; see the parity register entry
+below for why that is not a new gap.
+
+**GOODS-DISC-001 — the add-on checkout had none of C1.1-C1.3.** Confirmed
+by reading the path, not just grep: `getAddonProducts`
+(`lib/addon-products.ts`) never selected `custom_made` from `products`, so
+`computeAddonLines`' `customMade` was silently `false` for every add-on line
+regardless of the artist's actual flag — fixed first, since the whole
+disclosure chain is worthless without it (new test coverage:
+`addon-products.test.ts`, `orders.test.ts`'s new "custom-made flag"
+describe block). `request/[token]/actions.ts`'s order-item insert never
+wrote `custom_made_snapshot` either (the standalone shop's checkout does);
+fixed to match. The receipt (`sendGoodsOrderConfirmation`,
+`send-booking-email.ts`) was a bare item/total list with no seller identity
+and no return-right disclosure; rebuilt on the SAME `buildOrderReceiptBody`
+the standalone shop's receipt uses (new optional `fulfillmentNote` param,
+default-omitted so the standalone shop's own receipt is byte-identical) —
+found and fixed in passing: this receipt's `total` was reading
+`order.subtotal_amount`, which is the DEPOSIT + goods COMBINED
+(`prepareCheckoutAction`), so a goods-only receipt was overstating its own
+total by the deposit amount every time. Now uses the goods-only sum the
+artist-notification email already computed correctly.
+
+**Judgment call (asked for explicitly): what disclosure set applies to a
+checkout selling goods alongside a deposit, and does the seller-data gate
+extend to it.** The deposit is a service commitment, not a goods sale, so
+the C1.1 seller block and C1.2 return-right notice are scoped strictly to
+whether the CURRENT selection actually contains chargeable goods lines
+(`goodsTotal > 0` client-side, `computed.lines.length > 0` server-side) —
+never to whether add-on products are merely on offer. A deposit-only
+checkout gets neither, because no goods sale exists there to disclose.
+Because the add-on path can sell the IDENTICAL catalogue the standalone shop
+is blocked from selling under an incomplete-seller-data condition, the same
+gate now applies here: `prepareCheckoutAction` refuses to add goods lines
+(never the deposit) when the artist's seller data is incomplete, via a new
+shared `addonGoodsSellerGate` (`consumer-disclosures.ts`) that takes
+`hasGoodsLines` as an explicit input specifically so a deposit-only prepare
+is never blocked by it — enforced on the money path first (SHOP-VIS-001
+posture), mirrored at the page layer (`request/[token]/page.tsx` omits every
+add-on row when seller data is incomplete, so there is nothing to disclose
+incompletely or gate past twice). The "Order with obligation to pay" button
+relabel is explicitly OUT of scope: this checkout's button already collects
+a payment obligation regardless of goods (the deposit), so relabelling it is
+a question about the deposit flow itself, not specific to this gap — flagged
+here rather than silently redefined.
+
+New shared decision logic lives in `packages/shared/src/consumer-disclosures.ts`
+(reused, not rebuilt, per the brief): `addonGoodsSellerGate` (the gate above)
+and `addonCheckoutDisclosureSections` (the checkout SCREEN's seller
+block + notice(s) for the live selection — pulled out of the `.tsx` checkout
+component specifically so it is unit-testable, since vitest's include is
+`src/**/*.test.ts`, not `.tsx`; the receipt's `buildOrderReceiptBody` and
+the screen's `addonCheckoutDisclosureSections` share every primitive
+(`summarizeReturnDisclosure`, `sellerDisclosureBlock`, `returnRightNotice`,
+`CUSTOM_MADE_NOTICE`) so the two surfaces cannot independently drift on
+WHICH notice applies, only on its introductory wording, which differs
+deliberately — the receipt describes a finished order, the screen a
+still-editable selection).
+
+**Validation.** `npx tsc --noEmit` clean. `eslint` clean on every touched
+file (`apps/web` and `packages/shared` configs both run, since the shared
+package sits outside the web app's eslint base path). Full `npx vitest run`:
+193 files, 3260 passed + 1 expected fail (same single pre-existing expected
+fail as every prior baseline in this doc), up from 3160 baseline stated in
+the task brief — no regressions. `pnpm test:db` NOT run: no migration in
+this change (the `custom_made_snapshot` / `seller_*` columns already exist
+from `0142`), and the Supabase Docker instance is shared with other
+concurrently-working agents per the standing warning.
+
+New/updated test files: `refund-buyer-notice.test.ts` (new, 15 cases,
+including two explicitly named "mutation" pins on the `remainingAfterMinor
+> 0` boundary), `send-booking-email.test.ts` (new — `sendGoodsOrderConfirmation`
+had zero prior direct coverage), `addon-products.test.ts` (new, pins the
+`custom_made` select/map fix), `consumer-disclosures.test.ts` (+`addonGoodsSellerGate`,
++`addonCheckoutDisclosureSections`, +`buildOrderReceiptBody`'s
+`fulfillmentNote`), `orders.test.ts` (+3 cases closing the zero-coverage gap
+on `customMade` pass-through), `appointment-payment-delivery.test.ts`
+(+`sendRefundConfirmationEmail`, previously untested), `appointment-payment-refund.test.ts`
+and `goods-order-refund.test.ts` (+`retainedProcessorCostMinor` assertions
+on every existing retention-scenario test, +3 new C1.8 wiring tests on the
+goods lane through the real core with `sendEmail` now mocked), `actions.test.ts`
+(bookings/payments) (+A6 pass-through assertion).
+
+Mutation-proved by hand: `isPartialRefundForBuyer(0)` flipped to `true`
+breaks the "full refund keeps plain wording" tests in both refund-delivery
+test files; `addonGoodsSellerGate`'s `hasGoodsLines` branch removed (falling
+back to `sellerDataComplete(seller)` alone) breaks the deposit-only-must-
+never-block test named exactly for that regression; `getAddonProducts`'
+`customMade: p.custom_made === true` reverted to a constant `false` breaks
+all three `addon-products.test.ts` cases and the `orders.test.ts`
+custom-made block would then be the only thing left defending the claim.
+
+**Not done, flagged rather than assumed:** the mobile refund route
+(`/api/mobile/payments/requests/:id/refund`) does not return
+`retainedProcessorCostMinor` — consistent with it already omitting
+`remainingRefundableMinor`, not a new gap, recorded in
+`docs/web-native-parity.md`'s new 2026-08-02 entry. `goods/sales/actions.ts`'s
+`refundGoodsOrderAction` (the thin action wrapper) has no dedicated test —
+the file has no prior test scaffolding at all and the one line it added
+(`retainedProcessorCostMinor: result.retainedProcessorCostMinor`) is a
+straight pass-through already exercised at the core level; the appointment
+lane's equivalent wrapper does have a new test (above) as the template if a
+future pass wants parity here too.
+
+**Audit register.** Findings and remediation for `GOODS-DISC-001` (closing
+it) and the C1.8/A6 items reported to the team lead for `docs/audit/findings.yaml`,
+per this task's explicit instruction to report rather than edit the register
+directly.

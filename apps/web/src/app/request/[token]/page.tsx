@@ -11,6 +11,9 @@ import type { AddonProductView } from "./addons-checkout";
 import { getAddonProducts } from "@/lib/addon-products";
 import { isGoodsCommerceEnabled } from "@/lib/features";
 import { parseDepositPolicy } from "@/lib/deposit-policy";
+import { fetchSellerData, sellerDataComplete } from "@/lib/server/seller-data";
+import { SUPPORT_INBOX_EMAIL } from "@/lib/server/support";
+import type { CompleteSellerData } from "@inklee/shared/consumer-disclosures";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -101,8 +104,24 @@ export default async function RequestPortalPage({
     // RS-3: the pre-checkout add-on intersection is part of the parked goods
     // flow. Skip it entirely when commerce is off — the portal renders a
     // deposit-only payment (no goods rows ever surface).
+    // GOODS-DISC-001: the C1.1 seller-data prerequisite, checked at the SAME
+    // authority the standalone shop's own page uses (sellerDataComplete).
+    // Only fetched when goods could possibly surface at all (same RS-3/status
+    // gate as the add-on read below) — an approved booking or a parked-goods
+    // deployment has no use for it. `addonGoodsSellerGate` is the
+    // authoritative money-path re-check in prepareCheckoutAction; this is the
+    // page-layer half of the same defense-in-depth pair (SHOP-VIS-001
+    // posture) — an artist with incomplete seller data gets NO add-on rows at
+    // all here, so there is nothing to disclose incompletely or to gate past.
+    const goodsCouldApply =
+      isGoodsCommerceEnabled() && booking.status === "deposit_pending";
+    const seller = goodsCouldApply
+      ? await fetchSellerData(booking.artist_id)
+      : { tradingName: null, address: null, contact: null };
+    const sellerComplete = goodsCouldApply && sellerDataComplete(seller);
+
     const addonProducts: AddonProductView[] = [];
-    if (isGoodsCommerceEnabled() && booking.status === "deposit_pending") {
+    if (goodsCouldApply && sellerComplete) {
       const { data: rawInterests } = await serviceClient
         .from("booking_interests")
         .select("product_id, variant_id, quantity")
@@ -147,6 +166,7 @@ export default async function RequestPortalPage({
               imageUrl: p.imageUrl,
               price: p.price,
               stock: null,
+              customMade: p.customMade === true,
               variants: variantViews,
             });
           } else {
@@ -159,6 +179,7 @@ export default async function RequestPortalPage({
               imageUrl: p.imageUrl,
               price: p.price,
               stock: Math.max(0, Math.min(cap, onHand)),
+              customMade: p.customMade === true,
               variants: [],
             });
           }
@@ -200,6 +221,11 @@ export default async function RequestPortalPage({
           ? parseDepositPolicy(booking.deposit_policy)
           : null,
         addonProducts,
+        // GOODS-DISC-001: null (never rendered as a disclosure) unless the
+        // seller data is actually complete — mirroring `addonProducts` being
+        // empty in the same case, so the two can never disagree.
+        seller: sellerComplete ? (seller as CompleteSellerData) : null,
+        supportEmail: SUPPORT_INBOX_EMAIL,
       },
     };
   }

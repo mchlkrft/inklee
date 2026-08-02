@@ -16,6 +16,7 @@ import { detectStripeMode } from "@/lib/deposit-settings";
 import type { AddonProductView } from "./addons-checkout";
 import type { DepositPolicy } from "@/lib/deposit-policy";
 import { sanitizeHttpUrl } from "@inklee/shared/url";
+import type { CompleteSellerData } from "@inklee/shared/consumer-disclosures";
 
 // RS-3: goods commerce is parked. The deposit-only path renders the plain
 // DepositPaymentForm (no goods rows, no prepareCheckoutAction round-trip — the
@@ -51,6 +52,11 @@ type Booking = {
   stripePublishableKey: string | null;
   depositPolicy: DepositPolicy | null;
   addonProducts: AddonProductView[];
+  /** GOODS-DISC-001: null when the artist's seller data is incomplete — the
+   *  page also empties `addonProducts` in that case, so no goods sale can
+   *  reach the money path without it. */
+  seller: CompleteSellerData | null;
+  supportEmail: string;
 };
 
 const tomorrow = () => {
@@ -323,6 +329,8 @@ export default function CustomerPortal({ booking }: { booking: Booking }) {
                   clientSecret={booking.depositClientSecret}
                   publishableKey={booking.stripePublishableKey}
                   products={booking.addonProducts}
+                  seller={booking.seller}
+                  supportEmail={booking.supportEmail}
                 />
               ) : (
                 <DepositPaymentForm

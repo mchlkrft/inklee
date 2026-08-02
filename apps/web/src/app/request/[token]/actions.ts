@@ -25,6 +25,8 @@ import {
   DEPOSIT_LINE_TITLE,
   type AddonSelection,
 } from "@/lib/orders";
+import { fetchSellerData } from "@/lib/server/seller-data";
+import { addonGoodsSellerGate } from "@inklee/shared/consumer-disclosures";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -475,6 +477,23 @@ export async function prepareCheckoutAction(
   const computed = computeAddonLines(products, selections);
   if (!computed.ok) return { error: computed.error };
 
+  // GOODS-DISC-001: this checkout sells the exact same custom_made-capable
+  // catalogue as the standalone shop (computeAddonLines is the shared line
+  // composer), so the same C1.1 prerequisite applies the moment goods lines
+  // are actually present — checked HERE, on the money path, not only wherever
+  // the picker is rendered (SHOP-VIS-001 posture: a page-layer filter alone
+  // never protects money). A deposit-only prepare (no goods lines) is never
+  // blocked by this — see addonGoodsSellerGate's own doc comment for why.
+  if (computed.lines.length > 0) {
+    const seller = await fetchSellerData(booking.artist_id as string);
+    const gate = addonGoodsSellerGate({ hasGoodsLines: true, seller });
+    if (!gate.ok) {
+      return {
+        error: "One of the items you picked isn’t available to add right now.",
+      };
+    }
+  }
+
   // Discount (P5b). Applied to the GOODS subtotal only: the deposit is tattoo
   // service value the artist quoted, and a shop code reaching it would reduce
   // the artist's own money.
@@ -586,6 +605,11 @@ export async function prepareCheckoutAction(
       unit_amount: l.unitAmount,
       total_amount: l.totalAmount,
       currency: "eur",
+      // C1.2: freeze the exemption flag at sale time (same pattern the
+      // standalone shop's createStandaloneGoodsCheckoutCore already uses) —
+      // previously omitted here entirely, so an add-on order's items could
+      // never honestly answer "was this custom-made at the time of sale".
+      custom_made_snapshot: l.customMade,
     })),
   ];
   const { error: itemsErr } = await serviceClient
