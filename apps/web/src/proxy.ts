@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { decideHostRouting, parseHost } from "@/lib/host";
+import { resolveMfaStepUp } from "@/lib/mfa-step-up";
 
 const ARTIST_PATHS = [
   "/dashboard",
@@ -92,16 +94,27 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // If user has enrolled TOTP but is only at AAL1, require MFA challenge
+    // If user has enrolled TOTP but is only at AAL1, require MFA challenge.
+    // MFA-GATE-001: a failed check must never be treated as "no step-up
+    // needed" — see resolveMfaStepUp for the three outcomes and the retry.
     if (!pathname.startsWith("/auth/mfa")) {
-      try {
-        const { data: aal } =
-          await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (aal?.nextLevel === "aal2" && aal?.currentLevel === "aal1") {
-          return NextResponse.redirect(new URL("/auth/mfa", request.url));
-        }
-      } catch {
-        // MFA check failed — continue without gating
+      const stepUp = await resolveMfaStepUp(() =>
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      );
+      if (stepUp === "step-up-required") {
+        return NextResponse.redirect(new URL("/auth/mfa", request.url));
+      }
+      if (stepUp === "unknown") {
+        // Fail CLOSED: route to the same challenge page rather than let an
+        // indeterminate assurance level reach a gated path. This cannot loop
+        // — /auth/mfa is excluded from this gate above, and its own factor
+        // lookup (resolve-totp-status.ts) never redirects back here either.
+        Sentry.captureMessage("mfa_step_up_check_failed", {
+          level: "error",
+          tags: { area: "proxy_mfa_gate" },
+          extra: { pathname, userId: user.id },
+        });
+        return NextResponse.redirect(new URL("/auth/mfa", request.url));
       }
     }
 
