@@ -14,6 +14,7 @@ import {
   refundDepositCore,
   cancelBookingCore,
   reopenBookingCore,
+  markGoodsPickedUpCore,
 } from "@/lib/server/bookings";
 // A "use server" file may only export async functions, so the type is imported
 // (erased at compile) but NOT re-exported. Consumers import it directly from
@@ -160,37 +161,24 @@ export async function markWaitlistContacted(
 }
 
 // Slice 75 — mark a paid order's goods as collected at the appointment.
+//
+// PAY-AUTHZ-002 remediation (migration 0146): `orders` is now
+// SELECT-only-for-authenticated + service-role-write, so this can no longer
+// write directly through the cookie-session client the way it used to. The
+// business logic and the ownership check both moved into
+// markGoodsPickedUpCore (@/lib/server/bookings), which runs service-role
+// after an explicit artist_id check — this wrapper only resolves the session
+// and revalidates, matching every other action in this file.
 export async function markGoodsPickedUp(
   orderId: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await cookieUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: order } = await supabase
-    .from("orders")
-    .select("id, booking_id, status")
-    .eq("id", orderId)
-    .eq("artist_id", user.id)
-    .single();
-  if (!order) return { error: "Order not found." };
-  if (order.status !== "paid") {
-    return { error: "Only paid orders can be marked picked up." };
-  }
+  const result = await markGoodsPickedUpCore(user.id, orderId);
+  if ("error" in result) return result;
 
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      fulfillment_status: "picked_up",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId)
-    .eq("artist_id", user.id);
-  if (error) return { error: error.message };
-
-  revalidatePath(`/bookings/requests/${order.booking_id}`);
+  revalidatePath(`/bookings/requests/${result.bookingId}`);
   return { success: true };
 }
 

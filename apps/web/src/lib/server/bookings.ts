@@ -13,6 +13,7 @@
 import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
+import { serviceClient } from "@/lib/supabase/service";
 import { formatSize } from "@/lib/booking-schema";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { canTransition, isReopenable } from "@/lib/booking-fsm";
@@ -1816,4 +1817,47 @@ export async function createAppointmentCore(
   }
 
   return { id: bookingId };
+}
+
+export type GoodsPickupResult =
+  | { error: string }
+  | { success: true; bookingId: string };
+
+/**
+ * Mark a paid order's goods as collected at the appointment (Slice 75).
+ *
+ * PAY-AUTHZ-002 remediation (migration 0146): `orders` moved to
+ * SELECT-only-for-authenticated + service-role-write, so this can no longer
+ * write through the artist's own RLS-scoped client the way it used to. The
+ * ownership check that RLS previously enforced implicitly is now explicit —
+ * both the read and the write are scoped by `artist_id = artistId` — matching
+ * the 0080 house convention every other write in this file already follows
+ * for `booking_requests`.
+ */
+export async function markGoodsPickedUpCore(
+  artistId: string,
+  orderId: string,
+): Promise<GoodsPickupResult> {
+  const { data: order } = await serviceClient
+    .from("orders")
+    .select("id, booking_id, status")
+    .eq("id", orderId)
+    .eq("artist_id", artistId)
+    .single();
+  if (!order) return { error: "Order not found." };
+  if (order.status !== "paid") {
+    return { error: "Only paid orders can be marked picked up." };
+  }
+
+  const { error } = await serviceClient
+    .from("orders")
+    .update({
+      fulfillment_status: "picked_up",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .eq("artist_id", artistId);
+  if (error) return { error: error.message };
+
+  return { success: true, bookingId: order.booking_id as string };
 }
