@@ -15153,6 +15153,218 @@ findings:
         note: "Recorded against myself: I nearly dismissed this after a partial read that found the
           columns present in the FILE without checking which of the two functions held them."
 
+  - id: "BDEL-PAY-002"
+    title: "Account deletion's deposit read discarded its error, so a transient read failure let
+      deletion proceed as though the artist had no deposits at all"
+    summary: "deleteOwnAccountCore reads booking_requests to find live unpaid deposit intents and
+      paid deposits needing retention. That read bound `data` and not `error`, alone among the
+      reads in the function - every later one (orders, payment_requests, lines, collections,
+      allocations) already checks and throws. A transient failure therefore produced an empty row
+      set rather than an error, and deletion continued on the premise that there was nothing to
+      cancel and nothing to retain: it would skip cancelling a genuinely live unpaid PaymentIntent,
+      leaving money able to land against a deleted profile, and skip retaining a genuinely paid
+      deposit's record, which is the counsel-required guarantee in sections 3 and 4."
+    classification:
+      domain: "data-retention"
+      category: "silent-failure"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "a2a7-worker, during the discarded-error sweep opened as residual risk by
+        FEE-DSP-002"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "40191929"
+      environment: "local"
+      discovery_context: "The sweep was scoped to platform-fee readers. This read qualified only
+        because it widens in platform_fee_collected_cents for the financial snapshot; the defect
+        it turned out to have is not about fees at all. Worth recording as an argument for
+        scoping sweeps by MECHANISM rather than by subject: a fee-shaped search found a deletion
+        defect."
+    location:
+      files:
+        - "apps/web/src/lib/server/account-deletion.ts"
+    evidence:
+      observed_facts:
+        - "Pre-fix the read bound only `data`; every subsequent read in the same function binds
+          `error` and returns a transient ERROR."
+        - "Removing the added guard reds the named test with 'unexpected table reached after the
+          deposit read should have halted: billing_subscriptions', proving the old code continued
+          past the failure rather than stopping."
+      reproduction: "Force the booking_requests read to error, then assert the function halts
+        before profiles.delete(); a control case proves the success path is unaffected. Mutation
+        performed twice, once by the implementing worker and once independently by the supervisor
+        session, source restored sha256-byte-exact."
+      inspected_comparables_without_issue:
+        - "account-deletion-logic.ts, the pure snapshot builder: keeps
+          platform_fee_collected_cents and platform_fee_amount as separate per-row fields and
+          never sums them, so it cannot carry the fee-overlap defect by construction."
+        - "tax-threshold-rollup.ts: sums three fee sources, excludes booking-coupled orders, all
+          three reads check error and throw, all three selects verified to resolve."
+        - "fee-savings-query.ts at HEAD: re-verified after its own repair."
+        - "appointment-payment-settlement.ts, appointment-payment-intent.ts, goods-checkout.ts,
+          request/[token]/actions.ts, stripe/webhook/route.ts: writers of these columns, not
+          aggregate readers."
+        - "Growth cockpit, admin queries and the data-export route: do not touch these columns at
+          all. The admin-side fee hits are fee_sponsored / fee_sponsored_used_cents, a different
+          concept."
+    assessment:
+      interpretation: "The same mechanism as FEE-DSP-002 - a read whose error is never bound - on a
+        statutory path instead of a dashboard. The analytics instance produced a wrong number; this
+        one produces a wrong DECISION, and the decision is irreversible."
+      root_cause_hypothesis: "The function grew read by read. The guard convention was established
+        after this read was written and never applied backwards, which is why it is the only
+        unguarded one."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Any artist deleting an account while the database read fails
+        transiently."
+      production_exposure: "Unquantified. The code is live and account deletion is a real user
+        action, but a transient failure at exactly this read has not been observed and there is no
+        telemetry that would show it. That absence of evidence is not evidence of absence: a
+        swallowed error leaves no trace, which is the defining property of the class."
+      exploit_preconditions: "Not attacker-driven; requires a transient database failure to
+        coincide with a deletion."
+      remaining_uncertainty: "Whether it has ever actually fired in production cannot be
+        determined from here."
+    relationships:
+      related_findings:
+        - "FEE-DSP-002"
+        - "BDEL-PAY-001"
+        - "WHK-ERR-001"
+      analogous_uninspected_areas:
+        - "The remaining discarded-error reads in account-deletion.ts itself: the profiles select
+          (~line 92) and the auth.admin.getUserById call (~line 101). Same shape, deliberately not
+          widened into during a fee-scoped sweep, now assigned."
+        - "The refund path's payment_collections read, recorded separately as PAY-RFD-011."
+        - "Mobile /api/mobile/payments/requests/* refund responses."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "40191929"
+      fixed_at: "2026-08-02"
+      proposed_action: "Fail closed with the same transient-ERROR shape the function already uses
+        for every other read failure."
+    verification:
+      status: "not-started"
+      independent: false
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "40191929"
+      verification_method: "Two unit tests with a mocked client, which is the right tool here: this
+        is a control-flow defect with no schema mismatch, unlike FEE-DSP-002 where a mock was
+        structurally incapable of catching the bug. Mutation reproduced independently by the
+        supervisor session, which is more than the usual self-test but still not an independent
+        verification of the FIX."
+      residual_risk: "The two sibling unguarded reads in the same function are not yet fixed, so
+        deletion can still proceed on a false premise by a different route."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "a2a7-worker"
+        action: "opened"
+        note: "Found by a sweep the worker was told to run because FEE-DSP-002 recorded 'nobody has
+          checked the siblings' as residual risk. That is the intended use of the field and this is
+          the first time it has directly produced a finding."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Accepted after independently re-running the mutation rather than accepting the
+          worker's proof."
+
+  - id: "PAY-RFD-011"
+    title: "The refund path cannot tell a failed payment_collections read from an absent row, and
+      the fallback can retain processor cost from the buyer twice"
+    summary: "appointment-payment-refund.ts reads payment_collections with maybeSingle() and
+      discards the error, so a transient failure takes the same path as a genuinely absent row.
+      Three values then fall back wrongly: feeChargedMinor to the Stripe intent's METADATA (what
+      Inklee intended, not what settlement booked, which is the principle behind the existing
+      sponsorship rule); policyVersion to the ACTIVE fee-refund policy instead of the version the
+      payment was stamped at (FEE-STP-001's shape); and alreadyRetainedMinor to 0, which across
+      successive partial refunds means processor cost already retained from the buyer can be
+      retained AGAIN."
+    classification:
+      domain: "payment"
+      category: "money-correctness"
+      severity: "high"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "a2a7-worker during the discarded-error sweep; consequences widened by the
+        supervisor session"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "40191929"
+      environment: "repository-only"
+      discovery_context: "The worker identified the discard and the metadata fallback, judged it
+        lower-risk than the account-deletion instance because a designed fallback exists, and
+        REPORTED IT RATHER THAN FIXING IT, citing the money-path rules in AGENTS.md as reason to
+        ask first. That was the right call. Reviewing it turned up the double-retention
+        consequence, which neither the original report nor the code comments name."
+    location:
+      files:
+        - "apps/web/src/lib/server/appointment-payment-refund.ts"
+    evidence:
+      observed_facts:
+        - "The read binds data only; feeChargedMinor, alreadyRetainedMinor and policyVersion all
+          coalesce off the undefined result."
+        - "The select itself resolves against the real schema (verified via local PostgREST), so
+          unlike FEE-DSP-002 this is not a dead query - the fallback is only reached on a genuine
+          read failure."
+        - "nonRecoverableCostMinor is NOT affected: it requires processor_cost_status ==
+          'captured' and so resolves to null on a failed read, which the code comment correctly
+          describes as forcing the fail-safe."
+    assessment:
+      interpretation: "A designed fallback for an absent row, silently reused for a failed read.
+        The two are different events and only one of them has a safe default."
+      root_cause_hypothesis: "maybeSingle() makes absence a normal outcome, which makes it natural
+        to write a coalescing fallback and easy to forget that the same expression also swallows
+        an error."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Buyers receiving successive partial refunds on an appointment
+        payment."
+      production_exposure: "None realised: no live-mode charge has ever been taken, so no refund
+        has ever run against real money."
+      exploit_preconditions: "A transient database failure during a refund that follows an earlier
+        partial refund which retained processor cost."
+      remaining_uncertainty: "Not confirmed by execution. Recorded as high rather than confirmed
+        because it rests on reading the coalescing chain, with no reproduction yet. The fix and its
+        tests are assigned; this entry must be upgraded on evidence, not on completion."
+    relationships:
+      related_findings:
+        - "BDEL-PAY-002"
+        - "FEE-DSP-002"
+        - "FEE-STP-001"
+      analogous_uninspected_areas:
+        - "The allocations read at ~line 135 in the same file, same discard shape, feeds
+          collectedMinor."
+    remediation:
+      status: "open"
+      proposed_action: "Bind the error and refuse to compute a refund outcome on a failed read,
+        using the function's own {status: 'error'} shape. PRESERVE the existing fallback for a
+        genuinely absent row ({data: null, error: null}), which is correct and intended. Leave
+        nonRecoverableCostMinor's fail-safe alone."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "40191929"
+      verification_method: "Not yet attempted. A test per consequence is required, each with its
+        own stated mutation; the double-retention case is the one that must fail without the fix."
+      residual_risk: "Unfixed at time of writing."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "a2a7-worker"
+        action: "opened"
+        note: "Reported and explicitly NOT fixed, pending an owner's go on a money path. Recording
+          the restraint because it was correct: the review it prompted found a worse consequence
+          than the one reported."
+
 patterns:
 
   - id: "PAT-001"
@@ -18068,3 +18280,17 @@ coverage:
     evidence: "Four commits: b036075e refunds and disclosures, 9f3e7d66 A2/A7/C1.9 with migration 0145, 006c3ac9 the payable drop gate, 1b8671fc the fee-savings goods lane. A2-s dedup was independently confirmed at both write sites: the webhook stamps the whole intent fee on booking_requests and actions.ts:571 stamps the same fee on a coupled order, so counting both double-counts every combined payment. A7 requires payer-is-application AND a founder row that does not exist, so the claim is suppressed today. THE PATTERN THIS WAVE ADDS: both new findings came from workers reporting OUTSIDE their scope instead of staying silent, and in both cases the reported item was smaller than what verifying it uncovered - the drop-gate report was nearly dismissed by the supervisor on a partial read, and the fee-savings report named the double-count while the same query was returning nothing at all."
     recommended_next_inspection: "Independent verification of all four; none has been verified by anyone who did not write it. Then the structural halves neither fix addresses: addon-products.ts still maintains two independent column lists for one catalogue, and no sweep has been done for other readers that sum booking_requests fees alongside orders fees."
     known_exclusions: "Production untouched; migrations 0144 and 0145 remain unapplied there. The A2 rollup writes only ee_registration_40k - the OSS and Union-turnover rows are deliberately left seeded pending LO-10 fee classification, which is a recorded judgment call, not a covered area. Two counsel questions are open rather than answered: whether tax-snapshot immutability makes the subscriptions they reference permanent, and how a bundle containing one custom-made component is treated."
+
+  - area: "Discarded-error and cross-table-overlap sweep of every reader of the three platform-fee columns (platform_fee_collected_cents, platform_fee_amount, application_fee_minor)"
+    subsystem: "money"
+    coverage: "comprehensive"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "40191929"
+    reviewer: "a2a7-worker ran the sweep; the supervisor session re-ran the mutation on its one fix independently and widened the consequences of the item it declined to fix"
+    evidence: "Opened BECAUSE FEE-DSP-002 recorded -nobody has swept the siblings- as residual risk, which is the first time that field has directly produced a finding. Universe defined by grepping the three literal column names: 17 files, triaged writer versus reader, every reader checked on three axes - does it sum across tables, does it bind its error, does its select actually resolve against the real schema via a direct PostgREST call. TWO OUTCOMES. BDEL-PAY-002: account deletion-s deposit read discarded its error and would let deletion proceed as though there were no deposits, skipping both the intent cancellation and the counsel-required retention. Fixed. PAY-RFD-009: the refund path-s collections read has the same discard, reported and deliberately NOT fixed pending a go on a money path, and review of that restraint found a worse consequence than the report named - processor cost retainable twice across successive partial refunds. THE NEGATIVE RESULTS ARE RECORDED IN FULL under BDEL-PAY-002-s inspected_comparables_without_issue, including the structural argument that account-deletion-logic.ts cannot carry the overlap defect at all. A fee-scoped sweep found a deletion defect, which is an argument for scoping future sweeps by MECHANISM rather than by subject."
+    findings_produced:
+      - "BDEL-PAY-002"
+      - "PAY-RFD-009"
+    recommended_next_inspection: "Run the same three-axis check against reads that have nothing to do with fees. The mechanism is orthogonal to the subject and the highest-value targets are the ones nobody has a reason to grep for."
+    known_exclusions: "pnpm test:db was NOT run: another worker held the single local Docker instance for a migration-touching task, and concurrent runs produce failures that look like real defects. The remaining discarded-error reads inside account-deletion.ts (profiles ~92, auth.admin.getUserById ~101) were seen and deliberately left, correctly, rather than widening a fee-scoped sweep into a statutory path unasked; both are now assigned. Mobile /api/mobile/payments/requests/* refund responses not covered. Drizzle db/schema.ts confirmed unused by the application and therefore excluded."
