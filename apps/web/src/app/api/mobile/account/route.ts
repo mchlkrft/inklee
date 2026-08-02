@@ -11,6 +11,7 @@ import {
   isMfaEnabled,
   deriveSignInIdentity,
 } from "@inklee/shared/auth-derivations";
+import { getSubscriptionCancellationInfo } from "@/lib/server/billing/cancellation";
 import type { MobileAccount } from "@inklee/shared/mobile-api";
 
 export const runtime = "nodejs";
@@ -43,6 +44,13 @@ export async function GET(req: Request) {
   const { hasPassword, oauthProvider } = deriveSignInIdentity(user?.identities);
   const mfaEnabled = isMfaEnabled(user?.factors);
 
+  // Counsel Q12: the delete confirmation must disclose what deletion does to a
+  // paid subscription. Read from the SAME source the web page uses
+  // (`getSubscriptionCancellationInfo` -> account_overrides, no Stripe call),
+  // so the two surfaces cannot disagree about whether one is live.
+  const { hasActiveSubscription } =
+    await getSubscriptionCancellationInfo(userId);
+
   const body: MobileAccount = {
     email: user?.email ?? null,
     firstName: profile?.first_name ?? null,
@@ -52,6 +60,7 @@ export async function GET(req: Request) {
     hasPassword,
     oauthProvider,
     mfaEnabled,
+    hasActiveSubscription,
   };
   return mobileOk(body);
 }

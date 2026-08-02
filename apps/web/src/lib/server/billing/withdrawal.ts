@@ -47,7 +47,10 @@ type CaseRow = {
 };
 
 // Defensive reads for dahlia + legacy drift (mirrors reconcile.periodEndOf).
-function readPeriod(sub: Stripe.Subscription): {
+// Exported (not duplicated) for the account-deletion refund path, counsel Q12:
+// a second copy of Stripe's shape-drift handling is the one-source-of-truth
+// violation this repo bans, and it would drift silently on the next API pin.
+export function readPeriod(sub: Stripe.Subscription): {
   periodStart: Date | null;
   periodEnd: Date | null;
   startDate: Date | null;
@@ -73,7 +76,7 @@ function readPeriod(sub: Stripe.Subscription): {
 const idOf = (v: unknown): string | null =>
   typeof v === "string" ? v : ((v as { id?: string } | null)?.id ?? null);
 
-function readLatestInvoice(sub: Stripe.Subscription): {
+export function readLatestInvoice(sub: Stripe.Subscription): {
   invoiceId: string | null;
   amountPaidMinor: number | null;
   currency: string | null;
@@ -120,7 +123,7 @@ function readLatestInvoice(sub: Stripe.Subscription): {
 
 // buildSubscriptionRefundParams refunds a CHARGE. Resolve one, fetching the
 // payment intent's latest_charge only when the invoice did not carry a charge.
-async function resolveChargeId(
+export async function resolveChargeId(
   stripe: Stripe,
   invoice: { paymentIntent: string | null; charge: string | null },
 ): Promise<string | null> {
@@ -185,7 +188,7 @@ function formatDateTime(iso: string): string {
 export async function recordDurableConfirmation(input: {
   artistId: string;
   billingSubscriptionId: string;
-  kind: "purchase" | "withdrawal" | "cancellation";
+  kind: "purchase" | "withdrawal" | "cancellation" | "account_deletion";
   stripeInvoiceId?: string;
   refundMinor?: number;
   currency?: string;
@@ -323,6 +326,28 @@ export async function recordDurableConfirmation(input: {
       ]
         .filter(Boolean)
         .join("\n\n");
+    } else if (input.kind === "account_deletion") {
+      // Account deletion ends the subscription NOW and refunds the unused part
+      // of the current period pro rata (counsel Q12). It is a termination, so
+      // § 312k's durable-medium confirmation applies; and it moves money, so
+      // the refund has to be stated. Sent before the auth user is destroyed,
+      // which is the last moment there is an address to send it to.
+      const receivedLine = input.receivedAt
+        ? `We received your account deletion on ${formatDateTime(input.receivedAt)}.`
+        : "";
+      const refundLine =
+        (input.refundMinor ?? 0) > 0
+          ? `We are refunding the unused part of your current period, ${formatAmount(input.refundMinor ?? 0, input.currency ?? "eur")}, to your original payment method.`
+          : "There was no unused part of your current period left to refund.";
+      body = [
+        "Your Inklee Plus subscription has ended because you deleted your account.",
+        receivedLine,
+        "Your subscription ended immediately. You are not charged again.",
+        refundLine,
+        "This message is your confirmation of receipt on a durable medium.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
     } else {
       // Purchase (contract) confirmation (Art. 8(7) CRD). The durable-medium
       // confirmation must carry the full Art. 6(1) information set: (a) the
@@ -385,7 +410,9 @@ export async function recordDurableConfirmation(input: {
         ? "Your Inklee Plus withdrawal is confirmed"
         : input.kind === "cancellation"
           ? "Your Inklee Plus cancellation is confirmed"
-          : "Your Inklee Plus subscription is confirmed";
+          : input.kind === "account_deletion"
+            ? "Your Inklee Plus subscription has ended"
+            : "Your Inklee Plus subscription is confirmed";
     generatedBody = `${subject}\n\n${body}`;
 
     await sendEmail({

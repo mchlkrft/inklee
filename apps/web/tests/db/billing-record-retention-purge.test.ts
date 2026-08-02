@@ -24,9 +24,16 @@ import { financialYearRetentionCutoff } from "@/lib/server/retention-cutoffs";
  * dependency ordering never trips an FK violation (23503) on a table with
  * NO cascade of its own on these relationships.
  *
- * `transaction_tax_snapshots` is proven NEVER purged (its append-only
- * trigger forbids DELETE outright) and, as a direct consequence, proven to
- * permanently block its referenced subscription from ever being purged.
+ * `transaction_tax_snapshots` was proven here to be NEVER purged, and to
+ * permanently block its referenced subscription as a direct consequence. That
+ * changed on 2026-08-03: counsel Q1 amended the immutability control
+ * (migration 0148) so the ledger stays immutable against EDITS and becomes
+ * deletable by exactly one path at the 7-year horizon. What this file still
+ * proves is the half that did NOT change — a snapshot blocks its subscription
+ * for as long as the snapshot itself survives, and an ad-hoc DELETE over the
+ * API is still refused. The amended behaviour, the purge lane and the
+ * subscription being FREED once the snapshot ages out, is proven in
+ * `tests/db/tax-ledger-purge.test.ts`.
  */
 
 const NOW = new Date("2026-08-02T12:00:00.000Z");
@@ -81,12 +88,13 @@ afterAll(async () => {
       .delete()
       .in("id", createdIds.subscriptions);
   }
-  // transaction_tax_snapshots rows created by this file are NOT cleaned up:
-  // the append-only trigger refuses DELETE unconditionally (that refusal is
-  // itself one of the things this file proves), so there is no cleanup path
-  // for them short of a raw superuser session bypassing the trigger, which
-  // would misrepresent the very invariant under test. They are harmless,
-  // randomly-named leftovers on a local dev database.
+  // transaction_tax_snapshots rows created by this file are cleaned up
+  // through the ONE path that may delete them (counsel Q1, 0148), which only
+  // reaches rows past the 7-year horizon. Rows inside their window still have
+  // no cleanup path short of a raw superuser session bypassing the trigger,
+  // which would misrepresent the very invariant under test; those stay as
+  // harmless, randomly-named leftovers on a local dev database.
+  await admin.rpc("purge_expired_tax_snapshots", { _dry_run: false });
   await admin.from("profiles").delete().eq("id", liveArtist.id);
   await admin.auth.admin.deleteUser(liveArtist.id);
 }, 60_000);
@@ -329,7 +337,7 @@ describe("billing_subscriptions: 7y from created_at, protected by any still-exis
       .eq("id", confId);
   });
 
-  it("survives FOREVER when a transaction_tax_snapshot references it — never purged, by design, no matter how old", async () => {
+  it("survives while a transaction_tax_snapshot references it, however old the subscription is, because THIS step never purges snapshots", async () => {
     const subId = await insertSubscription({
       artist_id: null,
       created_at: OLD_ENOUGH,
@@ -338,8 +346,11 @@ describe("billing_subscriptions: 7y from created_at, protected by any still-exis
       artist_id: null,
       billing_subscription_id: subId,
     });
-    // A hundred years from now, the subscription is still blocked — the
-    // block is permanent because the tax snapshot itself is never purged.
+    // A hundred years from now this step still cannot touch it: the block
+    // lasts exactly as long as the snapshot does, and only the snapshot step
+    // (which runs BEFORE this one in a full run) can end it. Before counsel
+    // Q1 that made the block permanent; now it makes the ORDERING
+    // load-bearing, which is what this assertion pins.
     const farFuture = new Date("2126-01-01T00:00:00.000Z");
     await purgeDeletedAccountBillingSubscriptions(farFuture);
     expect(await exists("billing_subscriptions", subId)).toBe(true);
@@ -347,7 +358,7 @@ describe("billing_subscriptions: 7y from created_at, protected by any still-exis
   });
 });
 
-describe("transaction_tax_snapshots: append-only, DELETE is refused unconditionally", () => {
+describe("transaction_tax_snapshots: an ad-hoc DELETE over the API is still refused", () => {
   it("the immutability trigger rejects a direct delete attempt regardless of age", async () => {
     const id = await insertTaxSnapshot({
       artist_id: null,

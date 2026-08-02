@@ -1208,9 +1208,13 @@ export type MobileBundleList = {
     /** The product's Art. 16(c) custom-made flag. Counsel Q2 (2026-08-02): a
      *  bundle is all custom-made or all standard, and the server cores refuse
      *  a mix, so the native editor needs this to show the rule rather than
-     *  discovering it from a rejected save. Additive field, not a wire
-     *  break: an older app ignores it. */
-    customMade: boolean;
+     *  discovering it from a rejected save. OPTIONAL per this file's wire
+     *  policy (version skew): an older SERVER omits it, and the screen must
+     *  read it as `=== true` so the missing field degrades to "standard" and
+     *  the editor simply stops mirroring the rule. The refusal itself is
+     *  server-side, so a skewed client cannot write a mixed bundle either
+     *  way. Additive, so no build is gated on it. */
+    customMade?: boolean;
     /** This product's ACTIVE variants only — the editor offers a choice from
      *  exactly these, matching what the checkout itself will accept. */
     variants: { id: string; name: string; priceAmount: number | null }[];

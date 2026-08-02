@@ -236,6 +236,30 @@ export type BillingSnapshot = {
   status: string | null;
   contractCustomerType: string | null;
   canceledForDeletion: boolean;
+  /**
+   * Counsel Q12: deletion ends an active paid subscription NOW and refunds the
+   * unused part of the current period pro rata. This records what was owed and
+   * whether it was actually paid out.
+   *
+   * `refundState: "pending"` is the load-bearing value. Erasure is never
+   * blocked on financial resolution (counsel §3), so a Stripe failure at that
+   * instant must not stop the deletion — but the money is still owed, and the
+   * account it was owed to is about to stop existing. These fields are the
+   * only surviving trace: the charge to refund and the amount, in a record
+   * that outlives the cascade. The same reasoning already applies to an
+   * unresolved client deposit's `resolved: false` above.
+   */
+  deletionRefund?: {
+    state: "not_applicable" | "completed" | "pending" | "failed_cancel";
+    processedAs: "withdrawal" | "deletion_pro_rata" | null;
+    policyVersion: string | null;
+    grossMinor: number;
+    currency: string | null;
+    usedFraction: number | null;
+    stripeRefundId: string | null;
+    stripeChargeId: string | null;
+    error: string | null;
+  } | null;
 };
 
 export function buildFinancialSnapshot(

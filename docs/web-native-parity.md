@@ -56,9 +56,10 @@ no decision against it), ~ = partial.
 | Withdrawal, Art. 11a (+ concrete deadline display) | ✅ plan page | ✅ settings/plan + POST /billing/withdraw, counsel copy verbatim (next build) | ✅ |
 | Ordinary cancellation, § 312k | ✅ settings/account (next to delete) | ✅ settings/plan Subscription card + POST /billing/cancel (next build) | ✅ |
 | Account deletion (+ re-auth) | ✅ | ✅ shared deleteOwnAccountCore | ✅ |
+| Deletion with an ACTIVE PAID subscription: ends it now + refunds the unused part pro rata (counsel Q12) | ✅ both halves live in `deleteOwnAccountCore` → `endSubscriptionForAccountDeletion` (billing/deletion-refund.ts), so every surface gets identical behaviour. Confirmation screen renders counsel's line verbatim ("Your Inklee Plus subscription ends now. We will refund the unused part of your current period."), gated on `getSubscriptionCancellationInfo().hasActiveSubscription` | ✅ same core (the mobile DELETE route already calls it, nothing to add server-side). The DISCLOSURE needed the wire: `hasActiveSubscription` added ADDITIVE to `MobileAccount`, and `app/account/delete.tsx` fetches `/api/mobile/account` to render the same sentence (next build). Fail-quiet on that fetch: no line rather than a blocked deletion | ✅ |
 | Deposit card-vs-manual predictor | getDepositCollection | SAME server predictor via /settings/payouts (D19 fixed in 8c07894) | ✅ |
 | Tier-aware appointment-fee display (G1, FEE-DSP-001) | request-detail accept dialog + /settings/payouts read `getDepositCollection().feeDisplay` (appointmentFeeDisplay, tier-resolved bps/percentLabel); flat PLATFORM_FEE_PERCENT constant retired from both | `appointmentFeeBps`/`appointmentFeePercentLabel` ADDITIVE on GET/POST `/api/mobile/settings/payouts` (MobilePayouts); BookingActions.tsx reads them with a fallback to the shared PLATFORM_FEE_PERCENT constant for an older server that predates the fields (version-skew pattern) | ✅ |
-| "No separate card-processing fees" commercial claim (A7, counsel-accountant-handoff-2026-08.md) | /settings/payouts copy, now bound to `noSeparateCardProcessingFeesClaimVisible` (@inklee/shared/platform-fee: payer-is-application AND a founder-recorded `billing_activation_approvals` row), not to the fee rate; **suppressed** until the founder records the row | The mobile payouts screen has never rendered this claim string at all (only the raw `appointmentFeeBps`/`appointmentFeePercentLabel` numbers, no derived sentence) — deliberate web-only decision, not a gap. If a native payouts screen ever adds an equivalent sentence, it MUST read the same shared predicate + the same approval row rather than re-deriving its own rate-based condition | 🌐 by decision |
+| "No separate card-processing fees" commercial claim (A7 + counsel deviation D6) | /settings/payouts copy, bound to `noSeparateCardProcessingFeesClaimVisible` (@inklee/shared/platform-fee), resolved server-side by `resolveNoSeparateCardProcessingFeesClaim` (billing/activation.ts). Binding CORRECTED 2026-08-03 per D6: payer-is-application AND **either** the rate covers processing cost **or** a founder-recorded `billing_activation_approvals` row exists. A7 had required the founder row at every rate, which suppressed the claim everywhere and withdrew a true, live claim from the 3% cohort. Under the active v1 schedule every tier is 300 bps, so the claim RENDERS today with no approval row; the 0.5% Plus subsidy cohort stays suppressed until the founder records it | The mobile payouts screen has never rendered this claim string at all (only the raw `appointmentFeeBps`/`appointmentFeePercentLabel` numbers, no derived sentence) — deliberate web-only decision, not a gap. If a native payouts screen ever adds an equivalent sentence, it MUST read the same shared predicate + the same approval row rather than re-deriving its own rate-based condition. NOTE for that future build: the predicate now takes `feeBps`, so a native caller must pass the artist's resolved rate, and must NOT re-implement "covers cost" as `bps === 300` | 🌐 by decision |
 | Entitlement caps on create paths (fields/trips/studios/legs) | ✅ | ✅ capState on all 4 mobile routes | ✅ |
 | Payouts / Connect onboarding + ID document | ✅ | ✅ (connect-link via in-app browser) | ✅ |
 | Data export | ✅ /settings/export | — | ⬜ (low priority; web download) |
@@ -135,6 +136,7 @@ top control row instead, which is also where the platform maps put theirs.
 | Large-project mode (P4) | public intake `/{slug}/project` (404s when un-entitled); artist list + detail at `/bookings/projects`, status transitions, private note, attach/detach sessions | `projects/index` + `projects/[id]` screens; GET `/api/mobile/projects`, GET/PATCH `/api/mobile/projects/[id]`, all through the SAME cores (next build). WEB-ONLY by design within it: the public intake (a visitor surface) and attaching a session (needs the booking picker, which is a bigger native surface; tracked) | ~ |
 | Conditional booking-form questions (P3) | condition editor in `bookings/form/field-form.tsx`; public form renders through the shared `resolveFieldVisibility`; server re-resolves in `validateCustomAnswers` | `settings/booking-form/[fieldId]` condition section; GET `/api/mobile/booking-form` emits `custom.condition` + server-derived `conditionSources`, POST/PATCH persist `condition` (next build). Both editors ALWAYS send the condition back, because the write replaces it (omitting would clear a condition the artist never touched) | ✅ |
 | Goods checkout consumer-law disclosures (counsel C1.1-C1.3) | Migration `0142`: `profiles.seller_trading_name/seller_address/seller_contact` (C1.1) + `products.custom_made` (C1.2, per-product Art. 16(c) exemption) + sale-time snapshots on `order_items`/`order_item_bundle_components`. Seller-data-complete gate on the money path + the standalone-shop toggle; disclosure block, return/custom-made notice and Art. 8(2) button relabel on `/[slug]/shop/checkout`; full C1.3 receipt in `settleStandaloneGoodsOrder`; new `/[slug]/shop/withdrawal-form` page; `custom_made` checkbox in the web goods editor (`product-form-fields.tsx`) | Buyer-facing checkout/receipt disclosures: 🌐 web-only BY DECISION, same "visitor surface" reasoning as every other checkout-table row above. Artist-facing `custom_made` checkbox: ⬜ **tracked gap, not a decision** — `(tabs)/goods/[id]` and `/api/mobile/goods` (POST) were NOT touched by this task, so an artist cannot flag a product custom-made from the app; the column defaults `false` (returnable) on a native-created product, which is the safe default but not parity. Revisit before native artists are expected to manage custom-made products | 🌐 (buyer surfaces) / ⬜ (editor checkbox) |
+| Second payable goods surface: add-on lane disclosures (counsel Q4/Q5, 2026-08-02) | Counsel's C1.1-C1.3 answers were written against "the checkout page" as ONE surface; there are two. The appointment add-on lane (`/request/[token]`, `addons-checkout.tsx`) now carries the Art. 8(2) label with the total (`addonPayButtonLabel`) instead of "Pay deposit and selected items", and a PER-ROW custom-made marker (`customMadeRowSuffix`) instead of an aggregate-only claim. Both come from `@inklee/shared/consumer-disclosures`; the standalone shop's three inline copies of the marker and its inline button template were replaced by the same helpers (output unchanged there). Receipt lines on BOTH lanes now carry the per-line marker (`ReceiptLineItem.customMade`) | 🌐 web-only BY DECISION, unchanged reasoning: these are buyer/visitor surfaces and the app has no buyer-facing screen. NOTHING native reads `@inklee/shared/consumer-disclosures` (verified: zero hits under `apps/mobile/`), and the only mobile route touching `custom_made` is `GET /api/mobile/goods/bundles`, which this change does not alter, so this is NOT a wire change and no build is gated. The artist-side ⬜ gap on the row above (no `custom_made` checkbox in the native goods editor) is UNCHANGED and now matters on two payable surfaces rather than one | 🌐 by decision |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 
@@ -187,6 +189,34 @@ Two things follow, both done here:
   needs writing down rather than remembering.
 
 ## Update log
+
+- **2026-08-02 — Counsel Q2 / deviation D1: mixed bundles are BLOCKED at
+  creation, and the old aggregate rule is WITHDRAWN (branch-only).** The
+  shipped engineering rule "any custom-made component makes the whole bundle
+  non-returnable" is gone: it suppressed a real return right on the standard
+  components, which is the Art. 10 direction to avoid, and with no
+  per-component billing basis (accountant A8) partial returnability is
+  incoherent. Counsel chose option three. `bundleMixesCustomMade` /
+  `validateBundleCustomMadeMix` / `MIXED_CUSTOM_MADE_BUNDLE_ERROR`
+  (`packages/shared/src/bundles.ts`) are the one rule; `setBundleItemsCore`
+  and `addProductToBundleCore` refuse the mix, `customMadeChangeBundleConflicts`
+  refuses flipping `products.custom_made` on a product already inside a bundle
+  that would then mix, and `bundlePurchasable` gains
+  `component_mixed_custom_made` so a bundle that predates the rule cannot be
+  SOLD either. **Native IS affected and IS updated in this change:**
+  `MobileBundleList.products[]` gains `customMade` (ADDITIVE, an older build
+  ignores it, so this is not a wire break and no build is gated on it), `GET
+  /api/mobile/goods/bundles` serves it, and
+  `apps/mobile/app/(tabs)/goods/bundles.tsx` mirrors the web editor exactly:
+  a "Custom-made" marker on the product chips, the shared refusal string, and
+  a disabled save. Both editors are mirrors only; the server core is the
+  enforcement, so an older installed build gets the refusal as a 400 with the
+  same message rather than a silent wrong write. ⬜ **Unchanged gap, now more
+  consequential:** the native goods editor still cannot SET `custom_made`
+  (2026-08-02 row below), so a native-only artist can neither create a
+  custom-made product nor understand why a web-flagged one refuses to join
+  their bundle beyond the message text. No migration, no data change (0
+  bundles exist in any environment).
 
 - **2026-08-01 — Surface content configuration (founder ruling FD10,
   CONFIRMS S1/S6, closes the per-surface-theming question forever).** New

@@ -14,10 +14,14 @@ export default function DeleteAccountSection({
   email,
   hasPassword,
   oauthProvider,
+  hasActiveSubscription = false,
 }: {
   email: string;
   hasPassword: boolean;
   oauthProvider: string | null;
+  /** Counsel Q12: an active paid subscription changes what deletion does, and
+   *  the consumer must be told before the irreversible act. */
+  hasActiveSubscription?: boolean;
 }) {
   const router = useRouter();
   const [confirm, setConfirm] = useState("");
@@ -84,6 +88,16 @@ export default function DeleteAccountSection({
         client data, uploaded photos, and your public page. This cannot be
         undone.
       </p>
+
+      {/* Counsel Q12, verbatim: the confirmation screen said nothing about the
+          subscription, no refund and no charge stopping, which left the
+          consumer to discover an ended paid period after an irreversible act. */}
+      {hasActiveSubscription && (
+        <p className="text-sm text-muted-foreground">
+          Your Inklee Plus subscription ends now. We will refund the unused part
+          of your current period.
+        </p>
+      )}
 
       {hasPassword ? (
         reauthed ? (

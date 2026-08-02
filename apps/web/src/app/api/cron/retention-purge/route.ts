@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { serviceClient } from "@/lib/supabase/service";
 import {
   financialYearRetentionCutoff,
   monthsAgoCutoff,
@@ -8,6 +7,16 @@ import {
 import { runShopRetentionPurges } from "@/lib/server/shop-retention";
 import { runBillingRecordRetentionPurges } from "@/lib/server/billing-record-retention";
 import { runTaxThresholdRollup } from "@/lib/server/tax-threshold-rollup";
+import { runConnectAccountTeardown } from "@/lib/server/connect-account-teardown";
+import {
+  alertOnRetentionStepFailures,
+  deleteMatchingRows,
+  recordRetentionRun,
+  retentionModeFromRequest,
+  type RetentionFilter,
+  type RetentionMode,
+  type RetentionStepResult,
+} from "@/lib/server/retention-run";
 
 export const runtime = "nodejs";
 
@@ -22,6 +31,12 @@ export const runtime = "nodejs";
 //     always precedes deletion this never under-retains (it can over-retain by
 //     the account's lifetime, the legally safe direction — if exact
 //     transaction-date keying is ever required, parse record.paidAt instead).
+//     AND, since counsel Q13, only once the Connected Account that row points
+//     at has actually been deleted at Stripe — see the step's own comment.
+//   • Connected Accounts at window-end (counsel Q13 clause 2, migration
+//     0148 + connect-account-teardown.ts): request deletion of the artist's
+//     Connect account, zero balance required, on the same 7-year clock. Runs
+//     BEFORE the archive purge because the purge is conditioned on it.
 //   • audit_log security/tombstone rows (booking_id IS NULL — auth events, the
 //     account_deleted tombstone, delivery logs): 24 months. Booking-linked rows
 //     (booking_id set) are the financial/booking audit and follow the booking's
@@ -45,11 +60,13 @@ export const runtime = "nodejs";
 //     confirmations, billing_consent_records and billing_subscriptions rows,
 //     7 years from the end of the financial year, dependency-ordered so a
 //     row is never purged while another still-retained row references it.
-//     `transaction_tax_snapshots` (the fifth) is deliberately NOT purged
-//     here — see billing-record-retention.ts for why. Delegated to
+//     `transaction_tax_snapshots` (the fifth) used to be excluded because its
+//     append-only trigger refused every delete; counsel Q1 amended that
+//     control (migration 0148) so the ledger stays immutable against EDITS
+//     and becomes deletable by exactly one path, this purge. Delegated to
 //     billing-record-retention.ts, which is DB-tested on its own.
 //   • A2 tax-threshold rollup (counsel-accountant-handoff-2026-08.md PART 4
-//     A2, tax-threshold-rollup.ts): NOT a purge, but reuses this SAME monthly
+//     A2, tax-threshold-rollup.ts): NOT a purge, but reuses this SAME weekly
 //     schedule deliberately rather than registering a new vercel.json cron
 //     entry (Vercel cron slots are a scarce resource on this plan). Sums
 //     every platform-fee-revenue source since 1 Jan and writes
@@ -64,18 +81,30 @@ export const runtime = "nodejs";
 // tests before this change). A failed step is now reported per-step in the
 // response body and the route still 500s if any step failed (so cron
 // monitoring still alerts), but every OTHER step still runs and its count is
-// still reported.
+// still reported. Counsel ratified that shape as Q14 element (3) and added
+// "every block failure alerts": each step captures its own exception, and
+// `alertOnRetentionStepFailures` raises one more event naming the whole set.
+//
+// CADENCE (counsel deviation D3, 2026-08-02): the schedule in vercel.json is
+// WEEKLY, not monthly. A monthly cron turned counsel's 30-day rules into up
+// to ~60 days in practice, and "a stated retention period must be honest."
+// See vercel.json for the plan constraint that makes weekly the finest
+// cadence worth choosing here.
+//
+// MODES (counsel Q14 element 2). `?mode=dry-run` reports the row count every
+// block MATCHES and writes nothing, so the control's reach can be evidenced
+// in production before it has ever deleted anything. Every step builds its
+// counting query and its mutating query from ONE predicate
+// (`lib/server/retention-run.ts`), so the dry-run number cannot drift from
+// what a real run would touch. Absence of the parameter, or any unrecognised
+// value, means a real purge — a typo must never silently turn the scheduled
+// run into a no-op that reports success.
 async function runStep(
   name: string,
-  run: () => PromiseLike<{
-    data: unknown[] | null;
-    error: { message: string } | null;
-  }>,
-): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  run: () => Promise<number>,
+): Promise<RetentionStepResult> {
   try {
-    const { data, error } = await run();
-    if (error) throw new Error(error.message);
-    return { ok: true, count: data?.length ?? 0 };
+    return { ok: true, count: await run() };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     Sentry.captureException(err, {
@@ -85,130 +114,189 @@ async function runStep(
   }
 }
 
+/**
+ * One block: a table, the column counted/returned, and its retention
+ * predicate written exactly once. `deleteMatchingRows` builds either the
+ * DELETE or the exact head-count from that same predicate.
+ */
+type TableStep = {
+  /** Response-body / run-log key. Historic names, deliberately unchanged. */
+  key: string;
+  /** Sentry tag, and the table it purges. */
+  table: string;
+  column: string;
+  filter: RetentionFilter;
+};
+
+function tableSteps(now: Date): TableStep[] {
+  const financialCutoff = financialYearRetentionCutoff(now, 7).toISOString();
+  const auditCutoff = monthsAgoCutoff(now, 24).toISOString();
+  const auditCutoffDay = auditCutoff.slice(0, 10);
+
+  return [
+    // CONDITIONED ON THE ACCOUNT ACTION, not on the timer alone (counsel Q13,
+    // migration 0148). The archive row carries `stripe_account_id`, the only
+    // thing that can ever find the artist's Connected Account again; purging
+    // it while that account is still live at Stripe orphans the account
+    // permanently. The disjunction below is the SAME predicate as 0148's
+    // `dar_no_premature_purge` trigger — the filter is what keeps this step
+    // reporting a clean count, the trigger is what makes the ordering hold
+    // for every other caller. `connect_account_teardown` runs before this
+    // loop, so a row that completes its teardown is purged in the same pass.
+    {
+      key: "purged_financial_records",
+      table: "deleted_account_records",
+      column: "id",
+      filter: (q) =>
+        q
+          .lt("deleted_at", financialCutoff)
+          .or("stripe_account_id.is.null,connect_teardown_state.eq.completed"),
+    },
+    {
+      key: "purged_audit_rows",
+      table: "audit_log",
+      column: "id",
+      filter: (q) => q.is("booking_id", null).lt("timestamp", auditCutoff),
+    },
+    {
+      key: "purged_admin_rows",
+      table: "admin_action_log",
+      column: "id",
+      filter: (q) => q.lt("created_at", auditCutoff),
+    },
+    {
+      key: "purged_analytics_events",
+      table: "analytics_events",
+      column: "id",
+      filter: (q) => q.lt("occurred_at", auditCutoff),
+    },
+    {
+      key: "purged_activity_days",
+      table: "artist_activity_days",
+      column: "artist_id",
+      filter: (q) => q.lt("day", auditCutoffDay),
+    },
+    // Public web analytics rows are anonymous by construction (daily-rotating
+    // visitor hash) but still follow the same 24-month bound. The sessionized
+    // daily rollup (migration 0073) carries the same visit rows, so it is
+    // purged on the same clock, along with its coverage bookkeeping.
+    {
+      key: "purged_web_analytics_events",
+      table: "web_analytics_events",
+      column: "id",
+      filter: (q) => q.lt("occurred_at", auditCutoff),
+    },
+    {
+      key: "purged_wa_visits",
+      table: "wa_visits_daily",
+      column: "day",
+      filter: (q) => q.lt("day", auditCutoffDay),
+    },
+    {
+      key: "purged_wa_rollup_days",
+      table: "wa_visit_rollup_days",
+      column: "day",
+      filter: (q) => q.lt("day", auditCutoffDay),
+    },
+    // Map reports (DSA register, migration 0075): keep 24 months, same clock
+    // as the audit rows. Statements of reasons (moderation_statements) are
+    // kept 5 years and deliberately NOT purged here yet; their purge lands
+    // with the Phase 7 threshold machinery that starts creating them.
+    {
+      key: "purged_map_reports",
+      table: "map_reports",
+      column: "id",
+      filter: (q) => q.lt("created_at", auditCutoff),
+    },
+  ];
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const mode: RetentionMode = retentionModeFromRequest(request);
+  const startedAt = Date.now();
   const now = new Date();
-  const financialCutoff = financialYearRetentionCutoff(now, 7).toISOString();
-  const auditCutoff = monthsAgoCutoff(now, 24).toISOString();
-  const auditCutoffDay = auditCutoff.slice(0, 10);
 
-  const steps: Record<
-    string,
-    { ok: true; count: number } | { ok: false; error: string }
-  > = {};
+  const steps: Record<string, RetentionStepResult> = {};
 
-  steps.purged_financial_records = await runStep(
-    "deleted_account_records",
-    () =>
-      serviceClient
-        .from("deleted_account_records")
-        .delete()
-        .lt("deleted_at", financialCutoff)
-        .select("id"),
-  );
+  // FIRST, and before the archive purge below: counsel Q13 clause 2. At
+  // window-end (the same 7-year financial window as the records) Inklee owes
+  // an affirmative action on the artist's Connected Account — request its
+  // deletion, zero balance required. Only once that has completed may the
+  // pointer be purged, so this runs first and a row that completes here is
+  // purgeable in the SAME cycle. Until ~2033 it matches zero rows, which is
+  // reported as an evidenced zero rather than left silent (Q14).
+  const teardown = await runStep("connect_account_teardown", async () => {
+    const result = await runConnectAccountTeardown(now, mode);
+    steps.connect_teardowns_blocked = { ok: true, count: result.blocked };
+    return result.completed;
+  });
+  steps.connect_accounts_torn_down = teardown;
 
-  steps.purged_audit_rows = await runStep("audit_log", () =>
-    serviceClient
-      .from("audit_log")
-      .delete()
-      .is("booking_id", null)
-      .lt("timestamp", auditCutoff)
-      .select("id"),
-  );
+  for (const step of tableSteps(now)) {
+    steps[step.key] = await runStep(step.table, () =>
+      deleteMatchingRows(mode, step.table, step.column, step.filter),
+    );
+  }
 
-  steps.purged_admin_rows = await runStep("admin_action_log", () =>
-    serviceClient
-      .from("admin_action_log")
-      .delete()
-      .lt("created_at", auditCutoff)
-      .select("id"),
-  );
-
-  steps.purged_analytics_events = await runStep("analytics_events", () =>
-    serviceClient
-      .from("analytics_events")
-      .delete()
-      .lt("occurred_at", auditCutoff)
-      .select("id"),
-  );
-
-  steps.purged_activity_days = await runStep("artist_activity_days", () =>
-    serviceClient
-      .from("artist_activity_days")
-      .delete()
-      .lt("day", auditCutoffDay)
-      .select("artist_id"),
-  );
-
-  // Public web analytics rows are anonymous by construction (daily-rotating
-  // visitor hash) but still follow the same 24-month bound. The sessionized
-  // daily rollup (migration 0073) carries the same visit rows, so it is
-  // purged on the same clock, along with its coverage bookkeeping.
-  steps.purged_web_analytics_events = await runStep(
-    "web_analytics_events",
-    () =>
-      serviceClient
-        .from("web_analytics_events")
-        .delete()
-        .lt("occurred_at", auditCutoff)
-        .select("id"),
-  );
-
-  steps.purged_wa_visits = await runStep("wa_visits_daily", () =>
-    serviceClient
-      .from("wa_visits_daily")
-      .delete()
-      .lt("day", auditCutoffDay)
-      .select("day"),
-  );
-
-  steps.purged_wa_rollup_days = await runStep("wa_visit_rollup_days", () =>
-    serviceClient
-      .from("wa_visit_rollup_days")
-      .delete()
-      .lt("day", auditCutoffDay)
-      .select("day"),
-  );
-
-  // Map reports (DSA register, migration 0075): keep 24 months, same clock as
-  // the audit rows. Statements of reasons (moderation_statements) are kept
-  // 5 years and deliberately NOT purged here yet; their purge lands with the
-  // Phase 7 threshold machinery that starts creating them.
-  steps.purged_map_reports = await runStep("map_reports", () =>
-    serviceClient
-      .from("map_reports")
-      .delete()
-      .lt("created_at", auditCutoff)
-      .select("id"),
-  );
-
-  const shopSteps = await runShopRetentionPurges(now);
+  const shopSteps = await runShopRetentionPurges(now, mode);
   for (const [name, result] of Object.entries(shopSteps)) {
     steps[name] = result;
   }
 
-  const billingSteps = await runBillingRecordRetentionPurges(now);
+  const billingSteps = await runBillingRecordRetentionPurges(now, mode);
   for (const [name, result] of Object.entries(billingSteps)) {
     steps[name] = result;
   }
 
-  const thresholdSteps = await runTaxThresholdRollup(now);
-  for (const [name, result] of Object.entries(thresholdSteps)) {
-    steps[name] = result;
+  // The A2 tax-threshold rollup is the one step here that is not a purge: it
+  // WRITES tax_thresholds.current_minor/status. A dry-run that mutates is not
+  // a dry-run, and there is no counts-only version of a recompute-and-store,
+  // so it is skipped outright and named in `skipped` rather than reported as
+  // a zero it never earned.
+  const skipped: string[] = [];
+  if (mode === "dry-run") {
+    skipped.push("tax_threshold_rollup");
+  } else {
+    const thresholdSteps = await runTaxThresholdRollup(now);
+    for (const [name, result] of Object.entries(thresholdSteps)) {
+      steps[name] = result;
+    }
   }
 
-  const body: Record<string, number> = {};
+  const counts: Record<string, number> = {};
   const errors: { step: string; error: string }[] = [];
   for (const [name, result] of Object.entries(steps)) {
-    if (result.ok) body[name] = result.count;
+    if (result.ok) counts[name] = result.count;
     else errors.push({ step: name, error: result.error });
   }
 
-  return NextResponse.json(errors.length > 0 ? { ...body, errors } : body, {
-    status: errors.length > 0 ? 500 : 200,
+  alertOnRetentionStepFailures(mode, errors);
+
+  // The durable evidence row (migration 0149). Written for BOTH modes and for
+  // failed runs: counsel's "zero is then an evidenced result, not silence"
+  // only holds if the record exists whatever the outcome was.
+  const runLogError = await recordRetentionRun({
+    mode,
+    ok: errors.length === 0,
+    stepCounts: counts,
+    stepErrors: errors,
+    durationMs: Date.now() - startedAt,
+    now,
   });
+
+  return NextResponse.json(
+    {
+      mode,
+      ...counts,
+      ...(skipped.length > 0 ? { skipped } : {}),
+      ...(errors.length > 0 ? { errors } : {}),
+      ...(runLogError ? { run_log_error: runLogError } : {}),
+    },
+    { status: errors.length > 0 ? 500 : 200 },
+  );
 }

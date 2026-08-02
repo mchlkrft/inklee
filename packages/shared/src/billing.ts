@@ -616,6 +616,97 @@ export function computeWithdrawalProration(input: ProrationInput): Proration {
 }
 
 // ===========================================================================
+// 4c. Account-deletion refund (counsel Q12, docs/legal/counsel-handoff-
+//     2026-08-02.md §5.3). SEPARATE from both the withdrawal above and from
+//     ordinary cancellation, because it is a third thing and counsel picked
+//     it deliberately over the other two:
+//
+//       "Adopt one rule, disclosed on the confirmation screen and in the
+//        Terms: account deletion ends the subscription immediately and
+//        refunds the unused part of the current period pro rata (inside the
+//        14-day window it is simply processed as a withdrawal, same
+//        arithmetic, existing machinery). Rationale: period-end semantics
+//        leave a paid period attached to a destroyed account; silent
+//        forfeiture is the unfair-term shape."
+//
+//     WHY NOT JUST CALL computeWithdrawalProration. Its `fullRefund` branch
+//     turns on `immediatePerformanceRequested`, a CONSUMER-WITHDRAWAL concept:
+//     without that express request no proportionate deduction is lawful, so a
+//     mid-period withdrawal refunds the whole period. That rule is about the
+//     statutory 14-day right and has nothing to say about a deletion in month
+//     nine, where the service demonstrably WAS supplied for the used part of
+//     the period. Passing `immediatePerformanceRequested: true` to get the
+//     right arithmetic would record a consent that may not exist. So: same
+//     time-based split, same rounding, its own name and its own policy
+//     version, and the withdrawal path is left untouched.
+//
+//     The arithmetic is deliberately identical to the proration above (used
+//     fraction of the elapsed period, clamped to [0,1], integer minor units,
+//     never refunding more than was paid, VAT split preserving the original
+//     rate) so the two can never quietly disagree about what "pro rata" means.
+// ===========================================================================
+
+export const DELETION_REFUND_POLICY_VERSION = "deletion-pro-rata-v1";
+
+export type DeletionRefundInput = {
+  /** Gross amount paid for the current period, in minor units. */
+  paidGrossMinor: number;
+  currency: string;
+  /** Original tax rate (0..1) to preserve in the split; 0 while unregistered. */
+  taxRate: number;
+  periodStart: Date;
+  periodEnd: Date;
+  /** When the account deletion was requested. */
+  deletedAt: Date;
+};
+
+export type DeletionRefund = {
+  policyVersion: string;
+  usedFraction: number; // 0..1
+  /** The used part of the period, kept. */
+  retainedGrossMinor: number;
+  /** The unused part of the period, refunded. */
+  refundGrossMinor: number;
+  refundNetMinor: number;
+  refundVatMinor: number;
+  taxRate: number;
+  currency: string;
+};
+
+export function computeAccountDeletionRefund(
+  input: DeletionRefundInput,
+): DeletionRefund {
+  const gross = Math.max(0, Math.round(input.paidGrossMinor));
+  const rate = input.taxRate > 0 ? input.taxRate : 0;
+  const totalMs = input.periodEnd.getTime() - input.periodStart.getTime();
+  const usedMs = input.deletedAt.getTime() - input.periodStart.getTime();
+
+  // A non-positive or unreadable period yields usedFraction 0, i.e. a full
+  // refund. Same consumer-safe direction the withdrawal proration takes: bad
+  // period data must never become a bigger deduction.
+  let usedFraction = totalMs > 0 ? usedMs / totalMs : 0;
+  if (!Number.isFinite(usedFraction) || usedFraction < 0) usedFraction = 0;
+  if (usedFraction > 1) usedFraction = 1;
+
+  const retainedGrossMinor = Math.min(gross, Math.round(gross * usedFraction));
+  const refundGrossMinor = gross - retainedGrossMinor;
+  const refundNetMinor =
+    rate > 0 ? Math.round(refundGrossMinor / (1 + rate)) : refundGrossMinor;
+  const refundVatMinor = refundGrossMinor - refundNetMinor;
+
+  return {
+    policyVersion: DELETION_REFUND_POLICY_VERSION,
+    usedFraction,
+    retainedGrossMinor,
+    refundGrossMinor,
+    refundNetMinor,
+    refundVatMinor,
+    taxRate: rate,
+    currency: input.currency,
+  };
+}
+
+// ===========================================================================
 // 5. Activation gate (amendment 11). The single server-authoritative check
 //    that makes LIVE charging impossible until the matching approval group is
 //    recorded. Groups are ADDITIVE: b2b requires technical + b2b; b2c requires
@@ -775,8 +866,18 @@ export function subscriptionIdempotencyKey(
 
 export function subscriptionRefundIdempotencyKey(
   refundCaseId: string,
+  /** Distinguishes refunds on the SAME subscription that are different
+   *  events. Omitted (the default) reproduces the historic key byte for byte,
+   *  so the withdrawal path's key is unchanged. The account-deletion refund
+   *  (counsel Q12) needs its own: it can follow a withdrawal on the same
+   *  subscription, and reusing the key would make Stripe replay the earlier
+   *  refund's response instead of issuing the second one — a silent
+   *  forfeiture, which is exactly the shape Q12 exists to prevent. */
+  scope?: string,
 ): string {
-  return `${SUBSCRIPTION_REFUND_IDEMPOTENCY_PREFIX}${refundCaseId}`;
+  return scope
+    ? `${SUBSCRIPTION_REFUND_IDEMPOTENCY_PREFIX}${scope}_${refundCaseId}`
+    : `${SUBSCRIPTION_REFUND_IDEMPOTENCY_PREFIX}${refundCaseId}`;
 }
 
 export type SubscriptionRefundParams = {
@@ -793,6 +894,10 @@ export function buildSubscriptionRefundParams(input: {
   amountMinor: number;
   billingSubscriptionId: string;
   reason?: string;
+  /** Passed straight to `subscriptionRefundIdempotencyKey`. Omit for the
+   *  withdrawal path (unchanged key); the account-deletion refund passes its
+   *  own so a deletion after a withdrawal is not swallowed as a replay. */
+  idempotencyScope?: string;
 }): { params: SubscriptionRefundParams; idempotencyKey: string } {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
     throw new Error("Refund amount must be a positive integer (minor units).");
@@ -807,7 +912,10 @@ export function buildSubscriptionRefundParams(input: {
         ...(input.reason ? { reason: input.reason } : {}),
       },
     },
-    idempotencyKey: subscriptionRefundIdempotencyKey(input.billingSubscriptionId),
+    idempotencyKey: subscriptionRefundIdempotencyKey(
+      input.billingSubscriptionId,
+      input.idempotencyScope,
+    ),
   };
 }
 

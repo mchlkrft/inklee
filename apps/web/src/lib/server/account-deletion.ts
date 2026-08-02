@@ -2,6 +2,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { stripe } from "@/lib/stripe";
 import { writeAudit } from "@/lib/audit";
 import { purgeStoragePrefix } from "./storage-purge";
+import { endSubscriptionForAccountDeletion } from "./billing/deletion-refund";
 import {
   ORDER_MONEY_STATES,
   buildFinancialSnapshot,
@@ -244,16 +245,24 @@ export async function deleteOwnAccountCore(
     }
   }
 
-  // 2b. Cancel the billing subscription immediately so Stripe stops charging
-  //     a deleted account. Unlike the in-app cancel_at_period_end flow
-  //     (cancellation.ts), account deletion needs an immediate cancel: there
-  //     will be no account to receive Plus features. Without this, later
+  // 2b. End the billing subscription immediately AND refund the unused part of
+  //     the current period pro rata (counsel Q12, docs/legal/counsel-handoff-
+  //     2026-08-02.md §5.3). Unlike the in-app cancel_at_period_end flow
+  //     (cancellation.ts), account deletion needs an immediate end: there will
+  //     be no account to receive Plus features. Without the cancel, later
   //     invoice.paid events carry a deleted artist_id, reconcile hits 23503,
   //     and Stripe eventually disables the endpoint for everyone.
+  //
+  //     Until 2026-08-03 this step did the cancel and nothing else, which is
+  //     the "immediate without refund" semantics counsel rejected as the
+  //     silent-forfeiture shape. `endSubscriptionForAccountDeletion` owns both
+  //     halves and both lanes (inside the 14-day window it delegates to the
+  //     statutory withdrawal machinery); see its header for why a failed
+  //     REFUND does not block the erasure while a failed CANCEL still does.
   const { data: billingSubRow } = await serviceClient
     .from("billing_subscriptions")
     .select(
-      "stripe_subscription_id, stripe_customer_id, status, contract_customer_type",
+      "id, stripe_subscription_id, stripe_customer_id, status, contract_customer_type",
     )
     .eq("artist_id", userId)
     .order("last_reconciled_at", { ascending: false })
@@ -262,11 +271,11 @@ export async function deleteOwnAccountCore(
 
   const ACTIVE_BILLING = new Set(["active", "trialing", "past_due"]);
   let billingCanceled = false;
+  let deletionRefund: BillingSnapshot["deletionRefund"] = null;
   if (
     billingSubRow?.stripe_subscription_id &&
     ACTIVE_BILLING.has(billingSubRow.status as string)
   ) {
-    const subId = billingSubRow.stripe_subscription_id as string;
     if (!stripe) {
       return {
         ok: false,
@@ -275,27 +284,33 @@ export async function deleteOwnAccountCore(
           "Account deletion is temporarily unavailable. Please try again in a moment.",
       };
     }
-    try {
-      await stripe.subscriptions.cancel(subId);
-      billingCanceled = true;
-    } catch {
-      let canceled = false;
-      try {
-        const sub = await stripe.subscriptions.retrieve(subId);
-        canceled = sub.status === "canceled";
-      } catch {
-        // Stripe unreachable
-      }
-      if (!canceled) {
-        return {
-          ok: false,
-          code: "ERROR",
-          message:
-            "Couldn't cancel your subscription. Please try again in a moment.",
-        };
-      }
-      billingCanceled = true;
+    const outcome = await endSubscriptionForAccountDeletion({
+      artistId: userId,
+      billingSubscriptionId: billingSubRow.id as string,
+      stripeSubscriptionId: billingSubRow.stripe_subscription_id as string,
+      contractCustomerType:
+        (billingSubRow.contract_customer_type as string | null) ?? null,
+    });
+    if (!outcome.ended) {
+      return {
+        ok: false,
+        code: "ERROR",
+        message:
+          "Couldn't cancel your subscription. Please try again in a moment.",
+      };
     }
+    billingCanceled = true;
+    deletionRefund = {
+      state: outcome.refundState,
+      processedAs: outcome.processedAs,
+      policyVersion: outcome.policyVersion,
+      grossMinor: outcome.refundGrossMinor,
+      currency: outcome.currency,
+      usedFraction: outcome.usedFraction,
+      stripeRefundId: outcome.stripeRefundId,
+      stripeChargeId: outcome.stripeChargeId,
+      error: outcome.error,
+    };
   }
 
   const billingSnapshot: BillingSnapshot | null = billingSubRow
@@ -308,6 +323,7 @@ export async function deleteOwnAccountCore(
         contractCustomerType:
           (billingSubRow.contract_customer_type as string | null) ?? null,
         canceledForDeletion: billingCanceled,
+        deletionRefund,
       }
     : null;
 
@@ -395,17 +411,33 @@ export async function deleteOwnAccountCore(
       pseudonymizedCollections.length > 0 ||
       pseudonymizedAllocations.length > 0;
 
+    // Q13 clause 1 ("retain the account pointer only") ALSO decides whether
+    // this row exists at all. The condition below used to be financial-records
+    // only, so an artist with a Connected Account but no paid deposit, order,
+    // subscription or appointment payment produced NO archive row — and
+    // `profile.stripe_account_id` is the only thing that can ever find that
+    // account again. Clause 2 (request its deletion at window-end) was
+    // therefore unperformable for exactly those accounts, silently. A retained
+    // pointer is itself a reason to write the row.
+    const connectAccountId = profile?.stripe_account_id ?? null;
     if (
       paid.length > 0 ||
       pseudonymizedOrders.length > 0 ||
       billingSnapshot ||
-      hasAppointmentPayments
+      hasAppointmentPayments ||
+      connectAccountId
     ) {
       const { error: archiveError } = await serviceClient
         .from("deleted_account_records")
         .insert({
           artist_id: userId,
-          stripe_account_id: profile?.stripe_account_id ?? null,
+          stripe_account_id: connectAccountId,
+          // 0148: `pending` means "the affirmative action at window-end is
+          // owed and has not happened", and the DB refuses to purge this row
+          // while that is true. With no pointer there is nothing to tear down.
+          connect_teardown_state: connectAccountId
+            ? "pending"
+            : "not_applicable",
           record: buildFinancialSnapshot(
             paid,
             resolvedIds,

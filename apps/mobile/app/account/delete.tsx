@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { apiDelete } from "@/lib/api";
+import { apiDelete, apiGet } from "@/lib/api";
+import type { MobileAccount } from "@inklee/shared/mobile-api";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { captureError } from "@/lib/telemetry";
@@ -45,6 +46,22 @@ export default function DeleteAccountScreen() {
   const [reauthError, setReauthError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Counsel Q12: deletion ends a paid Plus subscription immediately and
+  // refunds the unused part of the current period, and the consumer must be
+  // told that before the irreversible act. Same field the web confirmation
+  // screen renders, from the same server-side read. Fail-quiet: if this fetch
+  // fails the line is simply absent, which never blocks a deletion the artist
+  // is entitled to (counsel §3), and the server behaves identically either
+  // way.
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    apiGet<MobileAccount>("/account", controller.signal)
+      .then((a) => setHasActiveSubscription(a.hasActiveSubscription === true))
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
 
   async function reauth(fn: () => Promise<void>) {
     setReauthError(null);
@@ -123,6 +140,12 @@ export default function DeleteAccountScreen() {
         client data, uploaded photos, and your public page. This cannot be
         undone.
       </Text>
+      {hasActiveSubscription ? (
+        <Text className="mt-3 text-sm text-shell-dim">
+          Your Inklee Plus subscription ends now. We will refund the unused part
+          of your current period.
+        </Text>
+      ) : null}
 
       {/* Step 1 — re-authenticate */}
       <Text className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-shell-mute">

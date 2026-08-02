@@ -160,6 +160,12 @@ export default async function AccountPage() {
           email={user?.email ?? ""}
           hasPassword={hasPassword}
           oauthProvider={oauthProvider}
+          // Counsel Q12: what deletion does to a paid subscription must be
+          // disclosed on the confirmation screen, before the irreversible act.
+          // Same read the cancellation section uses (account_overrides, no
+          // Stripe call), so the two sections cannot disagree about whether a
+          // subscription is live.
+          hasActiveSubscription={cancellation?.hasActiveSubscription === true}
         />
       </section>
     </div>
