@@ -5942,6 +5942,34 @@ findings:
           reported it independently and neither attempted a rewrite, which was the right call
           with two commits already on top. Content verified byte-identical to the intended fix
           and re-validated at HEAD. Recorded as OPS-GIT-001."
+      - date: "2026-08-02"
+        actor: "bdel-sub-worker (self-reported limits) + supervisor session"
+        action: "evidence-added"
+        note: "VERIFIER TARGETS, named by the implementer against its own fix rather than
+          waiting to be asked. Recorded verbatim in priority order because a fix whose author
+          states its limits is worth more than one asserted complete.
+          (1) A TOCTOU WINDOW IS DELIBERATELY LEFT OPEN. profileExists() is a read and
+          guardedUpsert is a later write; they are not one statement. An account deleted in
+          the gap still produces the same 23503 and a 500. The author-s argument is that this
+          is self-healing rather than a regression - Stripe redelivers, and on redelivery the
+          check observes the now-absent profile and takes the safe branch, so the failure
+          degrades from wrong-data to one extra retry, matching the converge-to-target
+          guarantee this file already relies on. THAT ARGUMENT IS NOT PROVEN. It was not
+          exercised with two real concurrent connections, and this repository has been bitten
+          before by exactly that gap between a sequential probe and a real interleaving (see
+          the READ COMMITTED recheck entry in AGENTS.md). A verifier must either construct
+          the race or explicitly decide the self-healing argument is acceptable without it.
+          (2) The live-status set for the alert (active/trialing/past_due) was REUSED from
+          this file-s own duplicate-subscription check for internal consistency, not
+          re-derived from Stripe-s status vocabulary. Check it against the real enum; decide
+          in particular whether incomplete should ever page a human.
+          (3) The whole fix depends on current FK shapes, re-confirmed via pg_constraint at
+          fix time: billing_subscriptions confdeltype n (SET NULL),
+          account_overrides confdeltype c (CASCADE). If either changes, the comments and the
+          specific 23503 the db test reproduces need re-checking.
+          (4) The route.ts guard on the durable-confirmation write is one inference beyond
+          the finding as scoped. Confirm independently that it cannot suppress a legitimate
+          confirmation on some path nobody enumerated."
 
   - id: "BDEL-RET-001"
     title: "Terms and Privacy promise post-deletion retention of billing and tax records that the
