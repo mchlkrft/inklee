@@ -3075,3 +3075,92 @@ WITHOUT excluding `booking_id IS NOT NULL` rows — the same double-count this
 rollup had to guard against. Read, not fixed (out of scope; reported to the
 team lead for `docs/audit/findings.yaml` rather than edited directly, per
 this task's instruction).
+
+## BDEL-SUB-001 tail: reconcile.ts trusts metadata for a deleted profile (task #59, 2026-08-02, ready for review)
+
+Remaining half of `docs/audit/findings.yaml` `BDEL-SUB-001`, scoped by the
+team lead/a prior worker down to one root cause: `resolveArtistId` in
+`apps/web/src/lib/server/billing/reconcile.ts` reads `artist_id` off Stripe
+subscription/customer metadata, a point-in-time snapshot Stripe keeps
+forever, including after the artist deletes their Inklee account. Account
+deletion (`deleteOwnAccountCore` step 2b) cancels the subscription in Stripe
+BEFORE deleting the profile row, so the `customer.subscription.deleted`
+event that cancellation itself emits can be delivered AFTER the profile (and
+its CASCADE-linked `account_overrides` row) are already gone.
+
+**Verified live before fixing, both halves.** Direct SQL against local
+Postgres (profile inserted then deleted, matching the real post-deletion
+state): inserting into `billing_subscriptions` with the now-dangling
+`artist_id` throws `23503` on `billing_subscriptions_artist_id_fkey` (the
+INSERT path — a brand-new subscription id). A second check proved the
+UPDATE path too: a `billing_subscriptions` row seeded while the artist still
+existed, then the profile deleted (0129's `SET NULL` nulls that row's
+`artist_id`), then an UPDATE re-setting `artist_id` back to the dangling id
+also throws the same `23503` — Postgres enforces the FK on UPDATE of the
+referencing column, not only INSERT, which matters because it means an
+already-reconciled subscription is exposed to this too, not just a fresh
+one. `account_overrides` (still plain `CASCADE`, confirmed via
+`pg_constraint`) reproduces the same failure on its own INSERT once its row
+is cascade-erased.
+
+**Root-cause fix, not a narrower patch.** `reconcileFromStripeSubscription`
+now calls a new `profileExists(artistId)` check (real `profiles` read)
+before either write, and treats a deleted profile as nothing-to-reconcile:
+no write to `billing_subscriptions` or `account_overrides`, gallery
+relocation/restore skipped, duplicate-subscription check skipped. New
+`ReconcileResult.deletedProfile` field distinguishes this from `orphaned`
+(no artist_id could be found at all) — here we know exactly who this was
+and chose not to write, which matters for the alerting decision below.
+
+**Visibility decision, not silence.** Folding this into the existing
+`orphaned` branch was considered and rejected: that path fires a Sentry
+error on EVERY occurrence, which would recreate — for a different
+mitigation than the one already rejected in this finding's history, but the
+identical trade-off — an alert on every single Plus-subscriber deletion (the
+routine cancellation echo, which arrives with a terminal status). Instead:
+alert via `Sentry.captureMessage` (tag
+`billing_reconcile_deleted_profile`) ONLY when the event still names a live
+Stripe status (`active`/`trialing`/`past_due`) against the deleted profile —
+Stripe collecting money against an account Inklee has no record of is a
+real, otherwise-invisible money condition, and dropping it silently is
+exactly the class of swallowed signal this repo keeps finding elsewhere. A
+terminal status stays quiet.
+
+**One related gap closed for free.** `billing-webhook/route.ts`'s durable-
+confirmation write (`billing_contract_confirmations`, same FK-to-profiles
+shape) was reading `reconciled.artistId` without checking whether the
+profile still existed, so a `subscription_create` invoice landing after
+deletion could hit the identical 23503 one level down (caught there, so it
+would have surfaced as a Sentry exception rather than a webhook 500, but
+still an avoidable failure). Guarded with the same `deletedProfile` field;
+in scope because `route.ts` is one of the finding's own cited files.
+
+**Tests that fail without the fix, proven by reverting and re-running.**
+`apps/web/tests/db/billing-reconcile-deleted-profile.test.ts` (new, 3
+tests, real local Postgres): a fresh event (INSERT path), a late event on an
+already-reconciled subscription (UPDATE path), and the live-status Sentry
+alert. All three throw the exact `23503` above when reconcile.ts's fix is
+reverted (confirmed by `git stash` on just that file and re-running).
+`reconcile.test.ts` (unit) gained a `profiles` mock (default: exists, unless
+listed in a new `deletedProfiles` set — every pre-existing test in the file
+implicitly assumes an existing profile and needed no changes) plus 3 new
+cases covering the same decisions against the in-memory store; also proven
+to fail pre-fix by the same revert-and-rerun method.
+
+**Validation.** `npx tsc --noEmit` clean. `eslint` clean on the 4 touched
+files. Full `npx vitest run`: 194 files, 3282 passed + 1 expected fail, no
+regressions. `pnpm test:db` full run: 23 files, 302/302 green (this task's
+exclusive use of local Docker/Supabase per the team lead's brief; migrations
+0144/0145 were already applied locally, no `migration up` needed).
+
+**Process note for the record.** The initial `git commit` for this task
+failed with `fatal: cannot lock ref 'HEAD'` (another worker committed
+concurrently against the same shared working tree). The already-staged
+changes were then swept into that other worker's commit, `c39b6a0e
+refactor(goods): unify the products column list and row mapping
+(SHOP-DROP-002)`, under its unrelated message — confirmed via `git show
+--stat` and `git log -S deletedProfile`. Content verified byte-identical to
+what is described above and fully re-validated at that commit; no history
+rewrite was attempted given how many other workers were actively committing
+on top of it at the time. Flagged to the team lead rather than silently
+left for someone to discover later.
