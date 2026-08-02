@@ -302,3 +302,325 @@ We are not switching anything on.
 
 If any of it needs a conversation rather than a written answer, we would rather
 have the conversation than receive an assumption.
+
+---
+
+# PART 4 — ANSWERS (counsel + accountant review, 2026-08-02)
+
+Consistent with the 2026-07-24/25/31 and 2026-08-01 rounds; nothing settled is
+reopened. Draft wording is provided where Part 3 asked for wording; square
+brackets are variables. All drafts are for the single C1.9 Terms/copy version.
+
+## Counsel
+
+### C1.1 — Yes to both. Wording:
+
+Your assumption is correct: the current page is insufficient. Required changes:
+
+**Button:** replace "Pay" with **"Order with obligation to pay"** (Art. 8(2)
+CRD; a consumer is not bound by an order placed through a non-conforming
+button).
+
+**Disclosure block on the checkout screen, above the button:**
+
+> Sold by **[artist trading name]**, [artist address].
+> Inklee hosts this shop and processes the payment on the artist's behalf.
+> Your purchase contract is with the artist.
+>
+> Pickup or delivery is arranged with the artist directly. Any delivery cost
+> is agreed with the artist and is not included in this total.
+>
+> You have a 14-day right of return (see below / [link]). Items marked
+> "custom-made" cannot be returned.
+>
+> Questions or complaints: contact the artist at [artist contact]; if
+> unresolved, contact Inklee at [support email].
+
+Prerequisite: the artist Terms must oblige artists to provide and keep current
+their seller name, address, and contact — the platform can only display what
+it holds. Artists without complete seller data cannot enable the shop.
+
+### C1.2 — Return-right wording; postage; where 16(c) is claimed
+
+**Standard return notice (checkout + confirmation):**
+
+> **Right of return.** You may withdraw from this purchase within 14 days of
+> the day you (or someone you nominate) receive the goods, without giving a
+> reason. To do so, tell the artist ([artist contact]) or Inklee
+> ([support email]) in a clear statement before the period ends; you may use
+> the model withdrawal form [link/attached]. Send the goods back to the artist
+> within 14 days of telling us. **You bear the direct cost of returning the
+> goods.** The refund — including standard delivery cost, if you paid one —
+> is made within 14 days of your withdrawal, though it may be withheld until
+> the goods are back or you prove you sent them. You are liable only for any
+> diminished value from handling beyond what a shop would allow.
+
+**Personalised-goods exemption:** claimed **per product**, by an artist-set
+"custom-made" flag, rendered at the product, in the cart, at checkout, and in
+the confirmation as:
+
+> **Custom-made item: no right of return.** This item is made to your
+> specification or clearly personalised, so the 14-day right of return does
+> not apply (Art. 16(c), Consumer Rights Directive).
+
+Never claim it in the Terms alone; an undisclosed or blanket claim fails, and
+an undisclosed return right extends the window to 12 months (Art. 10).
+
+### C1.3 — Yes; the confirmation must be the durable record
+
+Add to the receipt email (in the body or a PDF attachment — not only a link):
+the C1.1 seller block (identity + address); items, prices, total; the delivery
+arrangement; the C1.2 return notice and model form, or the custom-made claim
+for flagged items; the complaint route; and the applicable terms text. Close
+with: "This message is your order confirmation on a durable medium." This
+mirrors the approved Plus E2 pattern.
+
+### C1.4 — Retention rules (the four cases) + notice + RoP
+
+- **Completed order:** retain 7 years from the end of the financial year
+  (Accounting Act § 12; Art. 6(1)(c)/17(3)(b)); guest email stays on the order
+  as part of the financial record.
+- **Cancelled order:** no financial-record basis. **Erase or pseudonymise the
+  guest email 30 days after cancellation** (operational window for disputes
+  about the cancellation itself); keep the de-identified row for statistics if
+  wanted.
+- **Abandoned cart:** delete **30 days after last activity**. The hashed token
+  design is good; the products list without contact data may be kept
+  de-identified.
+- **Wishlist (guest, token-based):** keep while active; delete after **12
+  months of inactivity**.
+
+**Privacy notice at the email field:**
+
+> We use your email for your receipt and so [artist] can arrange delivery. It
+> is kept as part of the order record. [Privacy policy]
+
+**RoP:** add one entry — guest goods orders (categories: email, order
+contents, cart token hash; recipients: the artist, Stripe; bases: Art. 6(1)(b)
+contract, 6(1)(c) retention; the retention table above).
+
+Build the purge jobs before the shop switches on — the cancelled-order purge
+is the one with no current path and no lawful anchor without it.
+
+### C1.5 — Conditional pass; signed URLs as a dated fast-follow
+
+Public-unlisted is acceptable **at launch only**, on all of: high-entropy
+paths, no listing/indexing, and — the correction — **on downgrade, stop the
+objects being publicly reachable**, not only the render: relocate to
+non-public storage or invalidate the URLs within a short grace window (60
+days is defensible; the artist may resubscribe, so relocation rather than
+deletion is the right default; deletion on removal and account closure stay
+as built). Unguessable URLs are not access control for images of identifiable
+people's skin. Move to **signed, expiring URLs** as a dated fast-follow —
+same discipline as the E4 pre-login route — before any gallery marketing
+push. Fold the gallery into the still-uncompleted **LO-5 DPIA**, which the
+account-deletion handoff already makes release-gating.
+
+### C1.6 — Yes to the attestation; hosting a copy is the right call with two guards
+
+Storing your own copy is a reproduction, so Inklee hosts content rather than
+framing it — **more** responsibility than hotlinking, but the correct
+engineering choice, and the legal position is standard UGC hosting provided:
+(1) **attestation at import** — a required confirmation on the URL-import
+action: "I confirm I have the right to use this image on my page," logged
+with the import (append-only, like other consent records); (2) the
+**notice-and-action route** (the Q14/DSA machinery) covers gallery images, so
+a rights-holder complaint gets the hosting-liability protection of prompt
+removal. With both, the artist bears primary responsibility and Inklee keeps
+the host's position. No attestation = no import.
+
+### C1.7 — Terms clause for the retained processing cost
+
+> **Refunds of our fee.** If you cancel and refund a payment, we return the
+> platform fee we charged on it, less the card-processing cost we were
+> charged by our payment provider for that payment and cannot recover. We
+> retain only the amount actually evidenced by the payment provider, at most
+> once per payment, and never more than the fee being returned. The amount
+> retained is shown on your refund statement.
+
+Conditions from the prior rounds stand: this enters the Terms in the single
+C1.9 version **before** the refund-policy flip; evidenced cost only; the
+client's own refund is never reduced by it.
+
+### C1.8 — Partial-refund communication
+
+On any partial refund, the buyer receives:
+
+> We have refunded [amount] for [items/lines, or "part of your order"]. The
+> refund goes to your original payment method, typically within 5–10 business
+> days. The rest of your order is unchanged, and your right of return for the
+> remaining items (where it applies) is unaffected.
+
+Where the artist retains items or the refund follows a return, reference it
+("following your return of [item]"). This does fold into C1.2: the return
+notice covers the entitlement; this covers the event.
+
+### C1.9 — Process confirmed
+
+One versioned Terms edit carrying C1.1–C1.3, C1.7, C1.8, the C1.4 privacy
+text, and the earlier X2 line-76 fix; one consolidated approval recorded
+against that hash. Send the final render for the confirmation pass.
+
+### C1.10 — Make the code match the promise
+
+The promise is the legally required side: billing and tax records **must**
+survive account deletion (Accounting Act § 12; Art. 17(3)(b) — the position
+already implemented for deposits in `account-deletion-handoff.md` §§4–5 as
+pseudonymised retention). A deletion routine that erases them would put
+Inklee in breach of a legal obligation to cure a documentation mismatch —
+never the right trade. **Fix the code:** the deletion routine carves out the
+retained financial subset (pseudonymised per the handoff), and the
+Terms/Privacy promise stands as written. Verify the carve-out against the
+handoff's §11 implementation table while you are in there.
+
+## Accountant
+
+### A1 — Co-sign recommended
+
+Inclusive display at 3.00 EUR is the correct implementation of the
+consumer-first + unregistered posture; since no VAT is remitted, ~2.70 EUR
+net (after Stripe's fee) is the right planning figure and supersedes the 2.18
+model. Record the standing caution: at future VAT registration the 3.00
+inclusive price absorbs VAT unless re-priced — that decision is parked with
+the A2 trigger, deliberately.
+
+### A2 — Confirmed, with the conservative counting rule
+
+35k/8k alerts and quarterly cadence confirmed; accountant monitors,
+founder/board owns re-approval. **Yes, platform-fee revenue counts** — it is
+Inklee's own turnover. Until the LO-10 round settles fee classification,
+count **all** fee revenue toward the 35k domestic alert; over-counting toward
+an alert is safe, under-counting is the silent failure.
+
+### A3 — Approved as encoded, conditions unchanged
+
+Rates and the grandfathered 3%/5% row approved; no VAT on any fee line while
+unregistered. The flip still waits on: Terms coverage of the new Free goods
+fee + **30 days' advance notice** to existing artists, via the C1.9 version.
+Per-transaction version/tier stamps satisfy the reproducibility requirement.
+
+### A4 — Confirmed
+
+Artist as seller of record with destination charges and an application fee
+leaves the agreed model unchanged. Classification: the goods fee is a **B2B
+service to the artist-as-trader** (selling goods to the public is trade
+activity regardless of the consumer-framed subscription). Fees to Estonian
+artists count toward the domestic counter; fees to other-EU artists are
+customer-country supplies — but apply the A2 conservative rule until LO-10.
+
+### A5 — Assumption confirmed
+
+Buyer-facing invoicing for goods is the **artist's** obligation as seller;
+consumer sales need no invoice unless requested or local law requires. Inklee
+provides the order record and the (upgraded, per C1.3) receipt "on behalf of
+the artist." Inklee's own document is its **fee invoice to the artist** once
+the goods fee is non-zero — A4 non-registered format. Add one line to the
+artist Terms: buyer-requested invoices are the artist's to issue; Inklee
+supplies the data.
+
+### A6 — Method approved; present the retained cost separately
+
+The allocation (proportional fee return, evidenced-cost retention capped at
+the attributable fee and never double-counted, append-only lines,
+fail-closed on mismatch) is approved — fail-closed is the right choice.
+Books: a partial refund reverses the refunded proportion of fee revenue; the
+**retained processing cost is presented as its own line**, both on the
+artist-facing refund statement and in the books (retained-fee income
+offsetting the Stripe expense), not netted invisibly into the fee reversal.
+That separation is also what makes the C1.7 Terms clause auditable.
+
+### A7 — The claim binds to who pays Stripe, not to the rate
+
+"Card processing included" is true whenever Inklee absorbs the processing
+cost (`fees.payer: application`) — at 0.5% it is simply a subsidy, since
+Stripe's ~1.5% + 0.25 exceeds the fee. It may carry at the Plus rate **if**
+the founder records the per-transaction subsidy as intended policy; and the
+copy should be bound to the fee-payer setting, not the rate, so a future
+model change cannot silently make it false. Robust wording for all rates:
+**"no separate card-processing fees."** Keep suppressed until the founder
+records the intent.
+
+### A8 — Records only
+
+Component list-price snapshots are operational records for restock/refund
+mechanics and audit trail; the books recognise only the actual amounts
+charged and refunded. No reconciliation entries needed. Confirmed as minor.
+
+## The one-pass return, mapped
+
+| Asked (Part 3) | Answered |
+|---|---|
+| Wording C1.1/C1.2/C1.3/C1.7/C1.8 | Drafts above, for the single C1.9 version |
+| C1.4 retention decision | 7y / 30d / 30d / 12m table + purge jobs before shop-on |
+| C1.5 image hosting | Conditional pass; relocate-on-downgrade now, signed URLs dated fast-follow, into LO-5 DPIA |
+| C1.6 attestation | Yes — required, logged; DSA notice route covers galleries |
+| C1.10 direction | Code matches promise; retention carve-out stands |
+| A1 co-sign | Recommended; caution recorded |
+| A3, A6 approvals | Approved; A3 conditions unchanged; A6 separate presentation |
+| A2, A4, A5, A7, A8 | Confirmed as detailed above |
+
+**Standing items this pass does not close:** the LO-10 round (schedule it;
+close before real client money), the LO-5 DPIA (release-gating, now including
+the gallery and guest checkout), and the E4 pre-login cancellation
+fast-follow.
+
+---
+
+# PART 5 — QUESTIONS ARISING FROM IMPLEMENTING YOUR ANSWERS (2026-08-02)
+
+Three items surfaced while building the answers above. Each is a decision we
+should not make alone; each is small; none blocks the rest of the work.
+
+## Q1 [COUNSEL + ACCOUNTANT] — one ledger cannot be purged, by design
+
+Your C1.4 answer and the general position are that indefinite retention is not
+applied. We implemented the seven-year purge for the billing records that
+survive an account deletion, and four of the five tables now purge correctly.
+
+**The fifth cannot.** `transaction_tax_snapshots` carries an append-only
+database trigger that refuses every delete unconditionally, with the message
+"corrections are new rows". That control was added deliberately, as an
+accounting-ledger immutability guarantee, and we are not willing to weaken it
+on our own judgement.
+
+So that table is currently retained **permanently**, not for seven years. A
+consequence worth stating: because nearly every real subscription generates at
+least one tax event, the subscription rows those snapshots point at are
+effectively retained permanently too.
+
+**The question:** is permanent retention of the tax ledger the correct and
+intended position (which is common accounting practice, and would mean your §8
+"no indefinite retention" applies to everything except this ledger), or should
+the ledger become deletable after a defined period, which would mean amending
+a deliberate immutability control?
+
+We would rather have the answer than the guess. If it is the former, we will
+record it as an explicit, documented exception rather than an unexamined gap.
+
+## Q2 [COUNSEL] — a bundle containing one custom-made item
+
+Your C1.2 answer claims the personalised-goods exemption **per product**, via a
+flag rendered at the product, in the cart, at checkout and in the confirmation.
+We implemented exactly that.
+
+Bundles were not addressed. An artist can sell several products together as one
+priced unit, and one component may be custom-made while the others are not.
+
+Our provisional rule, which engineering chose and which we are flagging rather
+than settling: **a bundle is non-returnable if any component is custom-made.**
+That is the conservative direction, but it is a legal determination we made.
+
+**The question:** is a mixed bundle wholly non-returnable, partially returnable
+(and if so, how is a partial return of a single priced unit even expressed), or
+must it simply not be sold as one unit?
+
+## Q3 [ACCOUNTANT] — A7 needs one founder decision recorded before we can use it
+
+Your A7 answer says the "no separate card-processing fees" claim may carry at
+the Plus rate **if** the founder records the per-transaction subsidy as
+intended policy, and that the copy should bind to the fee-payer setting rather
+than the rate.
+
+We have implemented the binding and left the claim suppressed. This is not a
+question for you; it is a note that the claim stays off our pages until that
+founder decision exists, so nobody expects to see it.
