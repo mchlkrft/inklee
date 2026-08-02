@@ -864,11 +864,21 @@ export async function saveShopCheckoutEnabledAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from("profiles")
     .select("settings, seller_trading_name, seller_address, seller_contact")
     .eq("id", user.id)
     .single();
+  // A failed (or empty) read must never fall through to the merge below: with
+  // the error discarded, `current` used to default to `{}` and the write
+  // below replaced the artist's ENTIRE settings blob with just `features`,
+  // destroying bio_page, booking settings and theme on any transient read
+  // failure. Refuse instead of guessing.
+  if (existingErr || !existing) {
+    return {
+      error: "Could not load your account settings. Please try again.",
+    };
+  }
 
   // C1.1 counsel prerequisite: "Artists without complete seller data cannot
   // enable the shop." Checked at the point of TURNING IT ON — an artist can

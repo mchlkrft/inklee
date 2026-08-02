@@ -10,6 +10,7 @@ const { getUser, revalidatePath } = vi.hoisted(() => ({
 }));
 
 let existingRow: { settings?: unknown } | null = null;
+let existingRowError: { message: string } | null = null;
 let updatePayload: Record<string, unknown> | null = null;
 let updateFilters: Record<string, unknown> = {};
 let updateError: { message: string } | null = null;
@@ -23,7 +24,8 @@ vi.mock("@/lib/supabase/server", () => ({
       return {
         select: () => ({
           eq: () => ({
-            single: () => Promise.resolve({ data: existingRow }),
+            single: () =>
+              Promise.resolve({ data: existingRow, error: existingRowError }),
           }),
         }),
         update: (payload: Record<string, unknown>) => {
@@ -46,6 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getUser.mockResolvedValue({ data: { user: { id: "artist1" } } });
   existingRow = { settings: {} };
+  existingRowError = null;
   updatePayload = null;
   updateFilters = {};
   updateError = null;
@@ -101,6 +104,64 @@ describe("saveShopCheckoutEnabledAction", () => {
         "Add your seller name, address and contact before turning this on.",
     });
     expect(updatePayload).toBeNull();
+  });
+
+  // M3: a failed read must never fall through to the merge-and-write below.
+  // Before the fix, the discarded error let `current` default to `{}` and
+  // the write replaced the ENTIRE settings blob with just `features`,
+  // destroying bio_page, booking settings and theme on any transient read
+  // failure. `existingRow` here carries a rich settings blob precisely so a
+  // regression can be seen concretely: if the guard were removed, this test
+  // would start observing `updatePayload.settings` collapse to
+  // `{ features: {...} }` with `bio_page` gone, not merely a different
+  // return value.
+  it("refuses the write and does not wipe settings when the profile read fails", async () => {
+    existingRow = {
+      settings: {
+        bio_page: { blocks: [{ type: "text" }], socials: [] },
+        features: { goods_module: true },
+      },
+    };
+    existingRowError = { message: "connection reset" };
+
+    const r = await saveShopCheckoutEnabledAction(false);
+
+    expect(r).toEqual({
+      error: "Could not load your account settings. Please try again.",
+    });
+    // The actual consequence under test: no write was ever sent, so the real
+    // settings row (bio_page, other features) cannot have been clobbered.
+    expect(updatePayload).toBeNull();
+  });
+
+  // Distinction control: a successful read (no error) with a rich existing
+  // settings blob still merges correctly and leaves bio_page untouched. This
+  // is what proves the guard above refuses ONLY on a genuine read failure,
+  // not on every read that happens to return non-empty settings.
+  it("preserves an existing settings blob (bio_page, other features) when the read succeeds", async () => {
+    existingRow = {
+      settings: {
+        bio_page: { blocks: [{ type: "text" }], socials: [] },
+        features: { goods_module: true },
+      },
+      seller_trading_name: "Mika Ink Studio",
+      seller_address: "12 Ink Street, Berlin, Germany",
+      seller_contact: "mika@example.com",
+    } as { settings?: unknown };
+
+    const r = await saveShopCheckoutEnabledAction(true);
+
+    expect(r).toEqual({ success: true });
+    const settings = updatePayload!.settings as Record<string, unknown>;
+    expect(settings.bio_page).toEqual({
+      blocks: [{ type: "text" }],
+      socials: [],
+    });
+    expect(settings.features).toEqual({
+      goods_module: true,
+      checkout_addons: true,
+      shop_checkout: true,
+    });
   });
 
   it("requires authentication and never reaches the database", async () => {
