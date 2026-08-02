@@ -1,8 +1,10 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import {
   relativeDateKeyFromToday,
   addDaysToDateKey,
+  isDateKeyBefore,
   localDateKey,
   todayInTimeZone,
 } from "@/lib/date-utils";
@@ -16,6 +18,10 @@ import { parseReminderSettings } from "@/lib/reminder-settings";
 import { serviceClient } from "@/lib/supabase/service";
 import { resolveStudioForBooking } from "@/lib/booking-studio";
 import { localToUTC } from "@/lib/timezone";
+import {
+  DEPOSIT_OVERDUE_MAX_SENDS,
+  DEPOSIT_OVERDUE_STALENESS_FLOOR_DAYS,
+} from "./constants";
 
 export const runtime = "nodejs";
 
@@ -99,6 +105,31 @@ async function alreadySentToday(
   return (count ?? 0) > 0;
 }
 
+/**
+ * All-time count of `reminder_sent` audit rows for this booking+type, with no
+ * date bound. CRON-RMD-001: `alreadySentToday` only suppresses a SECOND send
+ * on the SAME day, so a booking that never resolves gets a fresh email every
+ * day forever (production sent one address 46 times over 50 days). This is
+ * the per-booking counter that bounds total sends rather than same-day sends.
+ * Deliberately reuses `audit_log` instead of adding a send-count column: the
+ * row this counts already exists and is written unconditionally by
+ * `recordReminderSent`, so the cap needs no migration and cannot drift from
+ * what was actually sent.
+ */
+async function reminderSendCount(
+  bookingId: string,
+  type: "deposit_overdue" | "appointment_reminder" | "reconfirmation",
+): Promise<number> {
+  const { count } = await serviceClient
+    .from("audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_id", bookingId)
+    .eq("action", "reminder_sent")
+    .filter("details->>type", "eq", type);
+
+  return count ?? 0;
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -111,6 +142,7 @@ export async function GET(request: Request) {
     reconfirmation: 0,
     errors: 0,
     capped: 0,
+    deposit_overdue_limit_reached: 0,
   };
 
   const ARTIST_EMAIL_CAP = 10;
@@ -143,6 +175,13 @@ export async function GET(request: Request) {
         ) {
           continue;
         }
+        const stalenessFloor = addDaysToDateKey(
+          todayInTimeZone(snapshot.timezone),
+          -DEPOSIT_OVERDUE_STALENESS_FLOOR_DAYS,
+        );
+        if (isDateKeyBefore(booking.deposit_due_at, stalenessFloor)) {
+          continue;
+        }
         if (
           await alreadySentToday(
             booking.id,
@@ -150,6 +189,13 @@ export async function GET(request: Request) {
             snapshot.timezone,
           )
         ) {
+          continue;
+        }
+        if (
+          (await reminderSendCount(booking.id, "deposit_overdue")) >=
+          DEPOSIT_OVERDUE_MAX_SENDS
+        ) {
+          results.deposit_overdue_limit_reached++;
           continue;
         }
         if (!withinCap(booking.artist_id)) {
@@ -188,6 +234,10 @@ export async function GET(request: Request) {
       } catch (error) {
         console.error("[cron/reminders][deposit_overdue]", error, {
           bookingId: booking.id,
+        });
+        Sentry.captureException(error, {
+          tags: { route: "cron/reminders", phase: "deposit_overdue" },
+          extra: { bookingId: booking.id },
         });
         results.errors++;
       }
@@ -254,6 +304,10 @@ export async function GET(request: Request) {
       } catch (error) {
         console.error("[cron/reminders][appointment_reminder]", error, {
           bookingId: booking.id,
+        });
+        Sentry.captureException(error, {
+          tags: { route: "cron/reminders", phase: "appointment_reminder" },
+          extra: { bookingId: booking.id },
         });
         results.errors++;
       }
@@ -347,6 +401,10 @@ export async function GET(request: Request) {
       } catch (error) {
         console.error("[cron/reminders][reconfirmation]", error, {
           bookingId: booking.id,
+        });
+        Sentry.captureException(error, {
+          tags: { route: "cron/reminders", phase: "reconfirmation" },
+          extra: { bookingId: booking.id },
         });
         results.errors++;
       }
