@@ -10,6 +10,13 @@ import {
 } from "@stripe/react-stripe-js";
 import { formatPrice } from "@/lib/goods";
 import {
+  ORDER_WITH_OBLIGATION_LABEL,
+  CUSTOM_MADE_NOTICE,
+  summarizeReturnDisclosure,
+  type ReturnDisclosureSummary,
+  type ReturnDisclosureItem,
+} from "@inklee/shared/consumer-disclosures";
+import {
   startShopCheckoutAction,
   startCartCheckoutAction,
   addToCartAction,
@@ -34,6 +41,8 @@ export type CheckoutProduct = {
   soldOut: boolean;
   /** Announced drop that has not opened yet: rendered, not addable. */
   upcoming?: boolean;
+  /** Art. 16(c) exemption (C1.2): no right of return on this item. */
+  customMade?: boolean;
   variants: {
     id: string;
     name: string;
@@ -54,6 +63,9 @@ export type CheckoutBundle = {
   /** Purchasable right now (visible components in stock). Display-only; the
    *  server re-checks at order time. */
   available: boolean;
+  /** C1.2: true when ANY component is custom-made (resolveBundleLines' rule,
+   *  mirrored here so the bundle listing and the pay-phase disclosure agree). */
+  customMade?: boolean;
 };
 
 // FD5: the buyer's PERSISTED, seller-scoped cart for THIS artist — separate
@@ -78,6 +90,8 @@ export type CartLine = {
   currency: string;
   available: boolean;
   unavailableReason: string | null;
+  /** C1.2: true when this line cannot be returned. */
+  customMade?: boolean;
 };
 
 export type CartState = {
@@ -91,7 +105,52 @@ const MAX_QTY = 10;
 
 type Phase =
   | { step: "pick" }
-  | { step: "pay"; clientSecret: string; totalMinor: number };
+  | {
+      step: "pay";
+      clientSecret: string;
+      totalMinor: number;
+      /** C1.2: fixed at the moment the order was started, from whichever
+       *  items (Buy-now selections or cart lines) it actually contains — the
+       *  pick-phase panel below is a live, combined preview and can differ
+       *  from this once the buyer has moved on. */
+      disclosure: ReturnDisclosureSummary;
+    };
+
+/** C1.1/C1.2 disclosure panel: the seller block, always shown, plus whichever
+ *  of the standard return notice / custom-made notice / both applies. Shared
+ *  between the pick screen and the pay screen so the two can never disagree
+ *  about wording (only the ITEMS behind `disclosure` differ between them). */
+function DisclosurePanel({
+  sellerDisclosureBlock,
+  returnNotice,
+  disclosure,
+}: {
+  sellerDisclosureBlock: string;
+  returnNotice: string;
+  disclosure: ReturnDisclosureSummary;
+}) {
+  return (
+    <div className="space-y-3 rounded-[14px] border border-border p-4 text-sm text-foreground">
+      <p className="whitespace-pre-line text-muted-foreground">
+        {sellerDisclosureBlock}
+      </p>
+      {disclosure === "all_custom_made" && <p>{CUSTOM_MADE_NOTICE}</p>}
+      {disclosure === "mixed" && (
+        <div className="space-y-2">
+          <p>
+            Some items in your order are custom-made and cannot be returned:
+          </p>
+          <p>{CUSTOM_MADE_NOTICE}</p>
+          <p>The remaining items qualify for the standard return right:</p>
+          <p className="whitespace-pre-line">{returnNotice}</p>
+        </div>
+      )}
+      {(disclosure === "all_returnable" || disclosure === "empty") && (
+        <p className="whitespace-pre-line">{returnNotice}</p>
+      )}
+    </div>
+  );
+}
 
 function PayInner({
   totalMinor,
@@ -135,7 +194,7 @@ function PayInner({
       >
         {processing
           ? "Processing..."
-          : `Pay ${formatPrice(totalMinor / 100, "eur")} to ${artistName}`}
+          : `${ORDER_WITH_OBLIGATION_LABEL} ${formatPrice(totalMinor / 100, "eur")} to ${artistName}`}
       </button>
     </div>
   );
@@ -149,6 +208,8 @@ export function ShopCheckout({
   stripePublishableKey,
   initialCart,
   wishlistedKeys = [],
+  sellerDisclosureBlock,
+  returnNotice,
 }: {
   slug: string;
   artistName: string;
@@ -162,6 +223,11 @@ export function ShopCheckout({
   /** `${productId}::${variantId ?? ""}` keys already on the buyer's
    *  wishlist, for the heart button's initial filled/unfilled state. */
   wishlistedKeys?: string[];
+  /** C1.1 verbatim seller block, pre-rendered server-side from the artist's
+   *  real seller data (the page already enforces sellerDataComplete). */
+  sellerDisclosureBlock: string;
+  /** C1.2 verbatim standard return notice, pre-rendered server-side. */
+  returnNotice: string;
 }) {
   const stripePromise = useMemo(
     () => loadStripe(stripePublishableKey),
@@ -316,6 +382,7 @@ export function ShopCheckout({
         step: "pay",
         clientSecret: result.clientSecret,
         totalMinor: result.totalMinor,
+        disclosure: disclosureForCart,
       });
     });
   };
@@ -379,6 +446,44 @@ export function ShopCheckout({
     return sum;
   }, [selections, products, bundleSelections, bundles]);
 
+  // C1.2: the Buy-now selections currently on screen, as disclosure items —
+  // fixed into the Phase at the moment checkout actually starts, since the
+  // buyer's picks are free to keep changing after that.
+  const selectionDisclosureItems = useMemo((): ReturnDisclosureItem[] => {
+    const items: ReturnDisclosureItem[] = [];
+    for (const s of selections) {
+      const p = products.find((x) => x.id === s.productId);
+      if (p) items.push({ customMade: p.customMade === true });
+    }
+    for (const s of bundleSelections) {
+      const b = bundles.find((x) => x.id === s.bundleId);
+      if (b) items.push({ customMade: b.customMade === true });
+    }
+    return items;
+  }, [selections, products, bundleSelections, bundles]);
+  const disclosureForSelections = summarizeReturnDisclosure(
+    selectionDisclosureItems,
+  );
+
+  // Same idea for the persisted cart, scoped to lines that are actually
+  // payable (an unavailable line is refused at checkout, so it never becomes
+  // a real order line).
+  const cartDisclosureItems = useMemo(
+    (): ReturnDisclosureItem[] =>
+      cart.lines
+        .filter((l) => l.available)
+        .map((l) => ({ customMade: l.customMade === true })),
+    [cart.lines],
+  );
+  const disclosureForCart = summarizeReturnDisclosure(cartDisclosureItems);
+
+  // Combined, live preview shown on the pick screen: a superset of both
+  // checkout avenues, since the buyer can act on either button from there.
+  const pickDisclosure = summarizeReturnDisclosure([
+    ...selectionDisclosureItems,
+    ...cartDisclosureItems,
+  ]);
+
   const startCheckout = () => {
     setError(null);
     startTransition(async () => {
@@ -397,6 +502,7 @@ export function ShopCheckout({
         step: "pay",
         clientSecret: result.clientSecret,
         totalMinor: result.totalMinor,
+        disclosure: disclosureForSelections,
       });
     });
   };
@@ -423,6 +529,11 @@ export function ShopCheckout({
         >
           Back to items
         </button>
+        <DisclosurePanel
+          sellerDisclosureBlock={sellerDisclosureBlock}
+          returnNotice={returnNotice}
+          disclosure={phase.disclosure}
+        />
         <Elements
           stripe={stripePromise}
           options={{ clientSecret: phase.clientSecret }}
@@ -466,6 +577,7 @@ export function ShopCheckout({
                         ? ` · save ${formatPrice(b.savingsAmount, b.currency)}`
                         : ""}
                       {b.available ? "" : " · unavailable"}
+                      {b.customMade ? " · custom-made, no returns" : ""}
                     </p>
                     {b.componentSummary && (
                       <p className="mt-0.5 text-xs text-muted-foreground">
@@ -560,6 +672,7 @@ export function ShopCheckout({
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatPrice(unit, p.currency)}
                   {p.upcoming ? " · drops soon" : soldOut ? " · sold out" : ""}
+                  {p.customMade ? " · custom-made, no returns" : ""}
                 </p>
                 {hasVariants && (
                   <select
@@ -646,6 +759,7 @@ export function ShopCheckout({
                       {line.available
                         ? ` = ${formatPrice(line.lineTotal, line.currency)}`
                         : ` · ${line.unavailableReason ?? "unavailable"}`}
+                      {line.customMade ? " · custom-made, no returns" : ""}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -722,6 +836,12 @@ export function ShopCheckout({
           />
         </label>
       </div>
+
+      <DisclosurePanel
+        sellerDisclosureBlock={sellerDisclosureBlock}
+        returnNotice={returnNotice}
+        disclosure={pickDisclosure}
+      />
 
       <button
         type="button"

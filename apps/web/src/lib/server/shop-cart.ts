@@ -365,6 +365,11 @@ export type CartDisplayLine = {
    *  time. */
   available: boolean;
   unavailableReason: string | null;
+  /** C1.2: true when this line cannot be returned (a flagged product, or a
+   *  bundle with any flagged component). Display-only, resolved fresh on
+   *  every read like price/availability — the sale-time snapshot on
+   *  order_items is what the receipt and any post-purchase surface read. */
+  customMade: boolean;
 };
 
 export type CartDisplay = {
@@ -427,7 +432,7 @@ export async function getCartForDisplay(
       ? serviceClient
           .from("products")
           .select(
-            "id, title, price_amount, currency, product_variants(id, name, price_amount_override, status)",
+            "id, title, price_amount, currency, custom_made, product_variants(id, name, price_amount_override, status)",
           )
           .eq("artist_id", artistId)
           .in("id", productIds)
@@ -533,6 +538,7 @@ export async function getCartForDisplay(
         currency: (raw.currency as string) ?? "eur",
         available,
         unavailableReason,
+        customMade: raw.custom_made === true,
       });
     } else {
       const bundleId = item.bundle_id as string;
@@ -566,6 +572,10 @@ export async function getCartForDisplay(
         unavailableReason: available
           ? null
           : "That bundle isn't available right now.",
+        // C1.2: any custom-made component makes the whole bundle line
+        // non-returnable (same rule resolveBundleLines applies at sale time).
+        customMade:
+          available && resolved.ok ? resolved.lines[0]!.customMade : false,
       });
     }
   }

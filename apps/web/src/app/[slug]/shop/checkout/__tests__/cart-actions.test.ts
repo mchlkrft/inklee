@@ -113,6 +113,15 @@ const CART_STATE = {
   currency: "eur",
 };
 
+// C1.1 counsel prerequisite: every test below expects the shop to be
+// resolvable, so the fixture profile needs complete seller data — same
+// reasoning as goods-checkout.test.ts's own COMPLETE_SELLER_ROW.
+const COMPLETE_SELLER_ROW = {
+  seller_trading_name: "Mika Ink Studio",
+  seller_address: "12 Ink Street, Berlin, Germany",
+  seller_contact: "mika@example.com",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   flags.goodsCommerce = true;
@@ -120,6 +129,7 @@ beforeEach(() => {
     data: {
       id: "a1",
       settings: { features: { goods_module: true, shop_checkout: true } },
+      ...COMPLETE_SELLER_ROW,
     },
   });
   mockCartLimit.mockResolvedValue({ allowed: true });
@@ -186,6 +196,27 @@ describe("addToCartAction", () => {
     mockProfile.mockReturnValue({ data: null });
     const r = await addToCartAction({
       slug: "nobody",
+      productId: "p1",
+      variantId: null,
+      quantity: 1,
+    });
+    expect(r).toEqual({ ok: false, error: "This shop could not be found." });
+    expect(mockGetOrCreateHash).not.toHaveBeenCalled();
+  });
+
+  // C1.1 counsel prerequisite: resolveShopArtist (shared by every cart,
+  // wishlist and checkout action) treats incomplete seller data the same as
+  // an unresolvable shop.
+  it("refuses when the artist has no seller data on file, without minting a guest identity", async () => {
+    mockProfile.mockReturnValue({
+      data: {
+        id: "a1",
+        settings: { features: { goods_module: true, shop_checkout: true } },
+        // no seller_* fields
+      },
+    });
+    const r = await addToCartAction({
+      slug: "mika",
       productId: "p1",
       variantId: null,
       quantity: 1,

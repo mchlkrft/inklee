@@ -30,6 +30,10 @@ export type AddonProduct = {
    *  product was before drops existed. */
   availableFrom?: string | null;
   preorder?: boolean;
+  /** Art. 16(c) exemption (C1.2), artist-set. Optional so existing callers
+   *  and fixtures keep compiling; absent means "returnable", which is what
+   *  every product was before this flag existed. */
+  customMade?: boolean;
   variants: AddonVariant[];
 };
 
@@ -47,6 +51,10 @@ export type OrderLine = {
   quantity: number;
   unitAmount: number;
   totalAmount: number;
+  /** Sale-time snapshot of the product's custom-made flag (C1.2) — frozen at
+   *  purchase so a later edit to the product can never rewrite what a past
+   *  buyer's receipt is allowed to claim about their return right. */
+  customMade: boolean;
 };
 
 export type ComputedAddons =
@@ -184,6 +192,7 @@ export function computeAddonLines(
       quantity: qty,
       unitAmount: round2(unitAmount),
       totalAmount,
+      customMade: product.customMade === true,
     });
   }
 

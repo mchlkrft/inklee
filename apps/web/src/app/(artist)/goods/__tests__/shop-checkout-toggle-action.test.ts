@@ -70,7 +70,14 @@ describe("saveShopCheckoutEnabledAction", () => {
   });
 
   it("turns shop_checkout on from a profile that never set any feature flags", async () => {
-    existingRow = { settings: {} };
+    // C1.1 counsel prerequisite: complete seller data, or the toggle refuses
+    // to turn on regardless of the feature-flag round-trip under test here.
+    existingRow = {
+      settings: {},
+      seller_trading_name: "Mika Ink Studio",
+      seller_address: "12 Ink Street, Berlin, Germany",
+      seller_contact: "mika@example.com",
+    } as { settings?: unknown };
     const r = await saveShopCheckoutEnabledAction(true);
     expect(r).toEqual({ success: true });
     const features = (updatePayload!.settings as Record<string, unknown>)
@@ -81,6 +88,19 @@ describe("saveShopCheckoutEnabledAction", () => {
       checkout_addons: true,
       shop_checkout: true,
     });
+  });
+
+  // C1.1 counsel prerequisite, the actual gate under test in this file: an
+  // artist with no seller data cannot turn the toggle on, even though the
+  // feature-flag round-trip itself would otherwise succeed.
+  it("refuses to turn shop_checkout on when seller data is incomplete", async () => {
+    existingRow = { settings: {} };
+    const r = await saveShopCheckoutEnabledAction(true);
+    expect(r).toEqual({
+      error:
+        "Add your seller name, address and contact before turning this on.",
+    });
+    expect(updatePayload).toBeNull();
   });
 
   it("requires authentication and never reaches the database", async () => {

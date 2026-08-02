@@ -16,6 +16,12 @@ import { productAvailability } from "@inklee/shared/product-availability";
 import { readGuestTokenHash } from "@/lib/server/shop-guest-identity";
 import { getCartForDisplay } from "@/lib/server/shop-cart";
 import { listWishlistedKeysForArtist } from "@/lib/server/shop-wishlist";
+import { sellerDataComplete, type SellerData } from "@/lib/server/seller-data";
+import { SUPPORT_INBOX_EMAIL } from "@/lib/server/support";
+import {
+  sellerDisclosureBlock,
+  returnRightNotice,
+} from "@inklee/shared/consumer-disclosures";
 import {
   ShopCheckout,
   type CheckoutProduct,
@@ -65,7 +71,9 @@ export default async function ShopCheckoutPage({
   const { slug } = await params;
   const { data: artist } = await serviceClient
     .from("profiles")
-    .select("id, display_name, settings")
+    .select(
+      "id, display_name, settings, seller_trading_name, seller_address, seller_contact",
+    )
     .eq("slug", slug)
     .maybeSingle();
   if (!artist) notFound();
@@ -73,6 +81,18 @@ export default async function ShopCheckoutPage({
   // Decision S2: the artist's own standalone-shop toggle. 404, not a message —
   // consistent with the park switch above, this route is invisible when off.
   if (!shopCheckoutEnabled(artist.settings)) notFound();
+
+  // C1.1 counsel prerequisite: "Artists without complete seller data cannot
+  // enable the shop." Same 404-invisible posture as the toggle above — this
+  // is re-checked on the money path itself (createStandaloneGoodsCheckoutCore),
+  // which is the actual authority; this is the page-layer half of the
+  // defense-in-depth pair (SHOP-VIS-001 posture).
+  const seller: SellerData = {
+    tradingName: (artist.seller_trading_name as string | null) ?? null,
+    address: (artist.seller_address as string | null) ?? null,
+    contact: (artist.seller_contact as string | null) ?? null,
+  };
+  if (!sellerDataComplete(seller)) notFound();
 
   const artistName = (artist.display_name as string | null) || "This artist";
 
@@ -113,7 +133,7 @@ export default async function ShopCheckoutPage({
   const { data: rows } = await serviceClient
     .from("products")
     .select(
-      "id, title, price_amount, currency, status, quantity, available_from, preorder, image_url, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+      "id, title, price_amount, currency, status, quantity, available_from, preorder, image_url, custom_made, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", artist.id as string)
     .eq("status", "active")
@@ -136,6 +156,8 @@ export default async function ShopCheckoutPage({
     // stepper disabled (the money path refuses it via the compositor either
     // way; the page must not offer what the server will reject).
     upcoming: availabilityOf(p as AvailabilityRow).state === "upcoming",
+    // C1.2: artist-set Art. 16(c) exemption, rendered at the product.
+    customMade: p.custom_made === true,
     variants: (
       (p.product_variants ?? []) as {
         id: string;
@@ -214,6 +236,7 @@ export default async function ShopCheckoutPage({
           resolved,
           title: p ? ((p.title as string) ?? "") : "",
           priceAmount,
+          customMade: p?.custom_made === true,
         };
       });
       const present = components.filter((c) => c.resolved !== null);
@@ -244,6 +267,11 @@ export default async function ShopCheckoutPage({
           .map((c) => `${c.quantity > 1 ? `${c.quantity}x ` : ""}${c.title}`)
           .join(" + "),
         available: verdict.ok,
+        // C1.2: any custom-made component (present or not — a hidden
+        // personalised component is still part of what fulfilment ships)
+        // makes the whole bundle line non-returnable, mirroring
+        // resolveBundleLines' rule on the money path.
+        customMade: components.some((c) => c.customMade),
       };
     });
 
@@ -287,6 +315,25 @@ export default async function ShopCheckoutPage({
         )),
       ]
     : [];
+
+  // C1.1/C1.2: the seller disclosure block and the standard return notice are
+  // built once here (server-side, where the real seller data and support
+  // inbox live) and handed down as plain strings — `seller` above already
+  // passed sellerDataComplete, so the non-null assertions below are safe.
+  const withdrawalFormHref = `/${slug}/shop/withdrawal-form`;
+  const sellerBlock = sellerDisclosureBlock(
+    {
+      tradingName: seller.tradingName as string,
+      address: seller.address as string,
+      contact: seller.contact as string,
+    },
+    { supportEmail: SUPPORT_INBOX_EMAIL },
+  );
+  const returnNotice = returnRightNotice({
+    sellerContact: seller.contact as string,
+    supportEmail: SUPPORT_INBOX_EMAIL,
+    withdrawalFormHref,
+  });
 
   return (
     <div
@@ -345,6 +392,8 @@ export default async function ShopCheckoutPage({
           stripePublishableKey={publishableKey as string}
           initialCart={initialCart}
           wishlistedKeys={wishlistedKeys}
+          sellerDisclosureBlock={sellerBlock}
+          returnNotice={returnNotice}
         />
       )}
     </div>

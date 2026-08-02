@@ -133,6 +133,7 @@ top control row instead, which is also where the platform maps put theirs.
 | Project client portal + emails (P4 follow-up) | `/project/<token>` client page; receipt, artist-alert and status emails | 🌐 the portal is a CLIENT surface and the app is artists-only. The artist half already reaches native: the new-enquiry alert uses the existing notification plane, so no new wire value and no new build | 🌐 |
 | Large-project mode (P4) | public intake `/{slug}/project` (404s when un-entitled); artist list + detail at `/bookings/projects`, status transitions, private note, attach/detach sessions | `projects/index` + `projects/[id]` screens; GET `/api/mobile/projects`, GET/PATCH `/api/mobile/projects/[id]`, all through the SAME cores (next build). WEB-ONLY by design within it: the public intake (a visitor surface) and attaching a session (needs the booking picker, which is a bigger native surface; tracked) | ~ |
 | Conditional booking-form questions (P3) | condition editor in `bookings/form/field-form.tsx`; public form renders through the shared `resolveFieldVisibility`; server re-resolves in `validateCustomAnswers` | `settings/booking-form/[fieldId]` condition section; GET `/api/mobile/booking-form` emits `custom.condition` + server-derived `conditionSources`, POST/PATCH persist `condition` (next build). Both editors ALWAYS send the condition back, because the write replaces it (omitting would clear a condition the artist never touched) | ✅ |
+| Goods checkout consumer-law disclosures (counsel C1.1-C1.3) | Migration `0142`: `profiles.seller_trading_name/seller_address/seller_contact` (C1.1) + `products.custom_made` (C1.2, per-product Art. 16(c) exemption) + sale-time snapshots on `order_items`/`order_item_bundle_components`. Seller-data-complete gate on the money path + the standalone-shop toggle; disclosure block, return/custom-made notice and Art. 8(2) button relabel on `/[slug]/shop/checkout`; full C1.3 receipt in `settleStandaloneGoodsOrder`; new `/[slug]/shop/withdrawal-form` page; `custom_made` checkbox in the web goods editor (`product-form-fields.tsx`) | Buyer-facing checkout/receipt disclosures: 🌐 web-only BY DECISION, same "visitor surface" reasoning as every other checkout-table row above. Artist-facing `custom_made` checkbox: ⬜ **tracked gap, not a decision** — `(tabs)/goods/[id]` and `/api/mobile/goods` (POST) were NOT touched by this task, so an artist cannot flag a product custom-made from the app; the column defaults `false` (returnable) on a native-created product, which is the safe default but not parity. Revisit before native artists are expected to manage custom-made products | 🌐 (buyer surfaces) / ⬜ (editor checkbox) |
 
 ## Other established surfaces (from the 2026-07-26 audit, unchanged)
 
@@ -324,6 +325,23 @@ Two things follow, both done here:
   This entry also backfills the missing C2/C3 register update from 2026-08-01
   (the checkout shipped without a row, which the founder rule defines as a
   bug).
+
+- **2026-08-02 — Goods checkout consumer-law disclosures (counsel C1.1-C1.3).**
+  Extends the standalone shop checkout above with the seller-data-complete
+  gate (C1.1), the per-product custom-made / Art. 16(c) return exemption
+  (C1.2), and the full receipt content set incl. the applicable Terms text
+  and the durable-medium closing line (C1.3). The buyer-facing surfaces
+  (checkout page, receipt email, the new `/[slug]/shop/withdrawal-form` page)
+  are 🌐 web-only BY DECISION, same visitor-surface reasoning as the entry
+  above — no new mobile route, no wire-type change. The artist-facing
+  `custom_made` checkbox added to the WEB goods editor
+  (`product-form-fields.tsx`) was deliberately NOT mirrored to
+  `(tabs)/goods/[id]` or the `/api/mobile/goods` POST route in this pass —
+  unlike the buyer surfaces, this IS an artist-management gap, not a decision
+  backed by the "visitor surface" reasoning, so it is marked ⬜ tracked, not
+  🌐. A native-created or native-edited product's `custom_made` defaults to
+  `false` (returnable), which is the safe default (never silently claims an
+  exemption) but is not parity.
 
 - **2026-07-31 — Product bundles, native route + screen (Stage 3, slice 3,
   branch-only).** Closes the bundles native gap opened by slice 2:

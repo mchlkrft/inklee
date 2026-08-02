@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `c17f57db4d37`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0ef70498c897`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-136 recorded finding(s), 3 structural pattern(s), across 88 mapped area(s).
-112 remain open by remediation status. 107 are reachable (directly or conditionally) rather than latent.
-109 have not passed independent verification.
-179 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+137 recorded finding(s), 3 structural pattern(s), across 89 mapped area(s).
+113 remain open by remediation status. 108 are reachable (directly or conditionally) rather than latent.
+110 have not passed independent verification.
+181 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -25,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 32 |
-| medium | 59 |
+| medium | 60 |
 | low | 39 |
 | informational | 4 |
 
@@ -36,6 +38,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | accepted | 2 |
 | deferred | 1 |
 | fixed-unverified | 50 |
+| in-progress | 1 |
 | mitigated | 2 |
 | not-applicable | 1 |
 | open | 57 |
@@ -46,7 +49,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 106 |
+| not-started | 107 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -141,7 +144,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 
 | Domain | Findings |
 | --- | --- |
-| payment | 31 |
+| payment | 32 |
 | jobs | 14 |
 | webhook | 14 |
 | billing | 13 |
@@ -213,6 +216,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
 | FEE-STP-001 | medium | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
+| GOODS-DISC-001 | medium | directly-reachable | latent | The C1.1/C1.2/C1.3 checkout disclosures (seller identity, custom-made return exemption, durable-record receipt) were built ONLY for the standalone shop checkout; the appointment add-on checkout (booking-deposit flow) can sell the exact same custom-made product with none of them |
 | GOODS-VAR-001 | medium | conditionally-reachable | latent | reconcileVariants would hard-delete a variant sold ONLY inside a bundle, stranding the sale's snapshot and silently breaking its refund restock |
 | HUB-GAL-001 | medium | conditionally-reachable | latent | image_gallery entitlement enforced only at render, not at save, so a Free artist could persist Plus gallery blocks |
 | HUB-GAL-004 | medium | conditionally-reachable | latent | isPrivateIpv6 has proven coverage holes (v4-mapped hex, v4-compatible, NAT64 forms all ALLOWED), fails OPEN on garbage against its own doc comment, and the IPv6-literal branch is dead only by accident of URL bracket handling |
@@ -405,8 +409,10 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The accepted residual — 'a refund that is itself later reversed does not re-debit, since the ledger only converges upward' (bcb45d5) — is recorded as known and handled by hand. No tooling for it was inspected.
 - The account-deletion path uses the same ORDER_MONEY_STATES carve-out (account-deletion-logic.ts:44) and was not re-checked for the same discarded-error shape in this pass.
 - The add-on order path (request/[token]/actions.ts:541-560) creates pending orders too; its rows DO carry booking_id, so the cleanup sweep can see the booking, but whether a pending add-on order is ever cancelled was NOT inspected here.
+- The appointment add-on / deposit checkout settlement + receipt path (file not identified in this task).
 - The artist cancel path's forfeiture branch
 - The billing-webhook endpoint's subscription set
+- The bio-page shop teaser / public shop showcase's own custom-made rendering.
 - The booking add-on refund branch of the same webhook was NOT inspected for the same consumed-flip-then-throw shape.
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
 - The charge.refunded handler returns BEFORE settleGoodsOrderRefund when the PI has payment_allocations (webhook/route.ts:199-205). Today no appointment-payment PI writes an orders row (the only two order inserts are request/[token]/actions.ts:543 and goods-checkout.ts:209), so nothing is shadowed. If an appointment payment ever carries goods, that early return would skip the goods settle entirely. Recorded as a forward hazard; NOT a defect at this commit.

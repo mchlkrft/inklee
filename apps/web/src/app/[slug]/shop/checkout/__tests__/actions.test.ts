@@ -47,10 +47,19 @@ const INPUT = {
   selections: [{ productId: "p1", variantId: null, quantity: 1 }],
 };
 
+// C1.1 counsel prerequisite: a fully-onboarded artist's seller data. Every
+// test below that expects the checkout to PROCEED needs this on the profile
+// row it queues, same reasoning as goods-checkout.test.ts's own fixture.
+const COMPLETE_SELLER_ROW = {
+  seller_trading_name: "Mika Ink Studio",
+  seller_address: "12 Ink Street, Berlin, Germany",
+  seller_contact: "mika@example.com",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   flags.goodsCommerce = true;
-  mockProfile.mockReturnValue({ data: { id: "a1" } });
+  mockProfile.mockReturnValue({ data: { id: "a1", ...COMPLETE_SELLER_ROW } });
   mockLimit.mockResolvedValue({ allowed: true });
   mockCore.mockResolvedValue({
     ok: true,
@@ -106,6 +115,21 @@ describe("startShopCheckoutAction", () => {
     mockProfile.mockReturnValue({
       data: { id: "a1", settings: { features: { shop_checkout: false } } },
     });
+    const r = await startShopCheckoutAction(INPUT);
+    expect(r).toEqual({
+      ok: false,
+      error: "The shop isn't taking card orders yet.",
+    });
+    expect(mockLimit).not.toHaveBeenCalled();
+    expect(mockCore).not.toHaveBeenCalled();
+  });
+
+  // C1.1 counsel prerequisite, checked at THIS layer too (defense in depth —
+  // the core is the real authority, this only stops a held request from
+  // reaching it): a shop_checkout-enabled artist who has never filled in
+  // their seller identity still cannot take an order.
+  it("refuses on the action layer when seller data is incomplete, without reaching the core or rate-limiting", async () => {
+    mockProfile.mockReturnValue({ data: { id: "a1" } }); // no seller_* fields
     const r = await startShopCheckoutAction(INPUT);
     expect(r).toEqual({
       ok: false,

@@ -40,6 +40,7 @@ import {
   productHasOrderReferences,
 } from "@/lib/server/goods-guard";
 import { ownedGoodsStoragePath } from "@/lib/server/mobile-goods-server";
+import { sellerDataComplete } from "@/lib/server/seller-data";
 import type { ProductFormValues } from "./product-form";
 import type { VariantInputRow } from "./product-form-fields";
 
@@ -79,6 +80,8 @@ type ProductFields = {
   availableFrom: string | null;
   preorder: boolean;
   lowStockThreshold: number | null;
+  /** Art. 16(c) exemption (C1.2), artist-set per product. */
+  customMade: boolean;
 };
 
 function parseQuantity(
@@ -155,6 +158,7 @@ function parseProductFields(
       availableFrom: parseDropTime(formData.get("available_from")),
       preorder: formData.get("preorder") === "on",
       lowStockThreshold: parseThreshold(formData.get("low_stock_threshold")),
+      customMade: formData.get("custom_made") === "on",
       // Whether the artist may actually USE the three fields above is decided
       // server-side by applySchedulingEntitlement, not here: parsing is not
       // permission.
@@ -451,6 +455,7 @@ export async function createProductAction(
       available_from: f.availableFrom,
       preorder: f.preorder,
       low_stock_threshold: f.lowStockThreshold,
+      custom_made: f.customMade,
       sort_order: count ?? 0,
     })
     .select("id")
@@ -569,6 +574,7 @@ export async function updateProductAction(
       available_from: f.availableFrom,
       preorder: f.preorder,
       low_stock_threshold: f.lowStockThreshold,
+      custom_made: f.customMade,
       // A RESTOCK re-arms the alert. Without this a product alerts once in its
       // life and then goes quiet forever, which is worse than no alert at all
       // because the artist believes they are being watched.
@@ -700,7 +706,7 @@ export async function loadProductForEditAction(
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon, available_from, preorder, low_stock_threshold",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon, available_from, preorder, low_stock_threshold, custom_made",
     )
     .eq("id", id)
     .eq("artist_id", user.id)
@@ -723,6 +729,7 @@ export async function loadProductForEditAction(
     low_stock_threshold: number | null;
     is_public_visible: boolean;
     is_checkout_addon: boolean;
+    custom_made: boolean | null;
   };
 
   // Variant id is included so the edit form can round-trip it and
@@ -756,6 +763,7 @@ export async function loadProductForEditAction(
         : "",
     isPublicVisible: row.is_public_visible,
     isCheckoutAddon: row.is_checkout_addon,
+    customMade: row.custom_made === true,
     imageUrl: row.image_url,
     // Drops (P5c). datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time; the
     // column is a UTC timestamptz, so it is converted rather than sliced, or
@@ -858,9 +866,26 @@ export async function saveShopCheckoutEnabledAction(
 
   const { data: existing } = await supabase
     .from("profiles")
-    .select("settings")
+    .select("settings, seller_trading_name, seller_address, seller_contact")
     .eq("id", user.id)
     .single();
+
+  // C1.1 counsel prerequisite: "Artists without complete seller data cannot
+  // enable the shop." Checked at the point of TURNING IT ON — an artist can
+  // always turn it back off regardless of seller data.
+  if (
+    enabled &&
+    !sellerDataComplete({
+      tradingName: (existing?.seller_trading_name as string | null) ?? null,
+      address: (existing?.seller_address as string | null) ?? null,
+      contact: (existing?.seller_contact as string | null) ?? null,
+    })
+  ) {
+    return {
+      error:
+        "Add your seller name, address and contact before turning this on.",
+    };
+  }
 
   const current = (existing?.settings ?? {}) as Record<string, unknown>;
   const currentFeatures = parseFeatures(current.features);
@@ -876,6 +901,57 @@ export async function saveShopCheckoutEnabledAction(
     })
     .eq("id", user.id);
 
+  if (error) return { error: error.message };
+
+  revalidatePath("/goods");
+  return { success: true };
+}
+
+const MAX_SELLER_TRADING_NAME = 120;
+const MAX_SELLER_ADDRESS = 300;
+const MAX_SELLER_CONTACT = 200;
+
+/**
+ * Seller identity (C1.1): trading name, address and contact, rendered
+ * verbatim into the checkout disclosure block and the order receipt. The
+ * counsel prerequisite ("artists without complete seller data cannot enable
+ * the shop") is enforced at the toggle (saveShopCheckoutEnabledAction) and
+ * on the money path itself, not here — this action only saves the fields;
+ * an artist may fill them in partially at any time, same as any other
+ * profile field, and the shop simply stays off (or the money path refuses)
+ * until all three are present.
+ */
+export async function saveSellerDetailsAction(
+  _prev: State,
+  formData: FormData,
+): Promise<State> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const tradingName = (
+    (formData.get("seller_trading_name") as string | null) ?? ""
+  )
+    .trim()
+    .slice(0, MAX_SELLER_TRADING_NAME);
+  const address = ((formData.get("seller_address") as string | null) ?? "")
+    .trim()
+    .slice(0, MAX_SELLER_ADDRESS);
+  const contact = ((formData.get("seller_contact") as string | null) ?? "")
+    .trim()
+    .slice(0, MAX_SELLER_CONTACT);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      seller_trading_name: tradingName || null,
+      seller_address: address || null,
+      seller_contact: contact || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
   if (error) return { error: error.message };
 
   revalidatePath("/goods");

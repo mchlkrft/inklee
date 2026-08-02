@@ -2417,3 +2417,98 @@ from the 235 baseline by exactly the 20 new tests in
 zero regressions; every new schema object verified to actually exist against
 the local Postgres instance before any test was written against it, per the
 AGENTS.md convergence rule.
+
+## C1.1/C1.2/C1.3: goods checkout consumer-law disclosures (2026-08-02, ready for review)
+
+Counsel answers C1.1-C1.3 (`docs/legal/counsel-accountant-handoff-2026-08.md`
+Part 4), implemented against the standalone shop checkout
+(`/[slug]/shop/checkout`) and its settlement receipt only, per the assigned
+brief. Wording marked verbatim in the code is counsel's own text with only
+the bracketed variables filled in.
+
+**What shipped.** Migration `0142`: three nullable `profiles` columns
+(`seller_trading_name`, `seller_address`, `seller_contact`) plus the
+mandatory 0074-pattern `GRANT UPDATE` extension (and its `seed.sql` mirror);
+`products.custom_made` (the artist's per-product Art. 16(c) declaration);
+`order_items.custom_made_snapshot` and
+`order_item_bundle_components.custom_made_snapshot` (sale-time freezes,
+same pattern as `title_snapshot`/`variant_snapshot`). New shared pure module
+`packages/shared/src/consumer-disclosures.ts` holds every text decision
+(`sellerDataComplete`, `sellerDisclosureBlock`, `returnRightNotice`,
+`CUSTOM_MADE_NOTICE`, `summarizeReturnDisclosure`, `buildOrderReceiptBody`,
+`ORDER_WITH_OBLIGATION_LABEL`) so the checkout page, the checkout UI and the
+receipt email all read the same answer, and so the decision logic is
+directly testable outside the `.tsx` surfaces vitest doesn't cover.
+
+**The seller-data gate (C1.1's prerequisite).** "Artists without complete
+seller data cannot enable the shop" is enforced as a real refusal, not a
+UI-only hint, at four points: the checkout page (`notFound()`, same posture
+as the existing `shopCheckoutEnabled` 404), the checkout actions
+(`startShopCheckoutAction`, `resolveShopArtist` — the latter shared by every
+cart/wishlist/checkout action), and the money-path core itself
+(`createStandaloneGoodsCheckoutCore`, the actual authority). A fifth point
+refuses to let the artist turn the standalone-shop toggle ON at all without
+complete data (`saveShopCheckoutEnabledAction`). A new `SellerDetailsForm`
+on `/goods` lets an artist fill the three fields in.
+
+**Custom-made (C1.2).** Per-product checkbox in the goods editor
+(`product-form-fields.tsx`), threaded through `computeAddonLines`'
+`AddonProduct`/`OrderLine` (shared with the appointment add-on compositor —
+see the open finding below) and `resolveBundleLines` (a bundle is treated as
+non-returnable if ANY component is custom-made; an engineering judgment
+call, not counsel-confirmed wording, since counsel's answer does not name
+bundles). Rendered at the product, in the cart, at checkout and in the
+receipt; a mixed cart renders BOTH the standard return notice and the
+custom-made exemption, named explicitly by counsel as the case that must
+never collapse to one or the other.
+
+**The receipt (C1.3).** `settleStandaloneGoodsOrder`'s buyer email now
+carries the full required set via `buildOrderReceiptBody`: the C1.1 seller
+block (which already contains the delivery arrangement and the complaint
+route, so those are not duplicated), items/prices/total, the C1.2 return or
+custom-made notice, the applicable Terms text (`getLegalDoc("terms")`,
+mirroring the approved Plus E2 pattern of inlining the full text rather than
+a link), and the closing durable-medium line. A new
+`/[slug]/shop/withdrawal-form` page (standard EU Annex I(B) boilerplate,
+addressed to the artist as seller) is linked from the return notice.
+
+**Button label.** `PayInner`'s pay button (the one that actually triggers
+`stripe.confirmPayment`, i.e. the Art. 8(2) order-placing action — the
+earlier "Buy now"/"Checkout cart" buttons only create the intent) now reads
+`Order with obligation to pay {amount} to {artist}`, keeping the amount
+visible per counsel's instruction.
+
+**An open gap raised proactively, not fixed:** the appointment add-on /
+deposit checkout shares `computeAddonLines` with the standalone shop but was
+never in scope for this task, so it can sell a custom-made product with none
+of these disclosures. Recorded as `GOODS-DISC-001` (confidence: hypothesis,
+not reproduced end-to-end) rather than silently left unnoted.
+
+**A pre-existing defect fixed in passing, unrelated to this feature:**
+`pnpm test:db` (run because this task added migration `0142`) turned up 10
+failures in `tests/db/shop-carts-rls.test.ts` — a gap in `seed.sql`'s
+mirror of `0141`'s RLS lockdown that a prior audit pass (`SEED-GRT-001`)
+had already predicted by name ("the three shop_* tables from 0141 are
+latent until the next db reset"). Fixed by adding the missing
+`REVOKE ... FROM anon, authenticated` mirror to `seed.sql`; `SEED-GRT-001`
+updated with the new evidence and left `in-progress` (the growth-views
+instance the same finding also documents is untouched).
+
+**Validation.** `npx tsc --noEmit` clean. `eslint` on every touched file:
+zero errors (pre-existing unrelated warnings elsewhere untouched). Full
+`npx vitest run`: 184 files, 3145 passed + 1 expected fail, up from the
+3103-passed/1-expected-fail baseline by exactly the tests this task added
+(18 new in `consumer-disclosures.test.ts`, plus new cases in
+`goods-checkout.test.ts`, `actions.test.ts`, `cart-actions.test.ts` and
+`shop-checkout-toggle-action.test.ts` for the seller-data gate), zero
+regressions. `pnpm test:db`: 255/255 green after the `seed.sql` fix above
+(was 245/255 before it, on a stack that included this task's own migration
+`0142` — the failures were entirely the pre-existing `seed.sql` gap, not
+`0142`, which was verified column-by-column and grant-by-grant against the
+local Postgres before any test ran).
+
+**Audit register.** `docs/audit/findings.yaml`: `SEED-GRT-001` updated
+(history entry, `remediation.status: in-progress`); new finding
+`GOODS-DISC-001` (the add-on-checkout gap, `hypothesis`/`open`); new
+coverage row for this task's own scope, naming what was and was not
+covered. `pnpm audit:validate` and `pnpm audit:generate` both clean.

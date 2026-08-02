@@ -5,6 +5,7 @@ import {
   type ProductStatus,
 } from "@/lib/goods";
 import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
+import { sellerDataComplete } from "@/lib/server/seller-data";
 import { parseBioPageSettings } from "@/lib/bio-page-settings";
 import { deriveConnectRouting } from "@/lib/stripe-connect";
 import { deriveGoodsVisibilitySummary } from "@/lib/goods-visibility-summary";
@@ -21,6 +22,7 @@ import GoodsTile, { type GoodsTileItem } from "./goods-tile";
 import ShopCheckoutToggle from "./shop-checkout-toggle";
 import GoodsVisibilitySummaryCard from "./goods-visibility-summary-card";
 import ShopContentForm from "./shop-content-form";
+import SellerDetailsForm from "./seller-details-form";
 
 type RawRow = {
   id: string;
@@ -42,7 +44,7 @@ export default async function GoodsPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "settings, stripe_account_id, stripe_account_status, stripe_charges_enabled",
+      "settings, stripe_account_id, stripe_account_status, stripe_charges_enabled, seller_trading_name, seller_address, seller_contact",
     )
     .eq("id", user!.id)
     .single();
@@ -137,6 +139,17 @@ export default async function GoodsPage() {
       </div>
 
       <GoodsVisibilitySummaryCard summary={visibilitySummary} />
+
+      <SellerDetailsForm
+        tradingName={(profile?.seller_trading_name as string | null) ?? ""}
+        address={(profile?.seller_address as string | null) ?? ""}
+        contact={(profile?.seller_contact as string | null) ?? ""}
+        complete={sellerDataComplete({
+          tradingName: (profile?.seller_trading_name as string | null) ?? null,
+          address: (profile?.seller_address as string | null) ?? null,
+          contact: (profile?.seller_contact as string | null) ?? null,
+        })}
+      />
 
       <ShopCheckoutToggle enabled={shopCheckoutEnabled(settings)} />
 

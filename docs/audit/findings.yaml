@@ -3955,12 +3955,20 @@ findings:
         - "0079_claim_flow.sql and 0125 are mirrored in seed.sql; whether the mirrors are FAITHFUL
           to the migrations (rather than merely present) was not verified line by line."
     remediation:
-      status: "open"
-      proposed_action: "Not yet actioned. Opened by a targeted audit."
+      status: "in-progress"
+      proposed_action: "PARTIALLY FIXED (this pass): seed.sql now mirrors 0141's REVOKE for
+        shop_carts, shop_cart_items and shop_wishlist_items, closing the specific latency the prior
+        history entry predicted. The growth-views instance (artist_page_events,
+        artist_page_rollups, growth_activity_events, growth_artist_stats from 0067/0069) is STILL
+        UNMIRRORED and still open — this fix did not touch those tables. The structural cause (a
+        hand-maintained mirror list with no automated check that it stays in sync with every
+        REVOKE-bearing migration) is also unaddressed; the next migration that revokes a grant and
+        omits the seed.sql mirror will reproduce this exact finding a third time."
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Not fixed and not verified."
+      residual_risk: "The shop_* fix is unverified by anyone other than the author. The
+        growth-views instance and the structural root cause remain completely unaddressed."
     disclosure:
       public_repo_safe: true
       redactions_applied: "Cited by path, symbol and commit rather than reproduced. No secrets, personal
@@ -3980,6 +3988,23 @@ findings:
           artist_page_rollups, growth_activity_events, growth_artist_stats; the three shop_* tables
           from 0141 are latent until the next db reset. Production is unaffected (seed.sql never
           runs there)."
+      - date: "2026-08-02"
+        actor: "inklee-worker (C1.1/C1.2/C1.3 goods-checkout disclosures task)"
+        action: "fix-committed"
+        note: "The 2026-08-02 history entry's prediction materialized exactly as stated: running
+          `pnpm test:db` for an UNRELATED migration (0142, goods consumer disclosures — touches only
+          profiles/products/order_items/order_item_bundle_components, never shop_carts/
+          shop_cart_items/shop_wishlist_items) produced 10 failures, all in
+          tests/db/shop-carts-rls.test.ts, all of the shape 'expected 42501, received undefined' for
+          SELECT/INSERT/UPDATE/DELETE/TRUNCATE by anon or authenticated on the three 0141 tables.
+          Fixed by adding `REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON public.shop_carts,
+          public.shop_cart_items, public.shop_wishlist_items FROM anon, authenticated;` to
+          apps/web/supabase/seed.sql immediately after the existing refunds/refund_lines mirror
+          block. Verified by `supabase db reset` + `pnpm test:db`: 255/255 green (was 245/255).
+          Scope discipline: fixed ONLY the three tables this session's own gate required; did NOT
+          touch the growth-views instance this finding also documents, which remains open. This fix
+          is UNVERIFIED by anyone other than its author, per the standing rule that a worker never
+          verifies its own fix."
 
   - id: "AUTH-GRT-001"
     title: "All 107 public tables in production grant TRUNCATE to `authenticated`, and RLS does not gate
@@ -14471,6 +14496,144 @@ findings:
         action: "fix-committed"
         note: "Fixed in c3d7ae49 the same day."
 
+  - id: "GOODS-DISC-001"
+    title: "The C1.1/C1.2/C1.3 checkout disclosures (seller identity, custom-made return
+      exemption, durable-record receipt) were built ONLY for the standalone shop checkout; the
+      appointment add-on checkout (booking-deposit flow) can sell the exact same custom-made
+      product with none of them"
+    summary: "Task scope (counsel answers C1.1-C1.3) named the standalone shop checkout
+      (apps/web/src/app/[slug]/shop/checkout/**) and its settle function's receipt
+      (settleStandaloneGoodsOrder in goods-checkout.ts) as the surfaces to fix. Both paths sell
+      the SAME `products` rows, including any row an artist has flagged `custom_made`, through
+      the SAME shared line compositor (computeAddonLines in orders.ts). The standalone path now
+      gates on seller-data completeness, shows the Art. 8(2) button label, renders the seller
+      block and return/custom-made notice, and builds a full C1.3 receipt. The add-on path
+      (client pays a deposit + optional product add-ons via the booking portal) shares
+      computeAddonLines and now ALSO carries a customMade field on its OrderLine output (added
+      for the standalone receipt's sake), but nothing downstream of that path reads it: its own
+      settlement/receipt code was not touched by this task, has no seller-data gate, no Art.
+      8(2) button relabel, and no custom-made or return-right notice anywhere in its UI or email.
+      A buyer who adds a custom-made product to their deposit payment gets no disclosure at all
+      of the very exemption that removes their statutory return right — which is precisely the
+      failure mode counsel warned about: an undisclosed exemption does not just fail to inform,
+      it extends the buyer's return window to 12 months (CRD Art. 10) while the artist believes
+      (from the standalone-shop side) that the exemption is validly claimed."
+    classification:
+      domain: "payment"
+      category: "disclosure"
+      severity: "medium"
+      confidence: "hypothesis"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "inklee-worker, while implementing C1.1/C1.2/C1.3 for the standalone checkout"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "d92fe1c2"
+      environment: "repository-only"
+      discovery_context: "Deciding whether to extend computeAddonLines' output (orders.ts) with a
+        customMade field, then realising the add-on checkout that ALSO consumes that function was
+        out of the assigned surfaces and asking whether that leaves a live gap."
+    location:
+      files:
+        - "apps/web/src/lib/orders.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/app/[slug]/shop/checkout/page.tsx"
+        - "apps/web/src/app/[slug]/shop/checkout/shop-checkout.tsx"
+      symbols:
+        - "computeAddonLines"
+        - "createStandaloneGoodsCheckoutCore"
+        - "settleStandaloneGoodsOrder"
+    evidence:
+      observed_facts:
+        - "apps/web/src/lib/orders.ts: computeAddonLines is the ONE line compositor; its
+          AddonProduct/OrderLine types (and hence the new customMade field added in this task)
+          are shared by BOTH the standalone shop core (goods-checkout.ts) and whatever settles
+          the appointment add-on / deposit checkout — the module's own header comment says 'the
+          pre-checkout add-ons flow' is its subject, i.e. deposit + add-ons, not the standalone
+          shop."
+        - "The seller-data-complete gate (sellerDataComplete, C1.1) was added ONLY inside
+          createStandaloneGoodsCheckoutCore, the checkout page.tsx, and the checkout actions.ts —
+          grep for sellerDataComplete outside apps/web/src/app/[slug]/shop/checkout/** and
+          apps/web/src/lib/server/goods-checkout.ts and apps/web/src/lib/server/seller-data.ts
+          returns nothing."
+        - "The Art. 8(2) button relabel (ORDER_WITH_OBLIGATION_LABEL) was applied only inside
+          apps/web/src/app/[slug]/shop/checkout/shop-checkout.tsx's PayInner component; the
+          booking-portal deposit/add-on payment UI was not touched by this task and was not
+          searched for its own 'Pay' button text."
+        - "custom_made_snapshot was added to order_items and order_item_bundle_components (0142)
+          and is written by createStandaloneGoodsCheckoutCore's inserts. Whatever writes
+          order_items for a deposit+add-on order (not inspected in this task) either also needs to
+          set it, or every add-on-sold custom-made item's snapshot silently defaults to false
+          (not custom-made), which is the SAFER default for that specific column but does not
+          fix the missing DISCLOSURE, which is the actual counsel requirement."
+      references:
+        - "apps/web/src/lib/orders.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "docs/legal/counsel-accountant-handoff-2026-08.md (Part 4, C1.1-C1.3)"
+      contradictory_evidence: "None recorded. This was not reproduced end-to-end (no actual
+        appointment/deposit checkout was run to confirm a custom-made add-on reaches payment
+        with zero disclosure) — confidence is `hypothesis`, not `confirmed`, on that basis."
+      inspected_comparables_without_issue:
+        - "The standalone shop's cart display (shop-cart.ts, getCartForDisplay) and its bundle
+          resolution (resolveBundleLines) both correctly carry the customMade flag through to
+          display and to the sale-time snapshot — this is the comparable PATH that WAS covered."
+    assessment:
+      interpretation: "OBSERVED: the shared compositor and the new customMade field exist and are
+        read by the standalone path only. INTERPRETATION: whether this is a live compliance gap
+        depends on facts not checked in this task — specifically, whether GOODS_COMMERCE_ENABLED
+        (which gates both paths) is on anywhere real money moves, and whether an artist has
+        actually flagged a product custom-made AND left add-on checkout on for it. Given the
+        product is pre-launch (memory: 0 paying customers, no live-mode charge ever), the
+        practical exposure today is near zero, but the code path itself is unguarded and would
+        activate the moment either condition becomes true."
+      root_cause_hypothesis: "Scope was drawn around 'the goods checkout's consumer-law
+        disclosures' as named surfaces (checkout page/actions/receipt), which is the correct
+        reading of the assigned brief, but the underlying DATA MODEL (custom_made on products,
+        shared by both sale paths) is wider than the assigned UI surfaces. A field-level fix
+        (add customMade to the shared compositor) does not imply every consumer of that
+        compositor got the corresponding disclosure UI — that has to be done per surface."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      production_exposure: "None today per the pre-launch/no-live-charge state recorded elsewhere
+        in this repository's memory; would become live exposure the moment an artist flags a
+        product custom-made, leaves add-on checkout on for it, and a buyer purchases it via a
+        deposit payment rather than the standalone shop."
+      remaining_uncertainty: "The add-on/deposit checkout's actual settlement file was not
+        located or read in this task, so its precise gap (does it write custom_made_snapshot at
+        all today? does its receipt email exist and what does it say?) is unverified. Whether
+        the bio-page shop teaser shows a custom-made badge was not checked. This finding should
+        be picked up and either confirmed or refuted by opening the appointment add-on
+        settlement path directly."
+    relationships:
+      related_findings: []
+      possible_duplicates: []
+      analogous_uninspected_areas:
+        - "The appointment add-on / deposit checkout settlement + receipt path (file not
+          identified in this task)."
+        - "The bio-page shop teaser / public shop showcase's own custom-made rendering."
+    remediation:
+      status: "open"
+      proposed_action: "Locate the appointment add-on / deposit checkout's settlement function,
+        confirm whether it writes custom_made_snapshot and whether its receipt/UI carries the
+        C1.1 seller block and C1.2 return/custom-made notice, and extend it to match the
+        standalone shop's treatment if it does not. Scope this as its own task rather than
+        folding it silently into a future unrelated change."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Entirely unverified beyond the code-reading evidence above. No reproduction
+        was attempted."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Described by mechanism and file, with no runnable exploit recipe. No
+        production data, no secrets."
+    history:
+      - date: "2026-08-02"
+        actor: "inklee-worker (C1.1/C1.2/C1.3 goods-checkout disclosures task)"
+        action: "opened"
+        note: "Raised proactively while implementing the standalone-shop-only scope named in the
+          task brief; not reproduced end-to-end."
+
 patterns:
 
   - id: "PAT-001"
@@ -17294,3 +17457,62 @@ coverage:
     evidence: "All 63 open findings re-checked. Result: 43 STILL OPEN (confirmed present, most with line-level evidence and several with `git diff` showing the file byte-identical to the audited commit), 6 ALREADY FIXED and never marked, 8 PARTIALLY FIXED, 6 UNDETERMINABLE because they are claims about production database state. The sweep was worth running for three reasons beyond the bookkeeping. (1) It found a FALSE FINDING: PAY-RFD-001 was recorded against an uncommitted prototype and the code it cites never existed in any commit - now marked not-applicable, because a register that cannot distinguish a closed finding from one that was never true is measuring nothing. (2) Two fixes CREATED new gaps that nobody had recorded: BDEL-RET-001 an inverse gap from its own repair, and WHK-ERR-001 a NEW unguarded read added in the same period, where a failed count reads as zero and silently routes an appointment payment down the wrong path. (3) It corrected severities in both directions, e.g. BDEL-SUB-001 drops high to medium because the ordinary path to the failure is gone while the chain is not."
     recommended_next_inspection: "The 6 production-state findings need the release sequencer's catalog check; they cannot be settled any other way. The two newly-surfaced gaps inside WHK-ERR-001 and BDEL-RET-001 should be split into their own findings rather than left inside entries whose titles no longer describe them."
     known_exclusions: "Read-only and repository-scoped: production was never queried. Where a finding had a code half and a production-measurement half (several CRON-* entries), only the code half was settled. No fix was verified by execution in this sweep - ALREADY-FIXED means the defect is absent and the fixing code was cited, not that anyone re-tested it."
+
+  - area: "C1.1/C1.2/C1.3 goods checkout consumer-law disclosures (seller identity gate, per-product
+      custom-made return exemption, durable-record receipt) — standalone shop checkout only"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-02"
+    commit_inspected: "d92fe1c2"
+    reviewer: "inklee-worker (implementation author; not independently re-verified)"
+    evidence: "Migration 0142 (profiles.seller_trading_name/seller_address/seller_contact,
+      products.custom_made, order_items.custom_made_snapshot,
+      order_item_bundle_components.custom_made_snapshot, plus the 0074-pattern column-grant
+      extension) applied and verified column-by-column and grant-by-grant against the local
+      Postgres via direct SQL (not assumed from the migration text). New shared pure module
+      packages/shared/src/consumer-disclosures.ts (sellerDataComplete, sellerDisclosureBlock,
+      returnRightNotice, summarizeReturnDisclosure, buildOrderReceiptBody) carries every text
+      decision and is covered by 18 new tests in
+      apps/web/src/lib/__tests__/consumer-disclosures.test.ts, each pinned to a named failure
+      mode (mixed cart shows both notices, all-custom-made shows only the exemption, receipt
+      closes on the durable-medium line, etc.) rather than to implementation shape. The
+      seller-data-complete gate was added at three layers (page.tsx notFound, actions.ts refusal,
+      createStandaloneGoodsCheckoutCore refusal) matching the pre-existing shopCheckoutEnabled
+      defense-in-depth pattern, and is exercised by new tests at each layer: 2 new tests in
+      goods-checkout.test.ts (complete-but-one-field-missing and all-fields-missing, both
+      asserting the order-insert never happens), 1 new test in actions.test.ts, 1 new test in
+      cart-actions.test.ts, and 2 new tests in shop-checkout-toggle-action.test.ts (the toggle
+      itself now refuses to turn on without complete seller data). FULL vitest run: 3145 passed +
+      1 expected fail (184/184 files), matching the 3103+1 baseline plus every test added in this
+      pass; tsc --noEmit clean; eslint clean on every touched file. FULL DB SUITE: `pnpm test:db`
+      255/255 green after fixing an UNRELATED pre-existing gap this run's own gate surfaced (see
+      SEED-GRT-001 history) — that fix and this feature are independent changes bundled in the
+      same commit for expediency, not because they are related."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "GOODS-DISC-001"
+    known_exclusions: "The appointment add-on / deposit checkout (booking-portal payment flow) was
+      NOT touched — see GOODS-DISC-001 for the resulting gap. The bio-page shop teaser's own
+      custom-made rendering was not verified (PublicProduct.customMade was added to the shared
+      type but no renderer was checked). The model-withdrawal-form page
+      (apps/web/src/app/[slug]/shop/withdrawal-form/page.tsx) is new, boilerplate EU Annex I(B)
+      text (not counsel-authored), and has no dedicated test — it is a plain server component
+      gated by the same three checks as the checkout page, exercised only by tsc/eslint, not by a
+      rendered-output test. The full receipt email's rendered HTML (buildEmailHtml wrapping
+      buildOrderReceiptBody's plain text) was not asserted element-by-element in goods-checkout.ts's
+      own test suite — that assertion lives instead against the pure buildOrderReceiptBody
+      function directly in consumer-disclosures.test.ts, which is a deliberate design choice (per
+      the task brief's own instruction to move decision logic into a testable pure module) but
+      means the WIRING between the DB reads and that function (artist name fallback, seller
+      fallback to SUPPORT_INBOX_EMAIL, the getLegalDoc(\"terms\") try/catch) is only exercised by
+      the pre-existing settle tests, none of which assert on the seller-block or terms-section
+      content specifically. No independent verification: the author did not have another instance
+      re-run or contest this work."
+    recommended_next_inspection: "Open and resolve GOODS-DISC-001 (locate the appointment add-on
+      settlement path and either extend it or document why it is out of scope). Add a receipt
+      test in goods-checkout.test.ts asserting the seller block and return/custom-made notice
+      actually appear in the sent email's body (not just the bundle-line substring the pre-existing
+      test checks). Verify the bio-page shop teaser's custom-made rendering. Independent review of
+      the bundle-level customMade rule (any component custom-made -> whole bundle non-returnable),
+      which is an engineering judgment call, not counsel-confirmed wording."

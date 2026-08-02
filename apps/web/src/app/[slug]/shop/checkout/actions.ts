@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { serviceClient } from "@/lib/supabase/service";
 import { isGoodsCommerceEnabled, shopCheckoutEnabled } from "@/lib/features";
+import { sellerDataComplete, type SellerData } from "@/lib/server/seller-data";
 import {
   checkShopCheckoutRateLimit,
   checkShopCartRateLimit,
@@ -61,7 +62,7 @@ export async function startShopCheckoutAction(input: {
 
   const { data: artist } = await serviceClient
     .from("profiles")
-    .select("id, settings")
+    .select("id, settings, seller_trading_name, seller_address, seller_contact")
     .eq("slug", slug)
     .maybeSingle();
   if (!artist) return { ok: false, error: "This shop could not be found." };
@@ -72,6 +73,16 @@ export async function startShopCheckoutAction(input: {
   // checkout after. The core re-checks this again (the money path's own
   // authority); this is defense in depth, not the only gate.
   if (!shopCheckoutEnabled(artist.settings)) {
+    return { ok: false, error: "The shop isn't taking card orders yet." };
+  }
+  // C1.1 counsel prerequisite (defense in depth, same posture as above): the
+  // core is the actual authority, this only stops a held request reaching it.
+  const seller: SellerData = {
+    tradingName: (artist.seller_trading_name as string | null) ?? null,
+    address: (artist.seller_address as string | null) ?? null,
+    contact: (artist.seller_contact as string | null) ?? null,
+  };
+  if (!sellerDataComplete(seller)) {
     return { ok: false, error: "The shop isn't taking card orders yet." };
   }
   const artistId = artist.id as string;
@@ -111,11 +122,21 @@ async function resolveShopArtist(slug: string): Promise<{ id: string } | null> {
   if (!trimmed) return null;
   const { data: artist } = await serviceClient
     .from("profiles")
-    .select("id, settings")
+    .select("id, settings, seller_trading_name, seller_address, seller_contact")
     .eq("slug", trimmed)
     .maybeSingle();
   if (!artist) return null;
   if (!shopCheckoutEnabled(artist.settings)) return null;
+  // C1.1 counsel prerequisite, same "shop is dark" treatment as the toggle
+  // check above: every cart/wishlist/checkout action shares this resolver, so
+  // a shop with incomplete seller data is invisible to all of them, not only
+  // the money-moving one.
+  const seller: SellerData = {
+    tradingName: (artist.seller_trading_name as string | null) ?? null,
+    address: (artist.seller_address as string | null) ?? null,
+    contact: (artist.seller_contact as string | null) ?? null,
+  };
+  if (!sellerDataComplete(seller)) return null;
   return { id: artist.id as string };
 }
 

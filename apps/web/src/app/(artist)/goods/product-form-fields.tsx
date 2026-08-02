@@ -29,6 +29,12 @@ export type ProductFormFieldValues = {
   pickupNote: string;
   isPublicVisible: boolean;
   isCheckoutAddon: boolean;
+  /** Art. 16(c) exemption (C1.2): the artist's own declaration that this
+   *  item is made to the buyer's specification or clearly personalised, so
+   *  the 14-day right of return does not apply. Claimed per product, never
+   *  as a blanket Terms claim — counsel is explicit that an undisclosed or
+   *  blanket claim fails and extends the statutory window instead. */
+  customMade: boolean;
   imageUrl: string | null;
   // Multi-image (migration 0038). imageUrl stays as the legacy single hero for
   // back-compat; imageUrls is the canonical list driving the multi-image picker.
@@ -135,6 +141,9 @@ export default function ProductFormFields({
   const [isCheckoutAddon, setIsCheckoutAddon] = useState(
     initial?.isCheckoutAddon ?? true,
   );
+  // Same always-rendered-hidden-input pattern as isCheckoutAddon above, so
+  // the value submits even when "More settings" was never opened.
+  const [customMade, setCustomMade] = useState(initial?.customMade ?? false);
 
   const [hasOptions, setHasOptions] = useState(initialVariants.length > 0);
   const [rows, setRows] = useState<VariantRow[]>(
@@ -607,6 +616,11 @@ export default function ProductFormFields({
         name="is_checkout_addon"
         value={isCheckoutAddon ? "on" : "off"}
       />
+      <input
+        type="hidden"
+        name="custom_made"
+        value={customMade ? "on" : "off"}
+      />
 
       {/* More settings — the long tail */}
       <button
@@ -683,6 +697,23 @@ export default function ProductFormFields({
               />
               Offer as an add-on when a client pays their deposit
             </label>
+          </div>
+
+          <div className="space-y-2 rounded-md border border-border bg-background px-3 py-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={customMade}
+                onChange={(e) => setCustomMade(e.target.checked)}
+              />
+              Custom-made: made to order, no right of return
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Only choose this for items made to a specific buyer&apos;s request
+              or clearly personalised. It removes the 14-day return right for
+              this item everywhere it&apos;s sold, and is shown to buyers at
+              checkout and on their receipt.
+            </p>
           </div>
         </div>
       )}

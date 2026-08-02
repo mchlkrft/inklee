@@ -86,6 +86,22 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.refunds
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.refund_lines
   FROM anon, authenticated;
 
+-- Mirror of 0141_shop_carts_wishlist.sql. Same footgun, found the same way:
+-- tests/db/shop-carts-rls.test.ts's SELECT/INSERT/UPDATE/DELETE/TRUNCATE
+-- refusals for shop_carts, shop_cart_items and shop_wishlist_items all went
+-- green (no error) on a freshly reset local stack until this mirror was
+-- added — the blanket GRANT ALL above re-opens what 0141's own REVOKE
+-- (service-role-only; every read/write goes through a "use server" action on
+-- the guest-token identity, never auth.uid()) closed. 0141 shipped without
+-- this mirror; caught running `pnpm test:db` for an unrelated migration
+-- (0142) that never touches these tables.
+REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON public.shop_carts
+  FROM anon, authenticated;
+REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON public.shop_cart_items
+  FROM anon, authenticated;
+REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON public.shop_wishlist_items
+  FROM anon, authenticated;
+
 -- Mirror of 0074_profiles_column_privileges.sql + the 0076 + 0084 + 0102 grant
 -- extensions:
 REVOKE UPDATE ON public.profiles FROM anon, authenticated;
@@ -97,7 +113,8 @@ GRANT UPDATE (
   signup_attribution, updated_at,
   map_visibility, looking_for_guest_spots,
   map_city_label, map_city_place_id, map_city_lat, map_city_lng,
-  travel_map_consent, passport_public, guest_naming_opt_out
+  travel_map_consent, passport_public, guest_naming_opt_out,
+  seller_trading_name, seller_address, seller_contact
 ) ON public.profiles TO authenticated;
 GRANT INSERT (
   id, slug, display_name, instagram_handle, location, timezone,

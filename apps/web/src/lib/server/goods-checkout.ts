@@ -12,6 +12,14 @@ import { getConnectRoutingForArtist } from "@/lib/stripe-connect";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { goodsBundlesAllowed } from "@/lib/server/entitlement-gates";
 import { productAvailability } from "@inklee/shared/product-availability";
+import { SUPPORT_INBOX_EMAIL } from "@/lib/server/support";
+import { sellerDataComplete, type SellerData } from "@/lib/server/seller-data";
+import {
+  summarizeReturnDisclosure,
+  buildOrderReceiptBody,
+  type ReturnDisclosureItem,
+} from "@inklee/shared/consumer-disclosures";
+import { getLegalDoc } from "@/lib/legal/documents";
 import { appointmentFeeTier } from "@/lib/server/order-fee-sync";
 import { resolveDiscount } from "@/lib/server/discounts";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
@@ -93,6 +101,9 @@ export type CatalogRow = {
   quantity: number | null;
   available_from: string | null;
   preorder: boolean | null;
+  /** Art. 16(c) exemption (C1.2), artist-set. Optional so existing fixtures
+   *  and callers that predate the column keep compiling. */
+  custom_made?: boolean | null;
   product_variants: {
     id: string;
     name: string;
@@ -115,7 +126,7 @@ export async function fetchSellableCatalogRows(
   const { data: rows } = await serviceClient
     .from("products")
     .select(
-      "id, title, price_amount, currency, status, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
+      "id, title, price_amount, currency, status, quantity, available_from, preorder, custom_made, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
     )
     .eq("artist_id", artistId)
     .eq("status", "active")
@@ -136,6 +147,7 @@ function toAddonProducts(rows: CatalogRow[]): AddonProduct[] {
     quantity: p.quantity,
     availableFrom: p.available_from,
     preorder: p.preorder === true,
+    customMade: p.custom_made === true,
     variants: (p.product_variants ?? [])
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -161,6 +173,13 @@ type ResolvedBundleLine = {
   /** Bundle price, major units (the charged unit price, decision B2/GC6). */
   unitAmount: number;
   totalMinor: number;
+  /** C1.2: true when ANY component is custom-made. A bundle is sold as one
+   *  fixed unit, so if a personalised component cannot legally be returned
+   *  the return right on the bundle as a whole is compromised too — the
+   *  disclosing-more-often direction, since counsel's wording does not cover
+   *  bundles explicitly and an undisclosed exemption is the failure mode
+   *  that extends the statutory window (never the reverse). */
+  customMade: boolean;
   /** Sale-time composition snapshot rows (0135, variant fields added 0138),
    *  quantity per ONE bundle. */
   components: {
@@ -172,6 +191,8 @@ type ResolvedBundleLine = {
     variantId: string | null;
     /** The variant's own name at resolution time, or null. */
     variantSnapshot: string | null;
+    /** This component's OWN custom-made flag, snapshotted at sale time. */
+    customMade: boolean;
   }[];
 };
 
@@ -271,6 +292,7 @@ export async function resolveBundleLines(
     title: string;
     unitListPrice: number;
     variantSnapshot: string | null;
+    customMade: boolean;
   };
   function resolveComponentRow(c: {
     product_id: unknown;
@@ -295,6 +317,7 @@ export async function resolveBundleLines(
         title: "",
         unitListPrice: 0,
         variantSnapshot: null,
+        customMade: false,
       };
     }
     // The compositor's own gate: drops, preorder and status, evaluated at
@@ -335,6 +358,7 @@ export async function resolveBundleLines(
       title: product.title,
       unitListPrice: Number(product.price_amount ?? 0),
       variantSnapshot,
+      customMade: product.custom_made === true,
     };
   }
 
@@ -385,6 +409,9 @@ export async function resolveBundleLines(
       quantity: qty,
       unitAmount: bundle.priceAmount,
       totalMinor: bundlePriceMinor(bundle.priceAmount) * qty,
+      // C1.2: any custom-made component makes the whole bundle line
+      // non-returnable (see the type's own doc comment for why).
+      customMade: resolvedComponents.some((rc) => rc.customMade),
       components: resolvedComponents.map((rc) => ({
         productId: rc.productId,
         title: rc.title,
@@ -392,6 +419,7 @@ export async function resolveBundleLines(
         unitListPrice: rc.unitListPrice,
         variantId: rc.resolution.variantId,
         variantSnapshot: rc.variantSnapshot,
+        customMade: rc.customMade,
       })),
     });
   }
@@ -450,13 +478,27 @@ export async function createStandaloneGoodsCheckoutCore(input: {
   // regress every existing artist who has never touched the toggle.
   const { data: profileRow, error: profileErr } = await serviceClient
     .from("profiles")
-    .select("settings")
+    .select("settings, seller_trading_name, seller_address, seller_contact")
     .eq("id", input.artistId)
     .maybeSingle();
   if (profileErr) {
     return { ok: false, error: "Couldn't prepare the order. Try again." };
   }
   if (!shopCheckoutEnabled(profileRow?.settings)) {
+    return { ok: false, error: "The shop isn't taking card orders yet." };
+  }
+
+  // C1.1 counsel prerequisite: "Artists without complete seller data cannot
+  // enable the shop." Checked HERE, on the money path itself — not only at
+  // the page/toggle layer — for the same SHOP-VIS-001 reason as the toggle
+  // above. Deliberately the SAME generic refusal message as every other gate
+  // on this path: a buyer gets no oracle for which precondition failed.
+  const seller: SellerData = {
+    tradingName: (profileRow?.seller_trading_name as string | null) ?? null,
+    address: (profileRow?.seller_address as string | null) ?? null,
+    contact: (profileRow?.seller_contact as string | null) ?? null,
+  };
+  if (!sellerDataComplete(seller)) {
     return { ok: false, error: "The shop isn't taking card orders yet." };
   }
 
@@ -586,6 +628,9 @@ export async function createStandaloneGoodsCheckoutCore(input: {
         unit_amount: l.unitAmount,
         total_amount: l.totalAmount,
         currency: "eur",
+        // C1.2: freeze the exemption flag at sale time, same reasoning as
+        // title_snapshot/variant_snapshot.
+        custom_made_snapshot: l.customMade,
       })),
     );
     if (itemsErr) {
@@ -616,6 +661,8 @@ export async function createStandaloneGoodsCheckoutCore(input: {
             unit_amount: l.unitAmount,
             total_amount: l.totalMinor / 100,
             currency: "eur",
+            // C1.2: the bundle-level flag (any custom-made component).
+            custom_made_snapshot: l.customMade,
           })),
         )
         .select("id, bundle_id");
@@ -642,6 +689,7 @@ export async function createStandaloneGoodsCheckoutCore(input: {
         // product needed no variant.
         variant_id: c.variantId,
         variant_snapshot: c.variantSnapshot,
+        custom_made_snapshot: c.customMade,
       }));
     });
     const missingSnapshot =
@@ -752,7 +800,7 @@ export async function settleStandaloneGoodsOrder(
   const { data: itemRows } = await serviceClient
     .from("order_items")
     .select(
-      "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount",
+      "id, bundle_id, product_id, variant_id, quantity, type, title_snapshot, variant_snapshot, total_amount, custom_made_snapshot",
     )
     .eq("order_id", orderId);
   const items = (itemRows ?? []) as InventoryOrderItem[];
@@ -845,32 +893,81 @@ export async function settleStandaloneGoodsOrder(
   const clientEmail = (order.client_email as string | null) ?? null;
   if (clientEmail) {
     try {
+      // C1.3: the receipt IS the durable record, so it needs the C1.1 seller
+      // block filled with the artist's real data. This whole block stays
+      // best-effort (the surrounding try/catch): a receipt that cannot be
+      // built with full seller data must still not fail the settlement — the
+      // money already moved by the time this runs, and the checkout-time gate
+      // (createStandaloneGoodsCheckoutCore) is what actually prevents an
+      // incomplete-seller order from ever reaching here. Fallbacks below only
+      // guard against that invariant being violated some other way.
       const { data: profile } = await serviceClient
         .from("profiles")
-        .select("display_name")
+        .select(
+          "display_name, seller_trading_name, seller_address, seller_contact",
+        )
         .eq("id", order.artist_id)
         .maybeSingle();
       const artistName =
         (profile?.display_name as string | null) || "the artist";
+      const seller = {
+        tradingName:
+          (profile?.seller_trading_name as string | null) || artistName,
+        address: (profile?.seller_address as string | null) || "",
+        contact:
+          (profile?.seller_contact as string | null) || SUPPORT_INBOX_EMAIL,
+      };
       const total = (
         (intent.amount_received ?? intent.amount ?? 0) / 100
       ).toFixed(2);
-      const lines = items
+      const receiptItems = items
         .filter((i) => i.type === "product" || i.type === "bundle")
-        .map(
-          (i) =>
-            `- ${i.title_snapshot}${i.variant_snapshot ? ` (${i.variant_snapshot})` : ""} x ${i.quantity}`,
-        )
-        .join("\n");
-      const body = `Hi,
-
-Thanks for your order from ${artistName}.
-
-${lines}
-
-Total paid: ${total} EUR.
-
-Keep this email as your receipt. Pickup and delivery are arranged with ${artistName} directly.`;
+        .map((i) => ({
+          title: i.title_snapshot,
+          variant: i.variant_snapshot,
+          quantity: Number(i.quantity),
+        }));
+      // C1.2: per-item exemption snapshot, frozen at sale time (order_items
+      // and order_item_bundle_components both carry custom_made_snapshot;
+      // the top-level order_items row already reflects "any component
+      // custom-made" for a bundle line, per resolveBundleLines).
+      const disclosure = summarizeReturnDisclosure(
+        items
+          .filter((i) => i.type === "product" || i.type === "bundle")
+          .map(
+            (i): ReturnDisclosureItem => ({
+              customMade:
+                (i as { custom_made_snapshot?: boolean })
+                  .custom_made_snapshot === true,
+            }),
+          ),
+      );
+      let termsSection: string | null = null;
+      try {
+        const terms = getLegalDoc("terms");
+        termsSection = `Terms of Service (version ${terms.version}):\n\n${terms.body}`;
+      } catch (err) {
+        // Fail-soft (mirrors the Plus E2 confirmation's own posture): a
+        // receipt missing the inline Terms text is a gap worth knowing about,
+        // never a reason to drop the receipt entirely.
+        Sentry.captureMessage(
+          "Standalone goods receipt sent without inline Terms text",
+          {
+            level: "warning",
+            tags: { action: "standalone_goods_receipt_terms" },
+            extra: { orderId, reason: String(err) },
+          },
+        );
+      }
+      const body = buildOrderReceiptBody({
+        artistName,
+        seller,
+        supportEmail: SUPPORT_INBOX_EMAIL,
+        items: receiptItems,
+        totalLabel: `${total} EUR`,
+        disclosure,
+        termsSection,
+      });
       await sendEmail({
         to: clientEmail,
         subject: `Your order from ${artistName}`,

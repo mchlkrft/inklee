@@ -40,6 +40,7 @@ type RawProduct = {
   low_stock_threshold: number | null;
   is_public_visible: boolean;
   is_checkout_addon: boolean;
+  custom_made: boolean | null;
 };
 
 type RawVariant = {
@@ -63,7 +64,7 @@ export default async function EditProductPage({
   const { data: rawProduct } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon, available_from, preorder, low_stock_threshold",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, is_checkout_addon, available_from, preorder, low_stock_threshold, custom_made",
     )
     .eq("id", id)
     .eq("artist_id", user!.id)
@@ -111,6 +112,7 @@ export default async function EditProductPage({
         : "",
     isPublicVisible: row.is_public_visible,
     isCheckoutAddon: row.is_checkout_addon,
+    customMade: row.custom_made === true,
     imageUrl: row.image_url,
     // Drops (P5c). datetime-local wants "YYYY-MM-DDTHH:mm" in LOCAL time; the
     // column is a UTC timestamptz, so it is converted rather than sliced, or

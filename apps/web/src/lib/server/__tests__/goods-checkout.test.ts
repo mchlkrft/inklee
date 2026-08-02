@@ -263,7 +263,19 @@ const INPUT = {
   selections: [{ productId: "p1", variantId: null, quantity: 2 }],
 };
 
+// C1.1 counsel prerequisite: complete seller data on a fully-onboarded artist
+// fixture. NO `settings` key on purpose — every test relying on
+// queueHappyPath() also relies on shop_checkout defaulting to enabled when
+// settings is absent (see "defaults ON..." below), and adding seller data
+// must not disturb that.
+const COMPLETE_SELLER_ROW = {
+  seller_trading_name: "Mika Ink Studio",
+  seller_address: "12 Ink Street, Berlin, Germany",
+  seller_contact: "mika@example.com",
+};
+
 function queueHappyPath() {
+  queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
   queue("products:select", { data: [CATALOG_ROW] });
   queue("orders:insert", { data: { id: "o1" } });
   queue("order_items:insert", { data: null });
@@ -559,7 +571,10 @@ describe("createStandaloneGoodsCheckoutCore", () => {
 
     it("proceeds when the artist explicitly left shop_checkout on", async () => {
       queue("profiles:select", {
-        data: { settings: { features: { shop_checkout: true } } },
+        data: {
+          settings: { features: { shop_checkout: true } },
+          ...COMPLETE_SELLER_ROW,
+        },
       });
       queueHappyPath();
       const r = await createStandaloneGoodsCheckoutCore(INPUT);
@@ -567,14 +582,52 @@ describe("createStandaloneGoodsCheckoutCore", () => {
     });
 
     it("defaults ON for an artist who has never touched the toggle (no settings row, no error)", async () => {
-      // No profiles:select queued at all: the mock's default reply is
-      // { data: null, error: null } — a legitimately empty/missing settings
-      // row, NOT a read failure. Every other test in this file relies on this
-      // exact default to keep working after the gate was added, so this test
-      // pins that it is intentional, not an accident of the mock.
+      // queueHappyPath()'s queued profiles:select reply carries seller data
+      // but deliberately NO `settings` key — a legitimately empty/missing
+      // settings row, NOT a read failure. Every other test in this file
+      // relies on this exact default (shop_checkout enabled when settings is
+      // absent) to keep working, so this test pins that it is intentional,
+      // not an accident of the mock.
       queueHappyPath();
       const r = await createStandaloneGoodsCheckoutCore(INPUT);
       expect(r.ok).toBe(true);
+    });
+
+    it("refuses on the money path when seller data is incomplete, even though shop_checkout is on (C1.1)", async () => {
+      // Complete `settings` (shop_checkout explicitly on) but NO seller
+      // fields: the artist has never filled in their trading name / address /
+      // contact. This is the actual precondition failure counsel described,
+      // distinct from every gate above it.
+      queue("profiles:select", {
+        data: { settings: { features: { shop_checkout: true } } },
+      });
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r).toEqual({
+        ok: false,
+        error: "The shop isn't taking card orders yet.",
+      });
+      expect(
+        ops.find((o) => o.table === "products" && o.verb === "select"),
+      ).toBeUndefined();
+      expect(
+        ops.find((o) => o.table === "orders" && o.verb === "insert"),
+      ).toBeUndefined();
+    });
+
+    it("refuses when only ONE of the three seller fields is missing (partial data does not count)", async () => {
+      queue("profiles:select", {
+        data: {
+          settings: { features: { shop_checkout: true } },
+          seller_trading_name: "Mika Ink Studio",
+          seller_address: "12 Ink Street, Berlin, Germany",
+          // seller_contact intentionally omitted
+        },
+      });
+      const r = await createStandaloneGoodsCheckoutCore(INPUT);
+      expect(r.ok).toBe(false);
+      expect(
+        ops.find((o) => o.table === "orders" && o.verb === "insert"),
+      ).toBeUndefined();
     });
   });
 
@@ -588,6 +641,7 @@ describe("createStandaloneGoodsCheckoutCore", () => {
   });
 
   it("surfaces the REAL compositor's refusal (unknown product)", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [] }); // empty catalog
     const r = await createStandaloneGoodsCheckoutCore(INPUT);
     expect(r).toEqual({
@@ -597,6 +651,7 @@ describe("createStandaloneGoodsCheckoutCore", () => {
   });
 
   it("surfaces a discount rejection and stops", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW] });
     mockResolveDiscount.mockResolvedValue({
       codeId: null,
@@ -626,6 +681,7 @@ describe("createStandaloneGoodsCheckoutCore", () => {
   });
 
   it("refuses a total under Stripe's charge floor", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", {
       data: [{ ...CATALOG_ROW, price_amount: 0.2 }],
     });
@@ -654,6 +710,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   function queueBundleHappyPath() {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
@@ -732,6 +789,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
       unit_amount: 40, // the bundle price, not 52
       total_amount: 80,
       currency: "eur",
+      custom_made_snapshot: false,
     });
   });
 
@@ -757,6 +815,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
         unit_list_price: 30,
         variant_id: null,
         variant_snapshot: null,
+        custom_made_snapshot: false,
       },
       {
         order_item_id: "oi-b1",
@@ -766,6 +825,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
         unit_list_price: 11,
         variant_id: null,
         variant_snapshot: null,
+        custom_made_snapshot: false,
       },
     ]);
   });
@@ -876,6 +936,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("refuses a bundle whose component is short on stock, and writes no order", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", {
       // p2 has ONE in stock; the bundle needs 2 per bundle x 2 bundles = 4.
       data: [CATALOG_ROW, { ...CATALOG_ROW_2, quantity: 1 }],
@@ -899,6 +960,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("refuses a bundle whose component is not in the sellable catalog", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW] }); // p2 hidden/archived
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
@@ -918,6 +980,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("refuses an unknown, hidden, archived or non-EUR bundle with one answer", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [] }); // filtered out by the read
     queue("product_bundle_items:select", { data: [] });
@@ -938,6 +1001,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
     // was a drop-gate bypass (proven by the round-2 verifier by executing
     // both gates side by side). Year-9999 fixture: deterministic against the
     // ambient clock without injecting one.
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", {
       data: [
         { ...CATALOG_ROW, available_from: "9999-01-01T00:00:00.000Z" },
@@ -972,6 +1036,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
     // no variant AT ALL for a product that requires a choice is still
     // refused — this is the honest remnant of GC7, narrowed from "any
     // variant present" to "un-selectable".
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW_VARIANT, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     // p1's slot names NO variant, even though p1 now has an active one.
@@ -1003,6 +1068,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("FD6: a bundle slot with a DECLARED, in-stock variant sells, decrementing the VARIANT not the parent", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW_VARIANT, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     queue("product_bundle_items:select", {
@@ -1042,6 +1108,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
         unit_list_price: 30,
         variant_id: "v1",
         variant_snapshot: "M",
+        custom_made_snapshot: false,
       },
       {
         order_item_id: "oi-b1",
@@ -1051,6 +1118,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
         unit_list_price: 11,
         variant_id: null,
         variant_snapshot: null,
+        custom_made_snapshot: false,
       },
     ]);
   });
@@ -1061,6 +1129,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
     // writes (migration 0138), but the checkout re-verifies independently of
     // what the write path already proved (the SHOP-VIS-001 money-path
     // posture: never trust an upstream invariant at the point money moves).
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW_VARIANT, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     queue("product_bundle_items:select", {
@@ -1091,6 +1160,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("FD6: refuses when the declared variant is short on stock, naming the bundle", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", {
       data: [
         {
@@ -1130,6 +1200,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("rolls the whole order back when the composition snapshot fails to write", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
@@ -1163,6 +1234,7 @@ describe("createStandaloneGoodsCheckoutCore: bundle lines (GC6)", () => {
   });
 
   it("a BUNDLE-ONLY order is a real order, not an empty basket", async () => {
+    queue("profiles:select", { data: { ...COMPLETE_SELLER_ROW } });
     queue("products:select", { data: [CATALOG_ROW, CATALOG_ROW_2] });
     queue("product_bundles:select", { data: [BUNDLE_ROW] });
     queue("product_bundle_items:select", { data: BUNDLE_ITEM_ROWS });
