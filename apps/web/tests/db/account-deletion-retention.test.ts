@@ -32,7 +32,13 @@ import { deleteOwnAccountCore } from "@/lib/server/account-deletion";
  *   RETAIN (ON DELETE SET NULL, pseudonymised — artist_id becomes NULL, row
  *   survives): billing_subscriptions, billing_consent_records,
  *   transaction_tax_snapshots, billing_contract_confirmations,
- *   withdrawal_cases (all 0129), founder_offer_redemptions (0143).
+ *   withdrawal_cases (all 0129), founder_offer_redemptions (0143),
+ *   refunds, refund_lines (0147, C1.10 completion). The refund ledger is the
+ *   sharpest case in the file: refunds.payment_request_id still points at a
+ *   payment_request that DOES get cascade-erased in the same delete (P9
+ *   stays CASCADE, archived not schema-preserved), so surviving here also
+ *   proves the refund's own NO ACTION subject FK did not block that cascade
+ *   — 0147 makes it DEFERRABLE INITIALLY DEFERRED for exactly this reason.
  *   ERASE (ON DELETE CASCADE, unchanged): account_overrides (pure
  *   entitlement/config, no revenue-substantiation role — 0143's decision).
  *   ARCHIVE THEN ERASE (P9, migration 0125 — BDEL-PAY-001): payment_requests,
@@ -61,6 +67,8 @@ let requestId: string;
 let lineId: string;
 const PAYMENT_INTENT_ID = `pi_c110_${Date.now()}`;
 let allocationId: string;
+let refundId: string;
+let refundLineId: string;
 
 const FOUNDER_POLICY_VERSION = `c110-retention-test-${Date.now()}`;
 
@@ -242,6 +250,47 @@ beforeAll(async () => {
   expect(allocation.error, allocation.error?.message).toBeNull();
   allocationId = allocation.data!.id;
 
+  // --- Refund ledger (0139/0147, C1.10 completion): a refund event against
+  //     the SENT payment_request above, plus its per-line record. Both
+  //     should SURVIVE deletion, pseudonymised (artist_id null) — this is
+  //     the fixture that proves 0147's fix, and specifically that the
+  //     surviving refund does not block the payment_requests cascade it
+  //     still points at (refunds_payment_request_fk, NO ACTION, deferred). ---
+  const refund = await admin
+    .from("refunds")
+    .insert({
+      domain: "appointment_payment",
+      artist_id: actor.id,
+      payment_request_id: requestId,
+      refund_type: "full",
+      fee_refund_case: "voluntary_full",
+      status: "succeeded",
+      amount_minor: 1000,
+      stripe_refund_id: `re_c110_${actor.id.slice(0, 8)}`,
+      idempotency_key: `idem-c110-${actor.id}`,
+      initiated_by: actor.id,
+    })
+    .select("id")
+    .single();
+  expect(refund.error, refund.error?.message).toBeNull();
+  refundId = refund.data!.id;
+
+  const refundLine = await admin
+    .from("refund_lines")
+    .insert({
+      refund_id: refundId,
+      artist_id: actor.id,
+      payment_request_id: requestId,
+      payment_request_line_id: lineId,
+      name_snapshot: "Full sleeve, session 2",
+      quantity_refunded: 1,
+      amount_minor: 1000,
+    })
+    .select("id")
+    .single();
+  expect(refundLine.error, refundLine.error?.message).toBeNull();
+  refundLineId = refundLine.data!.id;
+
   // The REAL orchestration. No `stripe` key is configured for this suite
   // (see the file header), so this only exercises the DB-write side —
   // exactly the side under test.
@@ -278,6 +327,11 @@ afterAll(async () => {
     .from("deleted_account_records")
     .delete()
     .eq("artist_id", actor?.id);
+  // Cleaned up by their own PK, same reasoning as the RETAIN tables above:
+  // artist_id is null post-deletion (or, if the deletion under test failed,
+  // still set) either way this must not depend on it.
+  await admin.from("refund_lines").delete().eq("id", refundLineId);
+  await admin.from("refunds").delete().eq("id", refundId);
   await destroyActor(admin, actor);
 });
 
@@ -357,6 +411,36 @@ describe("account deletion retention (C1.10)", () => {
       .single();
     expect(error, error?.message).toBeNull();
     expect(data!.artist_id).toBeNull();
+  });
+
+  it("refunds survives, pseudonymised, still pointing at the erased payment_request (0147)", async () => {
+    const { data, error } = await admin
+      .from("refunds")
+      .select("artist_id, payment_request_id, amount_minor, stripe_refund_id")
+      .eq("id", refundId)
+      .single();
+    expect(error, error?.message).toBeNull();
+    expect(data!.artist_id).toBeNull();
+    // The payment_request itself is gone (P9 stays CASCADE, archived not
+    // schema-preserved) — the refund's pointer to it is retained anyway, an
+    // orphaned but honest reference, exactly like the deposit's
+    // paymentIntentId in the older buildFinancialSnapshot record.
+    expect(data!.payment_request_id).toBe(requestId);
+    expect(data!.amount_minor).toBe(1000);
+    expect(data!.stripe_refund_id).toBe(`re_c110_${actor.id.slice(0, 8)}`);
+  });
+
+  it("refund_lines survives, pseudonymised (0147)", async () => {
+    const { data, error } = await admin
+      .from("refund_lines")
+      .select("artist_id, refund_id, name_snapshot, amount_minor")
+      .eq("id", refundLineId)
+      .single();
+    expect(error, error?.message).toBeNull();
+    expect(data!.artist_id).toBeNull();
+    expect(data!.refund_id).toBe(refundId);
+    expect(data!.name_snapshot).toBe("Full sleeve, session 2");
+    expect(data!.amount_minor).toBe(1000);
   });
 
   it("founder_offer_redemptions survives, pseudonymised (0143's fix)", async () => {

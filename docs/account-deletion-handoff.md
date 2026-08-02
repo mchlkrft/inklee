@@ -202,6 +202,53 @@ formulation:
 
 ---
 
+## 12. §11 cross-check, performed 2026-08-03
+
+Counsel's C1.10 answer (`docs/legal/counsel-accountant-handoff-2026-08.md`)
+ordered this cross-check explicitly: "Verify the carve-out against the
+handoff's §11 implementation table while you are in there." A previous round
+did not perform it. Counsel's own words on that: "an explicitly ordered
+cross-check that silently did not happen must not survive a second round."
+This is that check, row by row against the table in §11, with the evidence
+cited rather than asserted. **A clean row is recorded as clean; a gap is
+recorded as a gap** — the whole point of doing this is that "checked and
+sound" and "not checked" must not look the same afterward.
+
+| Ref | Requirement | Status | Evidence |
+|---|---|---|---|
+| 3 | Erasure not blocked on financial resolution | **Match** | `account-deletion.ts`: "Counsel §3: erasure is NOT blocked on financial resolution. Deletion always proceeds." No balance/resolution gate anywhere in `deleteOwnAccountCore`; only a live-unpaid-intent cancel and a transient-error path if Stripe is briefly unreachable. |
+| 3 | Deletion eligibility determined by unresolved-Deposit state, not Stripe balance alone | **Match, narrowed scope** | This no longer *gates* deletion (superseded by the "always proceeds" decision above — the same table row, read together with the one above it, describes one evolution). What survives is `categorizeDepositBookings`/`resolvedIds`: "resolved" is derived from `audit_log` rows (`deposit_refunded`, `deposit_forfeited`), never from a raw Stripe balance read, and feeds the `resolved` flag on the retained record rather than a block. |
+| 4 | Retained field set: allowlist, no free text/Client PII | **Match** | `account-deletion-logic.ts`'s `ORDER_RETAINED_FIELDS` / `PAYMENT_REQUEST_RETAINED_FIELDS` / `PAYMENT_REQUEST_LINE_RETAINED_FIELDS` / `PAYMENT_COLLECTION_RETAINED_FIELDS` / `PAYMENT_ALLOCATION_RETAINED_FIELDS` are allowlists (`pickAllowlisted`), not denylists — a new PII column added upstream cannot silently leak in. `payment_request_lines.description` (free text) is explicitly excluded, with the reasoning cited in-file. |
+| 4 | Retention period: 7 years from financial-year-end | **Match** | `api/cron/retention-purge/route.ts`: `financialCutoff` computed as `Date.UTC(now.getUTCFullYear() - 7, 0, 1)`, applied to `deleted_account_records.deleted_at`. |
+| 5 | Data labelling: "pseudonymised" throughout code and schema | **Match** | Consistent naming/comments across `account-deletion.ts`, `account-deletion-logic.ts`, and 0129/0143/0147's own migration headers. |
+| 6 | Reference images: 30-day post-cancellation deletion | **Match** | `api/cron/cleanup/route.ts`: reference images for stale (rejected/cancelled, >30-day) bookings are purged from the `bookings` storage bucket every run, explicitly citing "counsel §6 30-day rule" in its own comment. |
+| 6 | Reference images: encryption at rest + restricted access | **Assumed, not independently re-verified this pass** | The `bookings` bucket is private/RLS-gated by construction (every reader in this codebase signs a short-lived URL rather than reading it publicly). Encryption at rest is a Supabase/underlying-object-storage platform default, not an application-level setting this pass checked directly against the project's storage configuration. |
+| 6 | Reference images: explicit-consent gate at upload where special-category | **Gap** | `content/legal/privacy.md`: "We do not solicit special-category data... We ask Artists and Clients not to submit information that is not necessary." That is an instruction/discouragement in the privacy notice, not an affirmative consent checkbox at the point of image upload. No upload-time consent gate was found in the booking form or its image-picker component. |
+| 6 | DPIA completed and signed off before release; gates the launch | **Gap, already tracked** | Not done. This is the open item already carried as "LO-5 DPIA" (largest open risk, release-gating) in the standing worklist — recording it here rather than treating it as newly discovered, since it is the same gap under a different heading. |
+| 7 | Connected Account: retain account pointer only | **Match** | `account-deletion.ts` step 3 stores `profile.stripe_account_id` into `deleted_account_records.stripe_account_id`; nothing else touches it. |
+| 7 | Connected Account: do not force-disconnect at deletion time | **Match** | No `stripe.accounts.del`/account-deletion call exists anywhere in `apps/web/src` (grepped fleet-wide). The Connect account is left alone. |
+| 7 | Connected Account: schedule account deletion at window-end (zero balance required) | **Gap** | No scheduling mechanism exists. `api/cron/retention-purge/route.ts` purges five pseudonymised DB record types on their own clocks but never reads or acts on `stripe_account_id`/`deleted_account_records`, and no other cron touches Stripe Connect accounts. The pointer is retained (per the row above) but nothing ever acts on it. |
+| 7 | Transfer record: Stripe DPA + SCCs/DPF disclosed in privacy notice | **Match** | `content/legal/privacy.md` §4.1, "Payments and identity data" clause, verbatim: Stripe as independent controller, transfers outside the EEA, protected by "the Standard Contractual Clauses and Stripe's EU–US Data Privacy Framework certification." |
+| 7 | Transfer record: recorded in an Article 30 register | **Gap** | The only committed Article 30 register entry in the repo is `docs/legal/records-of-processing-guest-shop.md`, and its own header says so explicitly: "earlier processing activities (account data, bookings, Connect payouts) are described in prose across `docs/account-deletion-handoff.md` and `docs/legal/counsel-decision-pack.md` rather than as a register entry, and have not been consolidated here." The Stripe-transfer processing activity this §11 row asks about is one of those — described in this document's own prose (§7), not yet captured as a register entry. |
+| 8 | Audit/tombstone: 24-month time-box, no indefinite retention | **Match** | `api/cron/retention-purge/route.ts` purges `audit_log` rows with `booking_id IS NULL` (auth events, the deletion tombstone, delivery logs) past 24 months; booking-linked rows follow the booking's own (financial) retention instead, per the same file's header comment. `admin_action_log` is purged on the same 24-month clock. |
+| 9 | Intent capture: type-to-confirm "DELETE" + re-authentication | **Match** | `delete-account-section.tsx`: a literal `confirm === "DELETE"` gate on the submit button, plus a password/OAuth re-auth step before it unlocks. `account-deletion.ts`'s `isReauthFresh`/`REAUTH_WINDOW_MS` (5 minutes) enforces the re-auth freshness server-side, so the check is not only client-side UI. |
+| 10 | Privacy notice: publish §10 clauses; remove "plus 30 days" wording | **Match** | `content/legal/privacy.md` §4.1 carries all three §10 clauses (deletion/retention, Stripe transfer, security-records 24-month) near-verbatim. No "plus 30 days" (or any stale wording it would have replaced) exists anywhere in the file. |
+
+**Net: 12 of 16 rows match cleanly, one is a narrowed-scope match (deletion no
+longer gates on the deposit state described, but the same state-derivation
+logic survives for a different purpose), and four are gaps**, none of them
+new discoveries — the DPIA is already the tracked "largest open risk"; the
+Connect-account deletion schedule and the Article 30 register consolidation
+are the kind of standing-item this cross-check exists to surface explicitly
+rather than leave implicit; the upload-time consent gate for reference images
+is the one genuinely new gap this pass found and had not been named before.
+None of the four blocks C1.10 itself (the retained-financial-record carve-out
+this document's §§3–5 and 0129/0143/0147 implement) — they are separate,
+already-adjacent obligations this table also covers, and are recorded here so
+they stop being invisible.
+
+---
+
 *References (public sources for the positions above): Estonian Accounting Act § 12
 (<https://www.riigiteataja.ee/en/eli/530102013006/consolide>); Stripe Connect KYC and
 identity-data handling (<https://support.stripe.com/questions/managing-your-id-verification-information>);
