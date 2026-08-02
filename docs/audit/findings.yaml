@@ -14269,6 +14269,26 @@ findings:
         actor: "supervisor session"
         action: "fix-committed"
         note: "Fixed in 8db7b2dc the same day."
+      - date: "2026-08-02"
+        actor: "audit-db (independent review) + supervisor session (verification)"
+        action: "evidence-added"
+        note: "AGGRAVATING CONSEQUENCE, found by the independent migration review and verified by the
+          supervisor. The still-open FOR ALL policy on order_items is no longer only an
+          amount-forgery risk. Migration 0142 adds custom_made_snapshot to that table, and
+          that column's ENTIRE PURPOSE is to freeze a consumer-rights disclosure at sale
+          time. Because the policy permits writes, an artist's own authenticated session can
+          rewrite it on a historical order afterwards, i.e. retroactively falsify a legal
+          disclosure on a completed receipt, alongside title_snapshot and the amounts.
+          WHY IT SURVIVED REVIEW, which is the reusable part: the policy is NAMED 'artist can
+          read own order items' and is declared FOR ALL with a WITH CHECK. Anyone scanning a
+          policy list reads the name and moves on. Verified at 0036_orders.sql:62-70 and
+          confirmed no later migration replaces it. The sibling table
+          order_item_bundle_components is correctly SELECT-only (0135), so only order_items
+          is exposed. The remediation is unchanged and already recorded as owed for the
+          release sequencer; what changes is the severity of shipping without it, because a
+          consumer-protection disclosure now rides on the same policy. Recorded here rather
+          than as a new finding because the mechanism and the fix are identical, which was
+          the reviewer's own judgment and is right."
 
   - id: "WEB-XSS-001"
     title: "Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into
@@ -15690,6 +15710,275 @@ findings:
         note: "Reported as an asymmetry needing a second opinion, not fixed. Correct restraint: the
           supervisor's judgment was that it is a product question, which a worker should not settle
           inside a refactor."
+
+  - id: "GAL-REL-001"
+    title: "The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a
+      transient read failure, leaving client photographs public"
+    summary: "ownedGalleryPaths binds data without error. A failed profiles read therefore yields
+      no image paths, moveAll returns {ok: true, moved: 0}, and relocateArtistGallery stamps
+      account_overrides.gallery_relocated_at. The nightly sweep selects candidates with
+      .is('gallery_relocated_at', null), so that artist is permanently excluded from retry and
+      their client photographs remain in the PUBLIC logos bucket indefinitely. Symmetric on the
+      way back: the same failure during restore clears the marker and strands the images in the
+      private bucket, and the restore sweep filters on the marker being non-null, so it never
+      revisits either. A second discarded error in the same file (the storage list at ~89) makes a
+      failed move report already_done and count as moved."
+    classification:
+      domain: "storage"
+      category: "silent-failure"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "audit-quality, an independent code-quality reviewer that wrote none of this
+        code"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "508c33d5"
+      environment: "repository-only"
+      discovery_context: "Found during the post-build audit, in code written earlier the same day
+        to satisfy counsel's C1.5 answer. The control was reviewed and accepted when it landed;
+        this failure mode was not visible at that review."
+    location:
+      files:
+        - "apps/web/src/lib/server/gallery-relocation.ts"
+    evidence:
+      observed_facts:
+        - "ownedGalleryPaths (~44) uses maybeSingle() and binds data only."
+        - "The marker is stamped on result.ok (~146), and moveAll returns ok true with moved 0
+          when the path list is empty."
+        - "The relocation sweep filters .is('gallery_relocated_at', null) (~257) and the restore
+          sweep filters .not('gallery_relocated_at', 'is', null) (~285), so a wrongly-stamped or
+          wrongly-cleared marker is never revisited by either."
+        - "The storage list at ~89 discards its error, so a failed list makes presentAtSource
+          false and the move reports already_done."
+        - "The doc comment at ~75 claims the check is 'still present at the source AND absent at
+          the destination'. The code never queries the destination bucket."
+      references:
+        - "docs/legal/counsel-accountant-handoff-2026-08.md"
+    assessment:
+      interpretation: "The defect is not the discarded read on its own; it is that a legitimate
+        outcome and a failure produce byte-identical results. An artist with no gallery images
+        genuinely relocates zero objects, and the function's own doc comment at ~129 says so. That
+        is exactly what a failed read looks like."
+      root_cause_hypothesis: "The success path was designed around a count, and a count cannot
+        express 'I could not find out'. Once zero was accepted as success, the marker write became
+        unconditional in practice."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Clients photographed by any artist whose entitlement lapses while
+        a read fails. The images are of identifiable people's skin and counsel treats them as
+        health-adjacent."
+      production_exposure: "None realised: the gallery capability has never been granted, so no
+        artist has uploaded through it. The control is nonetheless the one counsel made
+        public-unlisted hosting conditional on."
+      exploit_preconditions: "Not attacker-driven; a transient database failure during a downgrade
+        sweep is sufficient."
+      remaining_uncertainty: "None on the mechanism. Whether the destination-check comment should
+        become code or be corrected is a design decision, not a fact."
+    relationships:
+      related_findings:
+        - "HUB-GAL-009"
+        - "FEE-DSP-002"
+        - "BDEL-PAY-002"
+    remediation:
+      status: "in-progress"
+      proposed_action: "Bind both errors and refuse rather than reporting success. The fix MUST
+        preserve the genuine zero-image case, which is the trap: a guard that treats every zero as
+        a failure breaks the ordinary path. Either implement the destination check the comment
+        describes or correct the comment; a false comment on a compliance control is worse than
+        none."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "508c33d5"
+      verification_method: "Reported by an independent reviewer and traced end to end by the
+        supervisor against the working tree: the discarded read, the ok-with-zero return, the
+        marker write, and both sweep filters were each read and confirmed. Not yet executed."
+      residual_risk: "Unfixed at time of writing; assigned."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "audit-quality"
+        action: "opened"
+        note: "The reviewer traced the full chain from discarded read to permanent exclusion rather
+          than stopping at 'this error is unchecked', which is what makes it actionable."
+
+  - id: "GOODS-SET-001"
+    title: "A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and
+      being a write it does not self-heal"
+    summary: "The shop-enable action reads profiles.settings with .single() and discards the error,
+      then writes settings: {...current, features: {...}}. On any transient read failure, or on
+      zero rows, `current` resolves to {} and the write replaces the whole settings object with one
+      containing only `features`. That destroys bio_page, booking settings, hidden-module
+      configuration and theme. Unlike the six read-side instances of this mechanism fixed earlier
+      the same day, this one is a WRITE: retrying does not recover the lost data."
+    classification:
+      domain: "web"
+      category: "data-loss"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "audit-quality, independent code-quality review"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "508c33d5"
+      environment: "repository-only"
+      discovery_context: "The discarded read predates this build, but the C1.1 seller-data gate
+        added in this range was hung on the same unchecked read, which is what brought it into
+        scope."
+    location:
+      files:
+        - "apps/web/src/app/(artist)/goods/actions.ts"
+    evidence:
+      observed_facts:
+        - "The read at ~867 binds data without error and uses .single(), which errors on zero rows
+          as well as on transient failure."
+        - "`const current = (existing?.settings ?? {})` at ~885 collapses both failure modes to an
+          empty object."
+        - "The update writes `settings: { ...current, features: {...} }`, so a collapsed `current`
+          replaces rather than merges."
+        - "The comment above the block claims the read-merge-write preserves the existing features
+          object. True on the happy path, false precisely when the read fails."
+        - "A second unchecked .single() with the same shape exists at ~506 in the same file."
+      references:
+        - "apps/web/src/app/(artist)/goods/actions.ts"
+    assessment:
+      interpretation: "The most damaging instance of the day's recurring mechanism, because it is
+        the only one that writes. Every other instance produced a wrong READ that a later correct
+        read would fix."
+      root_cause_hypothesis: "`?? {}` reads as a safe default for an optional blob and is a
+        destructive default for a spread that is about to be persisted."
+      reachability: "directly-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Any artist toggling their shop while the read fails. Loses bio
+        page, booking configuration and theme."
+      production_exposure: "The goods module is flag-gated, so the specific action is not reachable
+        in production today. The sibling unchecked read at ~506 needs its own assessment."
+      exploit_preconditions: "Not attacker-driven; a transient failure during a normal settings
+        toggle is sufficient."
+      remaining_uncertainty: "Whether the sibling read at ~506 has the same destructive
+        consequence. Assigned, not yet determined."
+    relationships:
+      related_findings:
+        - "FEE-DSP-002"
+        - "BDEL-PAY-002"
+        - "PAY-RFD-011"
+    remediation:
+      status: "in-progress"
+      proposed_action: "Bind the error and refuse before the write. Do not proceed to persist a
+        merged object built from a read that failed."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "508c33d5"
+      verification_method: "Reported by an independent reviewer; the supervisor read the full
+        read-merge-write sequence in the working tree and confirmed the collapse. Not executed."
+      residual_risk: "Unfixed at time of writing; assigned."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "audit-quality"
+        action: "opened"
+        note: "Seventh instance of the discarded-read mechanism found in one day, and the first
+          that loses data rather than reporting it wrongly."
+
+  - id: "MIG-DROP-001"
+    title: "Bare `drop constraint` without `if exists` means several migrations cannot repair a
+      dropped constraint, including one already applied in production"
+    summary: "0143 reshapes a foreign key with `alter table ... drop constraint <name>, add
+      constraint <name> ...` and no `if exists` on the drop. Re-running the file after the
+      constraint has been dropped by hand aborts the whole two-clause ALTER, so the object does NOT
+      come back. This is the LOUD variant of the AGENTS.md convergence footgun rather than the
+      silent one, but it is still a failed repair path. The same shape appears five times in 0129,
+      which is ALREADY APPLIED IN PRODUCTION and therefore cannot be edited, so 're-run 0129' would
+      fail at exactly the moment someone reaches for it during an incident."
+    classification:
+      domain: "migration"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "audit-db, which found 0143 in its assigned scope and then flagged 0129
+        unprompted as out-of-scope"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "508c33d5"
+      environment: "repository-only"
+      discovery_context: "The out-of-scope half is the valuable half. A reviewer scoped to four
+        files looked at a fifth because the shape repeated, which is the behaviour the register's
+        analogous_uninspected_areas field exists to encourage."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0143_founder_offer_redemption_retention.sql"
+        - "apps/web/supabase/migrations/0129_billing_record_retention.sql"
+    evidence:
+      observed_facts:
+        - "0143 line 69: `drop constraint founder_offer_redemptions_artist_id_fkey,` with no `if
+          exists`, inside a two-clause ALTER TABLE."
+        - "0138_bundle_item_variants.sql:108 uses `drop constraint if exists` for the same reshape
+          pattern IN THE SAME BATCH, so the safer syntax was known and applied inconsistently."
+        - "0129 contains five `drop constraint` statements and zero use `if exists` (counted)."
+        - "0129 is applied in production; 0143 is not."
+      references:
+        - "AGENTS.md"
+    assessment:
+      interpretation: "A repair path that is believed to exist and does not. The convergence
+        footgun already documented in AGENTS.md covers the silent variant, where a re-run exits 0
+        having restored nothing. This is the loud variant: it errors and still restores nothing.
+        Loud is better, but both fail the same question, which is whether re-running the file
+        actually converges the schema."
+      root_cause_hypothesis: "`drop constraint` reads as obviously safe inside a migration that
+        just created the constraint, and the difference only matters on the repair path nobody
+        rehearses."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Whoever is repairing a production schema under time pressure."
+      production_exposure: "0129's instances are live and unfixable in place. 0143 is not yet
+        applied and is fixable now."
+      exploit_preconditions: "Not attacker-driven; requires an operator attempting a repair."
+      remaining_uncertainty: "The full inventory across all migrations has not been taken. A
+        reading-based sweep is assigned, split by applied-versus-unapplied."
+    relationships:
+      analogous_uninspected_areas:
+        - "Every other migration file has not been swept for this shape. Assigned to the reviewer
+          that found it, split into applied (cannot edit, correct the claimed repair path) and
+          unapplied (fixable)."
+    remediation:
+      status: "in-progress"
+      proposed_action: "Fix 0143 with `drop constraint if exists` as its own statement, matching
+        0138. Do NOT edit 0129: editing an applied migration is not a repair path. Instead
+        establish whether any document claims re-running 0129 repairs it, and correct that claim."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "508c33d5"
+      verification_method: "Supervisor confirmed the line in 0143, the safer precedent in 0138, and
+        the five-to-zero count in 0129, by reading. THE BEHAVIOUR IS NOT YET PROBED: nobody has
+        applied 0143, dropped the constraint and re-run it. That probe is assigned to an instance
+        with database access. The prediction is stated so it can be falsified."
+      residual_risk: "The reading is confident but unproven. If the probe contradicts it, this
+        entry is wrong and must be corrected rather than quietly closed."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "audit-db"
+        action: "opened"
+        note: "Reported with an explicit refusal to certify convergence, because that reviewer had
+          no execution tool. The supervisor had mis-briefed a read-only agent to run probes; its
+          response was to name the exact probe someone else should run rather than infer a verdict
+          from the SQL text."
 
 patterns:
 
@@ -18648,3 +18937,19 @@ coverage:
       - "BDEL-PAY-002"
     recommended_next_inspection: "Sweep the discarded-error mechanism ACROSS the codebase rather than within money paths. Six instances in three subsystems in one day, all found incidentally while looking for something else, is strong evidence the true population is larger and that nobody has ever searched for it directly. A grep for a destructuring that binds data without error is nearly free and has not been run."
     known_exclusions: "pnpm test:db not run for this wave (Docker held by another worker); every fix here is unit-tested with a mocked client, which is the correct tool because these are control-flow defects rather than schema mismatches - the distinction FEE-DSP-002 forced us to make. Nothing was verified independently of its author except by the supervisor re-running mutations, which is not an independent verification of the FIX. The webhook handler in appointment-payment-settlement.ts, which owns the refund_adjustment writes, was read only far enough to confirm the ordering claim and was NOT audited."
+
+  - area: "Post-build independent audit of the whole counsel-wave range (37 commits, 82 files): code quality, migrations 0142-0145, and RLS"
+    subsystem: "governance"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "508c33d5"
+    reviewer: "two independent reviewers that wrote none of the code, plus supervisor verification of every finding acted on"
+    evidence: "THREE MUST-FIX DEFECTS, all the same mechanism the day had already found six times, and the audit found a seventh, eighth and ninth. GOODS-SET-001 is the first that LOSES DATA: a read-modify-write on the settings blob, where a failed read collapses the merge base to empty and the write then replaces the artist-s bio page, booking settings and theme. GAL-REL-001 makes the counsel-mandated C1.5 control self-disable PERMANENTLY, because a failed read is indistinguishable from an artist who genuinely has no images, and the marker it then writes excludes that artist from every future sweep. MIG-DROP-001 is a repair path that does not work, in a file already live in production. Copy rules came back CLEAN: every added line grepped for the em-dash character, zero in user-visible strings, all hits are comments or tests asserting absence. THE PROCESS RESULT MATTERS AS MUCH AS THE FINDINGS. One reviewer was mis-briefed by the supervisor - a read-only agent type asked to apply migrations and run the db suite - and responded by marking every convergence verdict not-probed and naming the exact probe someone else should run, rather than inferring four tidy verdicts from SQL text. That refusal is the single most valuable behaviour in this audit. A second reviewer lost its report by writing it as text instead of sending it, noticed, and resent unprompted."
+    findings_produced:
+      - "GAL-REL-001"
+      - "GOODS-SET-001"
+      - "MIG-DROP-001"
+      - "PAY-AUTHZ-002"
+    recommended_next_inspection: "The execution half of the migration review, now dispatched: break-then-rerun convergence probes for all four files, the 0144+0145 combined pass that has never been run, and db tests for three migrations that have none for their own new surface. Then the twelve should-fix items, chief among them three hand-copied duplicates of one product column list where one copy has ALREADY drifted - the same defect class the same wave fixed structurally in addon-products.ts."
+    known_exclusions: "NO MIGRATION WAS APPLIED OR EXECUTED during the review half: every convergence verdict is a reading, explicitly marked as such, and MIG-DROP-001-s predicted behaviour is unproven. apps/mobile was not inspected. The security and test-integrity reviews had not reported at the time this row was written and are NOT covered by it. PAY-AUTHZ-002-s underlying fix was not re-verified; the ledger-s own fixed-unverified status is relayed, not confirmed."
