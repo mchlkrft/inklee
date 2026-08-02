@@ -3,6 +3,11 @@ import { serviceClient } from "@/lib/supabase/service";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email/send";
 import { buildEmailHtml } from "@/lib/email/booking-templates";
+import {
+  galleryCurrentlyEntitled,
+  relocateArtistGallery,
+} from "@/lib/server/gallery-relocation";
+import type { AccountOverrides } from "@/lib/entitlements";
 
 const WARNING_DAYS = 14;
 
@@ -26,7 +31,9 @@ export async function runCompExpirySweep(): Promise<CompExpirySweepResult> {
 
   const { data: comps, error: fetchErr } = await serviceClient
     .from("account_overrides")
-    .select("artist_id, plan_tier, plan_source, plan_expires_at")
+    .select(
+      "artist_id, plan_tier, plan_source, plan_expires_at, entitlement_overrides, gallery_relocated_at",
+    )
     .eq("plan_tier", "plus")
     .not("plan_expires_at", "is", null)
     .lte("plan_expires_at", warningCutoff);
@@ -68,6 +75,27 @@ export async function runCompExpirySweep(): Promise<CompExpirySweepResult> {
           idempotencyKey,
         );
         result.expiredNotified++;
+
+        // Gallery relocation (counsel C1.5). Gated behind the SAME
+        // once-per-lapse idempotency key as the notification above (the
+        // `count > 0` continue guards this whole branch), and additionally
+        // checked against the live entitlement oracle so a per-account
+        // override granting this artist the gallery feature despite an
+        // expired comp is honoured rather than wrongly relocated. Already
+        // archived (a retry landing here somehow) is a no-op inside
+        // relocateArtistGallery; failures are Sentry-reported there and
+        // left for the nightly sweep, never thrown into this loop.
+        const entitled = galleryCurrentlyEntitled({
+          planTier: comp.plan_tier as AccountOverrides["planTier"],
+          planExpiresAt: comp.plan_expires_at as string | null,
+          entitlementOverrides:
+            (comp.entitlement_overrides as
+              | AccountOverrides["entitlementOverrides"]
+              | null) ?? {},
+        });
+        if (!entitled) {
+          await relocateArtistGallery(comp.artist_id as string);
+        }
       } else {
         await notifyWarning(
           comp.artist_id as string,

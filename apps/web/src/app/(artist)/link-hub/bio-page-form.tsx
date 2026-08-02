@@ -272,6 +272,14 @@ export default function BioPageForm({
   const [importUrlByBlock, setImportUrlByBlock] = useState<
     Record<string, string>
   >({});
+  // C1.6 (counsel): a required rights confirmation per import attempt, kept
+  // alongside the URL as its own per-block editor state. Cleared with the URL
+  // on a successful import so a second, different URL always starts
+  // unconfirmed — this is only the UI affordance; the server action re-checks
+  // it and refuses a request that omits it regardless of what this renders.
+  const [importAttestedByBlock, setImportAttestedByBlock] = useState<
+    Record<string, boolean>
+  >({});
   const [importingBlockId, setImportingBlockId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [, startImportTransition] = useTransition();
@@ -280,6 +288,7 @@ export default function BioPageForm({
     blockId: string,
     current: BioGalleryImage[],
     url: string,
+    attested: boolean,
   ) => {
     setImportError(null);
     setImportingBlockId(blockId);
@@ -287,6 +296,7 @@ export default function BioPageForm({
       try {
         const form = new FormData();
         form.set("url", url);
+        form.set("rightsAttestation", attested ? "true" : "false");
         const result = await importGalleryImageFromUrlAction(form);
         if (!result.ok) {
           setImportError(result.error);
@@ -296,6 +306,7 @@ export default function BioPageForm({
           setGalleryImages(blockId, [...current, { url: result.url }]);
         }
         setImportUrlByBlock((prev) => ({ ...prev, [blockId]: "" }));
+        setImportAttestedByBlock((prev) => ({ ...prev, [blockId]: false }));
       } finally {
         setImportingBlockId(null);
       }
@@ -754,18 +765,46 @@ export default function BioPageForm({
                           }
                           className={`${INPUT} max-w-[14rem]`}
                         />
+                        {(importUrlByBlock[block.id] ?? "").trim() && (
+                          // C1.6 (counsel): a required rights confirmation
+                          // before an import can run. This checkbox is the UI
+                          // affordance only — the server action re-checks and
+                          // refuses a request that omits it, so this can never
+                          // be the actual boundary, only the honest prompt.
+                          <label className="flex basis-full items-start gap-2 text-xs text-muted-foreground">
+                            <input
+                              type="checkbox"
+                              checked={importAttestedByBlock[block.id] ?? false}
+                              onChange={(e) =>
+                                setImportAttestedByBlock((prev) => ({
+                                  ...prev,
+                                  [block.id]: e.target.checked,
+                                }))
+                              }
+                              disabled={
+                                uploadingBlockId !== null ||
+                                importingBlockId !== null
+                              }
+                              className="mt-0.5"
+                            />
+                            I confirm I have the right to use this image on my
+                            page.
+                          </label>
+                        )}
                         <button
                           type="button"
                           disabled={
                             uploadingBlockId !== null ||
                             importingBlockId !== null ||
-                            !(importUrlByBlock[block.id] ?? "").trim()
+                            !(importUrlByBlock[block.id] ?? "").trim() ||
+                            !(importAttestedByBlock[block.id] ?? false)
                           }
                           onClick={() =>
                             importImage(
                               block.id,
                               galleryImages(block),
                               (importUrlByBlock[block.id] ?? "").trim(),
+                              importAttestedByBlock[block.id] ?? false,
                             )
                           }
                           className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:opacity-40"

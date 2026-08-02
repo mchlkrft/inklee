@@ -152,6 +152,28 @@ vi.mock("@sentry/nextjs", () => ({
   captureMessage: vi.fn(),
 }));
 
+// Gallery relocation (C1.5) is its OWN module with its own dedicated tests
+// (gallery-relocation.test.ts); this file only proves reconcile.ts calls it
+// at the right moment with the right artist, not its internal storage logic.
+const { mockRelocate, mockRestore } = vi.hoisted(() => ({
+  mockRelocate: vi
+    .fn()
+    .mockResolvedValue({ ok: true, moved: 0, failed: 0, failedPaths: [] }),
+  mockRestore: vi
+    .fn()
+    .mockResolvedValue({ ok: true, moved: 0, failed: 0, failedPaths: [] }),
+}));
+vi.mock("@/lib/server/gallery-relocation", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/server/gallery-relocation")
+  >("@/lib/server/gallery-relocation");
+  return {
+    ...actual,
+    relocateArtistGallery: (...a: unknown[]) => mockRelocate(...a),
+    restoreArtistGallery: (...a: unknown[]) => mockRestore(...a),
+  };
+});
+
 import { reconcileFromStripeSubscription } from "@/lib/server/billing/reconcile";
 
 type SubInput = {
@@ -190,6 +212,8 @@ beforeEach(() => {
   h.store.billing_subscriptions = [];
   h.store.account_overrides = [];
   h.stripeRetrieve.mockReset();
+  mockRelocate.mockClear();
+  mockRestore.mockClear();
 });
 
 describe("reconcileFromStripeSubscription", () => {
@@ -338,5 +362,100 @@ describe("reconcileFromStripeSubscription", () => {
       (x) => x.artist_id === "artist_r",
     )!;
     expect(ov.plan_tier).toBe("free");
+  });
+
+  // C1.5 (counsel): the billing reconcile is one of the two named entitlement-
+  // change hooks that must trigger gallery relocation/restore. These tests
+  // prove the WIRING (called, once, with the right artist, at the right
+  // transition) — relocateArtistGallery/restoreArtistGallery's own storage
+  // logic is covered by gallery-relocation.test.ts.
+  describe("C1.5 gallery relocation hook", () => {
+    it("relocates on a fresh downgrade to free (never archived before)", async () => {
+      await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_dg",
+          status: "canceled",
+          customer: "cus_dg",
+          artistId: "artist_dg",
+        }),
+        1000,
+      );
+      expect(mockRelocate).toHaveBeenCalledTimes(1);
+      expect(mockRelocate).toHaveBeenCalledWith("artist_dg");
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
+
+    it("does NOT relocate again when the artist is already archived", async () => {
+      h.store.account_overrides.push({
+        artist_id: "artist_already",
+        gallery_relocated_at: "2026-07-01T00:00:00.000Z",
+        last_event_created: 500,
+      });
+      await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_already",
+          status: "canceled",
+          customer: "cus_already",
+          artistId: "artist_already",
+        }),
+        1000,
+      );
+      expect(mockRelocate).not.toHaveBeenCalled();
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
+
+    it("restores on resubscribe when the artist was previously archived", async () => {
+      h.store.account_overrides.push({
+        artist_id: "artist_resub",
+        gallery_relocated_at: "2026-07-01T00:00:00.000Z",
+        last_event_created: 500,
+      });
+      await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_resub",
+          status: "active",
+          customer: "cus_resub",
+          artistId: "artist_resub",
+        }),
+        1000,
+      );
+      expect(mockRestore).toHaveBeenCalledTimes(1);
+      expect(mockRestore).toHaveBeenCalledWith("artist_resub");
+      expect(mockRelocate).not.toHaveBeenCalled();
+    });
+
+    it("touches neither hook for a plain active-to-active upgrade with nothing archived", async () => {
+      await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_plain",
+          status: "active",
+          customer: "cus_plain",
+          artistId: "artist_plain",
+        }),
+        1000,
+      );
+      expect(mockRelocate).not.toHaveBeenCalled();
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
+
+    it("neither hook runs on a stale (redelivered) event", async () => {
+      h.store.billing_subscriptions.push({
+        stripe_subscription_id: "sub_stale",
+        artist_id: "artist_stale",
+        status: "active",
+        last_event_created: 2000,
+      });
+      await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_stale",
+          status: "canceled",
+          customer: "cus_stale",
+          artistId: "artist_stale",
+        }),
+        1000,
+      );
+      expect(mockRelocate).not.toHaveBeenCalled();
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
   });
 });

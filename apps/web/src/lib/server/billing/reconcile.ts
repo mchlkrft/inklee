@@ -5,8 +5,14 @@ import { planTierForSubscription } from "@/lib/billing";
 import {
   restoreGrandfatherPackage,
   type GrantPackage,
+  type EntitlementFeature,
 } from "@/lib/entitlements";
 import { requireStripe } from "./client";
+import {
+  galleryCurrentlyEntitled,
+  relocateArtistGallery,
+  restoreArtistGallery,
+} from "@/lib/server/gallery-relocation";
 
 // Internal subscription reconciliation (execution item 5).
 //
@@ -233,7 +239,7 @@ export async function reconcileFromStripeSubscription(
   const { data: existing } = await serviceClient
     .from("account_overrides")
     .select(
-      "policy_id, plan_source, grant_package, entitlement_overrides, limit_overrides",
+      "policy_id, plan_source, grant_package, entitlement_overrides, limit_overrides, gallery_relocated_at",
     )
     .eq("artist_id", artistId)
     .maybeSingle();
@@ -297,6 +303,36 @@ export async function reconcileFromStripeSubscription(
       orphaned: false,
       stale: true,
     };
+  }
+
+  // 2b. Gallery relocation (counsel C1.5). Evaluated against the SAME
+  // entitlement oracle the render gate uses (galleryCurrentlyEntitled ->
+  // richContentBlocksAllowed), fed the overrides this write just converged
+  // to (the restore-merged ones when a grandfather restore applied, else the
+  // existing row's), so a per-account entitlement override is honoured here
+  // exactly as it would be on the next page render. Best-effort: relocate/
+  // restore never throw, and their own failure is reported + left for the
+  // nightly sweep (runGalleryRelocationSweep) rather than failing this
+  // webhook and making Stripe redeliver an event that already converged
+  // correctly everywhere except gallery storage.
+  const finalEntitlementOverrides =
+    (overridePayload.entitlement_overrides as
+      | Partial<Record<EntitlementFeature, boolean>>
+      | undefined) ??
+    (existing?.entitlement_overrides as
+      | Partial<Record<EntitlementFeature, boolean>>
+      | undefined) ??
+    {};
+  const galleryEntitled = galleryCurrentlyEntitled({
+    planTier,
+    planExpiresAt: currentPeriodEnd?.toISOString() ?? null,
+    entitlementOverrides: finalEntitlementOverrides,
+  });
+  const previouslyArchived = !!existing?.gallery_relocated_at;
+  if (!galleryEntitled && !previouslyArchived) {
+    await relocateArtistGallery(artistId);
+  } else if (galleryEntitled && previouslyArchived) {
+    await restoreArtistGallery(artistId);
   }
 
   // 3. Duplicate-subscription guard: an artist should have exactly one active

@@ -12,6 +12,8 @@ const {
   processUpload,
   fetchImageForImport,
   checkGalleryImportRateLimit,
+  consentInsert,
+  captureException,
 } = vi.hoisted(() => ({
   getUser: vi.fn(),
   getAccountOverrides: vi.fn(),
@@ -19,6 +21,8 @@ const {
   processUpload: vi.fn(),
   fetchImageForImport: vi.fn(),
   checkGalleryImportRateLimit: vi.fn(),
+  consentInsert: vi.fn(),
+  captureException: vi.fn(),
 }));
 
 const { profileSettings } = vi.hoisted(() => ({
@@ -62,6 +66,19 @@ vi.mock("@/lib/server/gallery-url-import", () => ({
 vi.mock("@/lib/ratelimit", () => ({
   checkGalleryImportRateLimit: (...a: unknown[]) =>
     checkGalleryImportRateLimit(...a),
+}));
+vi.mock("@/lib/supabase/service", () => ({
+  serviceClient: {
+    from: (table: string) => {
+      if (table !== "billing_consent_records") {
+        throw new Error(`unexpected table: ${table}`);
+      }
+      return { insert: (...a: unknown[]) => consentInsert(...a) };
+    },
+  },
+}));
+vi.mock("@sentry/nextjs", () => ({
+  captureException: (...a: unknown[]) => captureException(...a),
 }));
 
 import {
@@ -120,11 +137,17 @@ beforeEach(() => {
     file: new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
   });
   checkGalleryImportRateLimit.mockResolvedValue({ allowed: true });
+  consentInsert.mockResolvedValue({ error: null });
 });
 
-function formWithUrl(url: string): FormData {
+// `attested` defaults to true so every EXISTING test (rate limit, ceiling,
+// entitlement, fetch-guard ordering) keeps exercising the behaviour it names
+// without also having to opt into the C1.6 gate; the gate itself is covered
+// by its own dedicated tests below with `attested: false` / omitted.
+function formWithUrl(url: string, attested = true): FormData {
   const form = new FormData();
   form.set("url", url);
+  form.set("rightsAttestation", attested ? "true" : "false");
   return form;
 }
 
@@ -226,6 +249,20 @@ describe("importGalleryImageFromUrlAction", () => {
         cacheBust: false,
       }),
     );
+    // C1.6: the attestation is logged append-only (insert, never update) BEFORE
+    // the network fetch, tied to this artist and this exact source URL.
+    expect(consentInsert).toHaveBeenCalledTimes(1);
+    expect(consentInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artist_id: "artist1",
+        consent_type: "gallery_image_rights_attestation",
+        consent_version: expect.any(String),
+        context: { source_url: "https://example.com/a.jpg" },
+      }),
+    );
+    const consentCallOrder = consentInsert.mock.invocationCallOrder[0];
+    const fetchCallOrder = fetchImageForImport.mock.invocationCallOrder[0];
+    expect(consentCallOrder).toBeLessThan(fetchCallOrder);
   });
 
   it("refuses a rate-limited artist BEFORE the ceiling read and BEFORE fetching", async () => {
@@ -291,5 +328,76 @@ describe("importGalleryImageFromUrlAction", () => {
     expect(r).toEqual({ ok: false, error: "Not signed in." });
     expect(richContentBlocksAllowed).not.toHaveBeenCalled();
     expect(fetchImageForImport).not.toHaveBeenCalled();
+  });
+});
+
+// C1.6 rights attestation (counsel,
+// docs/legal/counsel-accountant-handoff-2026-08.md Part 4): "no attestation =
+// no import," enforced SERVER-SIDE — a client that omits or falsifies the
+// field is refused regardless of what the UI rendered. Every case here would
+// pass with the field checked merely for TRUTHINESS (e.g. `Boolean(...)`)
+// rather than the literal string "true", so the "false" case in particular
+// mutation-proves the exact comparison, not just "some check exists".
+describe("importGalleryImageFromUrlAction — C1.6 rights attestation", () => {
+  it("refuses an import with no rightsAttestation field at all", async () => {
+    const form = new FormData();
+    form.set("url", "https://example.com/a.jpg");
+    const r = await importGalleryImageFromUrlAction(form);
+    expect(r).toEqual({
+      ok: false,
+      error:
+        "Confirm you have the right to use this image before importing it.",
+    });
+    expect(consentInsert).not.toHaveBeenCalled();
+    expect(checkGalleryImportRateLimit).not.toHaveBeenCalled();
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it('refuses an import with rightsAttestation explicitly "false"', async () => {
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg", false),
+    );
+    expect(r.ok).toBe(false);
+    expect(consentInsert).not.toHaveBeenCalled();
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+  });
+
+  it('refuses a truthy-but-not-"true" value (e.g. the raw checkbox "on")', async () => {
+    const form = new FormData();
+    form.set("url", "https://example.com/a.jpg");
+    form.set("rightsAttestation", "on");
+    const r = await importGalleryImageFromUrlAction(form);
+    expect(r.ok).toBe(false);
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+  });
+
+  it("checks attestation BEFORE the rate limit and the entitlement's egress-spending path", async () => {
+    checkGalleryImportRateLimit.mockResolvedValue({ allowed: false });
+    const form = new FormData();
+    form.set("url", "https://example.com/a.jpg");
+    // No rightsAttestation set: if attestation were checked AFTER the rate
+    // limit, this would return the rate-limit error instead.
+    const r = await importGalleryImageFromUrlAction(form);
+    expect(r).toEqual({
+      ok: false,
+      error:
+        "Confirm you have the right to use this image before importing it.",
+    });
+    expect(checkGalleryImportRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("refuses the import (fails closed) when the attestation cannot be durably logged", async () => {
+    consentInsert.mockResolvedValue({ error: { message: "db down" } });
+    const r = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(r).toEqual({
+      ok: false,
+      error: "Could not record your confirmation. Please try again.",
+    });
+    expect(captureException).toHaveBeenCalled();
+    expect(fetchImageForImport).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
   });
 });

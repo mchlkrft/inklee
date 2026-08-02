@@ -28,6 +28,7 @@ const {
   mockReconcileStaleSubscriptions,
   mockRunCompExpirySweep,
   mockRunArtistAnalyticsRollup,
+  mockRunGalleryRelocationSweep,
 } = vi.hoisted(() => ({
   mockCaptureException: vi.fn(),
   mockWriteAudit: vi.fn().mockResolvedValue(undefined),
@@ -40,6 +41,7 @@ const {
   mockReconcileStaleSubscriptions: vi.fn().mockResolvedValue({}),
   mockRunCompExpirySweep: vi.fn().mockResolvedValue({}),
   mockRunArtistAnalyticsRollup: vi.fn().mockResolvedValue({}),
+  mockRunGalleryRelocationSweep: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -68,6 +70,9 @@ vi.mock("@/lib/server/billing/comp-expiry-sweep", () => ({
 }));
 vi.mock("@/lib/server/artist-analytics-rollup", () => ({
   runArtistAnalyticsRollup: () => mockRunArtistAnalyticsRollup(),
+}));
+vi.mock("@/lib/server/gallery-relocation", () => ({
+  runGalleryRelocationSweep: () => mockRunGalleryRelocationSweep(),
 }));
 
 type Reply = { data?: unknown; error?: unknown; count?: unknown };

@@ -2692,3 +2692,105 @@ regressions).
 (likely yes, given it is a deliberate accounting-immutability control) or
 whether it needs its own counsel-reviewed decision about ever becoming
 deletable.
+
+## C1.5 + C1.6: gallery downgrade relocation + rights attestation (ready for review)
+
+Counsel's conditional pass on hosting gallery images "public but unlisted"
+(`docs/legal/counsel-accountant-handoff-2026-08.md` Part 4) carried one
+correction to already-shipped behaviour: on downgrade, the storage OBJECTS
+must stop being publicly reachable, not only the render. "Unguessable URLs
+are not access control for images of identifiable people's skin." Relocate,
+never delete — the artist may resubscribe.
+
+**What shipped (C1.5).** New `apps/web/src/lib/server/gallery-relocation.ts`:
+`relocateArtistGallery` / `restoreArtistGallery` move every gallery object an
+artist has saved between the public `logos` bucket and a new private
+`gallery-archive` bucket (migration `0144`, zero storage policies — the same
+"RLS enabled, no policies = service-role only" posture as `studio-media` /
+`welcome-pack-files`), using the storage API's own cross-bucket `move()`
+(one round trip, not a client-side download+upload+delete). The account's
+stored block URL never changes — only which bucket currently answers it —
+so a restore needs no rewrite of `profiles.settings`.
+
+**Detection: both named candidates, plus a state-driven backstop.** Hooked
+into the two hint points named in the brief: `reconcileFromStripeSubscription`
+(`billing/reconcile.ts`, the discrete write when a Stripe-driven `plan_tier`
+converges) and `runCompExpirySweep`'s `notifyExpired` branch (`billing/
+comp-expiry-sweep.ts`) — the ONLY once-per-lapse signal that exists for a
+comp, since an expired comp is never written to the DB, only computed live
+by `effectivePlanTier`. Both hooks decide via the SAME oracle the render
+gate uses (`galleryCurrentlyEntitled` -> `richContentBlocksAllowed`), fed the
+overrides the write just converged to, so a per-account entitlement override
+is honoured identically to the next page render. A third write path (a
+direct admin override in `admin/accounts/[id]/actions.ts`) is deliberately
+NOT hooked directly — `runGalleryRelocationSweep`, wired into the existing
+`/api/cron/cleanup` (no new cron endpoint; Hobby-plan daily-only), is
+STATE-driven rather than event-driven: it re-checks every artist whose
+physical storage location does not match current entitlement and retries in
+either direction, so an admin-triggered downgrade (or any other path with no
+dedicated hook) self-heals within one daily run regardless.
+
+**60-day grace window, read as a deadline not a delay.** Counsel's wording
+("relocate... within a short grace window, 60 days is defensible") is
+ambiguous between "you have up to 60 days to comply" and "wait 60 days before
+acting." This implementation relocates PROMPTLY (same reconcile/sweep call
+that detects the downgrade), comfortably inside either reading, and is the
+stronger privacy posture. Flagged to the team lead in case counsel meant the
+delay reading instead — reverting to a delayed sweep would be a small,
+isolated change to `runGalleryRelocationSweep`'s candidate query if so.
+
+**Half-failure handling.** Per-object: `moveOneObject` treats a `move()`
+error as retryable ONLY if the object is confirmed still present at the
+source; if it is already gone (a prior attempt succeeded despite reporting
+an error, or a retry lands on an already-done object), that counts as done,
+not failed — the property that matters is "not publicly reachable," not
+"this specific call succeeded." Per-artist: `account_overrides
+.gallery_relocated_at` (migration `0144`) is set/cleared ONLY on FULL
+success; a partial relocation leaves it NULL so it is picked up again by
+the retry sweep, and is reported to Sentry (`gallery_downgrade_relocation`
+/ `gallery_downgrade_restore` tags) so it is observable without querying
+the DB. Neither hook can fail the caller: a Stripe webhook or the comp sweep
+must not 500 or retry-loop because gallery storage hiccupped.
+
+**What shipped (C1.6).** `importGalleryImageFromUrlAction`
+(`link-hub/actions.ts`) now requires a `rightsAttestation` form field equal
+to the literal string `"true"` — enforced SERVER-SIDE before the rate limit,
+the capacity check, and the outbound fetch; a request that omits it, sends
+`"false"`, or sends any other truthy-looking value (`"on"`) is refused with
+no egress spent and nothing logged. On a request that passes, the
+confirmation is written to `billing_consent_records` (the existing versioned
+consent table, `consent_type: "gallery_image_rights_attestation"`,
+`context: { source_url }`) BEFORE the fetch — the record documents what the
+artist confirmed and when, independent of whether the fetch that follows
+succeeds. Fails CLOSED: if the evidence write itself fails, the import does
+not proceed (an unattested hosted copy is exactly what the gate exists to
+prevent). UI: a checkbox in `bio-page-form.tsx`, rendered per gallery block
+only while a URL is entered, disabling the "Import from URL" button until
+checked — an affordance only; the server re-checks regardless of what the
+client sent.
+
+**Signed URLs are a deliberately deferred fast-follow**, per counsel: not
+built now, to be scheduled before any gallery marketing push and folded into
+the still-open LO-5 DPIA (which the account-deletion handoff already makes
+release-gating).
+
+**Validation.** `npx tsc --noEmit` clean. `eslint` clean on every touched
+file. Full `npx vitest run`: 191 files, 3244 passed + 1 expected fail (this
+task's addition: 31 new tests across 4 files — `gallery-relocation.test.ts`
+16, `comp-expiry-sweep.test.ts` 5, `reconcile.test.ts` +5, `upload-gallery-
+image.test.ts` +5 — zero regressions). Mutation-proved by hand: inverting
+the reconcile.ts relocate/restore condition and the actions.ts attestation
+check each broke exactly the tests written to catch them, confirmed, then
+reverted. `pnpm test:db` was NOT run — the local Supabase Docker instance is
+shared with other concurrently-working agents and a schema migration apply
+is not isolated to this change (another worker's uncommitted `0145` would
+apply in the same run); the migration itself carries no RLS policy (the
+usual risk class `pnpm test:db` exists to catch), only a new zero-policy
+private bucket and a nullable column on an already-service-role-only table.
+Recommend the release sequencer run it in an isolated pass alongside `0145`
+before merge.
+
+**Scope note:** admin's `setPlanOverrideAction` (`admin/accounts/[id]/
+actions.ts`) was read but not modified — the nightly sweep covers it
+passively (see above) rather than adding a fourth explicit hook, to stay
+inside the assigned gallery-surface scope.

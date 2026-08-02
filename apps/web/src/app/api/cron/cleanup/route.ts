@@ -12,6 +12,7 @@ import { sweepStalePendingStandaloneOrders } from "@/lib/server/goods-checkout";
 import { reconcileStaleSubscriptions } from "@/lib/server/billing/subscription-reconciliation";
 import { runCompExpirySweep } from "@/lib/server/billing/comp-expiry-sweep";
 import { runArtistAnalyticsRollup } from "@/lib/server/artist-analytics-rollup";
+import { runGalleryRelocationSweep } from "@/lib/server/gallery-relocation";
 
 export const runtime = "nodejs";
 // SHOP-ORD-003: the standalone-order sweep makes up to 2 serial Stripe calls
@@ -59,6 +60,15 @@ export async function GET(request: Request) {
   // whose comp has lapsed. Idempotent via notification metadata keys.
   const compExpiry = await runCompExpirySweep();
 
+  // ── C1.5 gallery relocation retry sweep ──────────────────────────────────
+  // State-driven backstop for the billing-reconcile and comp-expiry hooks
+  // above: re-checks every artist whose gallery's physical storage location
+  // (public `logos` vs private `gallery-archive`) does not match their
+  // CURRENT entitlement, and retries. Self-heals a failed relocation/restore
+  // regardless of which event caused the mismatch, including a direct admin
+  // override that has no dedicated hook of its own.
+  const galleryRelocation = await runGalleryRelocationSweep();
+
   // ── P6 artist analytics daily rollup ────────────────────────────────────
   // Aggregates yesterday's pageviews (from wa events) and click events
   // (from artist_page_events) into artist_page_rollups. Also purges raw
@@ -91,6 +101,7 @@ export async function GET(request: Request) {
       stale_standalone_orders: staleStandaloneOrders,
       billing_reconciliation: billingReconciliation,
       comp_expiry: compExpiry,
+      gallery_relocation: galleryRelocation,
       analytics_rollup: analyticsRollup,
     });
   }
