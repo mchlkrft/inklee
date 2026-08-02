@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `f3cfb7f2e783`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `fb1bf604378b`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -66,6 +66,8 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | DATA-MIG-001 | high | not-started | false | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
 | DATA-RACE-001 | high | passed | true | READ COMMITTED single-statement snapshots defeated two separate safety mechanisms, each shipped with a written claim of atomicity that had never been executed |
 | DRIFT-ENUM-001 | high | not-started | false | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
+| GAL-REL-001 | high | not-started | true | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
+| GOODS-SET-001 | high | not-started | true | A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal |
 | PAY-AUTHZ-001 | high | not-started | true | refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION |
 | PAY-AUTHZ-002 | high | not-started | true | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-BAL-001 | high | not-started | false | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |

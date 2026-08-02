@@ -5,17 +5,17 @@
 
 # Structural risk report
 
-**Ledger content hash:** `f3cfb7f2e783`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `fb1bf604378b`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-145 recorded finding(s), 3 structural pattern(s), across 95 mapped area(s).
-121 remain open by remediation status. 116 are reachable (directly or conditionally) rather than latent.
-118 have not passed independent verification.
-186 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+148 recorded finding(s), 3 structural pattern(s), across 96 mapped area(s).
+124 remain open by remediation status. 119 are reachable (directly or conditionally) rather than latent.
+121 have not passed independent verification.
+187 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -24,8 +24,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Severity | Count |
 | --- | --- |
 | critical | 2 |
-| high | 34 |
-| medium | 65 |
+| high | 36 |
+| medium | 66 |
 | low | 40 |
 | informational | 4 |
 
@@ -36,7 +36,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | accepted | 2 |
 | deferred | 1 |
 | fixed-unverified | 62 |
-| in-progress | 2 |
+| in-progress | 5 |
 | mitigated | 3 |
 | not-applicable | 1 |
 | open | 51 |
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 115 |
+| not-started | 118 |
 | partially-verified | 2 |
 | passed | 27 |
 | pending | 1 |
@@ -146,14 +146,14 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | jobs | 14 |
 | webhook | 14 |
 | billing | 13 |
+| web | 13 |
 | database | 12 |
-| web | 12 |
 | testing | 8 |
 | data-retention | 6 |
 | authorization | 5 |
+| migration | 5 |
 | public-surface | 5 |
 | governance | 4 |
-| migration | 4 |
 | production-config | 3 |
 | analytics | 2 |
 | ci-cd | 2 |
@@ -162,6 +162,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | api | 1 |
 | entitlement | 1 |
 | logging | 1 |
+| storage | 1 |
 
 ## Findings with production reachability
 
@@ -183,6 +184,8 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | DATA-MIG-001 | high | directly-reachable | historically-impacting | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
 | DATA-RACE-001 | high | directly-reachable | reachable-no-known-impact | READ COMMITTED single-statement snapshots defeated two separate safety mechanisms, each shipped with a written claim of atomicity that had never been executed |
 | DRIFT-ENUM-001 | high | conditionally-reachable | latent | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
+| GAL-REL-001 | high | conditionally-reachable | latent | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
+| GOODS-SET-001 | high | directly-reachable | latent | A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal |
 | PAY-AUTHZ-001 | high | conditionally-reachable | latent | refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION |
 | PAY-AUTHZ-002 | high | conditionally-reachable | latent | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-BAL-001 | high | conditionally-reachable | latent | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |
@@ -225,6 +228,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | HUB-GAL-008 | medium | conditionally-reachable | latent | The IPv6 blanket refusal breaks Import-from-URL for most real image hosts, and the comment justifying it asserted the opposite without measuring |
 | HUB-GAL-009 | medium | directly-reachable | latent | A downgraded artist's gallery images stayed publicly fetchable forever: the entitlement gate hid the RENDER, never the objects |
 | MAP-SSRF-001 | medium | conditionally-reachable | latent | The map coverage ingest fetched third-party URLs behind a hostname check that never resolved DNS, while the hardened resolving guard sat one import away |
+| MIG-DROP-001 | medium | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means several migrations cannot repair a dropped constraint, including one already applied in production |
 | OPS-CIX-001 | medium | directly-reachable | actively-impacting | The legal-artifact gate and the new path-resolution test are runnable everywhere but enforced nowhere |
 | OPS-GIT-001 | medium | directly-reachable | actively-impacting | Concurrent agents share one git index, so a bare commit captures another agent's staged work and attribution silently moves |
 | OPS-TOOL-001 | medium | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
@@ -381,6 +385,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Every other `revoke execute ... from public` in the migration set was NOT enumerated. Any function whose only caller is the service role and which revokes from PUBLIC without an explicit service_role grant has the live version of this defect.
 - Every other caller of a deliberately-throwing helper placed after a once-only conditional update was NOT enumerated.
 - Every other fixture divergence between the local stack and production: seed.sql also runs ALTER DEFAULT PRIVILEGES (lines 27-30), so future objects created locally differ too, and pg_default_acl was not diffed.
+- Every other migration file has not been swept for this shape. Assigned to the reviewer that found it, split into applied (cannot edit, correct the claimed repair path) and unapplied (fixable).
 - Every other object created by 0036 and 0037 was compared and matched; objects created by migrations applied out of band that this pass could not attribute were not separately enumerated.
 - Every other place a plpgsql RPC writes a row and a TypeScript caller then reads that row back through PostgREST with a different filter: `delete_collection_atomic` (0124) and `send_payment_request` (0126) were not inspected for this shape.
 - Every other table created since 0035 with `enable row level security` — I did not enumerate policy-vs-writing-client across the full table set.
@@ -562,28 +567,30 @@ These are the register's highest-value entries for an auditor: places a recorded
 15. **CRON-RMD-001** (high, unverified): Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46
 16. **DATA-MIG-001** (high, unverified): `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks
 17. **DRIFT-ENUM-001** (high, unverified): Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production
-18. **PAY-AUTHZ-001** (high, unverified): refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION
-19. **PAY-AUTHZ-002** (high, unverified): refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from
-20. **PAY-BAL-001** (high, unverified): deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production
-21. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
-22. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
-23. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
-24. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
-25. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
-26. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
-27. **PAY-RFD-011** (high, unverified): The refund path cannot tell a failed payment_collections read from an absent row, and the fallback can retain processor cost from the buyer twice
-28. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
-29. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
-30. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
-31. **WEB-XSS-001** (high, unverified): Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper
-32. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
-33. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
-34. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
-35. **Uninspected**: Mobile client (Expo app) / mobile
-36. **Uninspected**: Background jobs and crons / jobs
-37. **Uninspected**: Dependency security / secops
-38. **Uninspected**: Production configuration / platform
-39. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
+18. **GAL-REL-001** (high, unverified): The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public
+19. **GOODS-SET-001** (high, unverified): A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal
+20. **PAY-AUTHZ-001** (high, unverified): refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION
+21. **PAY-AUTHZ-002** (high, unverified): refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from
+22. **PAY-BAL-001** (high, unverified): deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production
+23. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
+24. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
+25. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
+26. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
+27. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
+28. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
+29. **PAY-RFD-011** (high, unverified): The refund path cannot tell a failed payment_collections read from an absent row, and the fallback can retain processor cost from the buyer twice
+30. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
+31. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
+32. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
+33. **WEB-XSS-001** (high, unverified): Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper
+34. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+35. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+36. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+37. **Uninspected**: Mobile client (Expo app) / mobile
+38. **Uninspected**: Background jobs and crons / jobs
+39. **Uninspected**: Dependency security / secops
+40. **Uninspected**: Production configuration / platform
+41. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 

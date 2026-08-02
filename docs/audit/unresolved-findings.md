@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `f3cfb7f2e783`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `fb1bf604378b`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -65,11 +65,14 @@ Operational view. Generated from the ledger; do not edit.
 | DRIFT-ENM-001 | informational | database | currently-unreachable | latent | Four orphan enum types exist in production that no migration file mentions and no column uses |
 | OPS-DOC-001 | informational | tooling | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
-## In progress (2)
+## In progress (5)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
+| GAL-REL-001 | high | storage | conditionally-reachable | latent | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
+| GOODS-SET-001 | high | web | directly-reachable | latent | A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal |
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
+| MIG-DROP-001 | medium | migration | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means several migrations cannot repair a dropped constraint, including one already applied in production |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
 ## Fixed but NOT verified (62)
