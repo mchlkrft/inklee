@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     supabase
       .from("products")
       .select(
-        "id, title, price_amount, product_variants(id, name, price_amount_override, status, sort_order)",
+        "id, title, price_amount, custom_made, product_variants(id, name, price_amount_override, status, sort_order)",
       )
       .eq("artist_id", userId)
       .neq("status", "archived")
@@ -85,6 +85,9 @@ export async function GET(req: Request) {
       id: p.id as string,
       title: p.title as string,
       priceAmount: toPriceNumber(p.price_amount),
+      // Counsel Q2: the composition rule is enforced in the shared cores, so
+      // the native editor gets the flag it needs to show it up front.
+      customMade: p.custom_made === true,
       variants: (
         (p.product_variants ?? []) as {
           id: string;

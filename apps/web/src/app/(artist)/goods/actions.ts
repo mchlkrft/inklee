@@ -40,6 +40,7 @@ import {
   productHasOrderReferences,
 } from "@/lib/server/goods-guard";
 import { ownedGoodsStoragePath } from "@/lib/server/mobile-goods-server";
+import { customMadeChangeBundleConflicts } from "@/lib/server/bundles";
 import { sellerDataComplete } from "@/lib/server/seller-data";
 import type { ProductFormValues } from "./product-form";
 import type { VariantInputRow } from "./product-form-fields";
@@ -505,7 +506,7 @@ export async function updateProductAction(
   // Ownership: the RLS-bound select only returns the row if it's the user's.
   const { data: existing } = await supabase
     .from("products")
-    .select("id, status")
+    .select("id, status, custom_made")
     .eq("id", id)
     .eq("artist_id", user.id)
     .single();
@@ -522,6 +523,21 @@ export async function updateProductAction(
   if (existing.status === "archived" && f.status !== "archived") {
     const capErr = await checkProductCap(supabase, user.id);
     if (capErr) return { error: capErr };
+  }
+
+  // Counsel Q2: a bundle is all custom-made or all standard. Refusing the mix
+  // only when the BUNDLE is edited would leave the rule one checkbox away from
+  // being broken from here, so the product editor answers for it too. Checked
+  // before any image is processed or uploaded, so a refusal costs nothing and
+  // leaves no orphaned object.
+  if ((existing.custom_made === true) !== f.customMade) {
+    const conflicts = await customMadeChangeBundleConflicts(
+      supabase,
+      user.id,
+      id,
+      f.customMade,
+    );
+    if (!conflicts.ok) return { error: conflicts.error };
   }
 
   // Fetch the current image list so we can diff against the keep-list, plus

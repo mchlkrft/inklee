@@ -5,6 +5,8 @@ import Spinner from "@/components/spinner";
 import {
   BUNDLE_NAME_MAX,
   MAX_BUNDLE_ITEMS,
+  MIXED_CUSTOM_MADE_BUNDLE_ERROR,
+  bundleMixesCustomMade,
   canDeleteBundle,
   liveBundles,
   archivedBundles,
@@ -30,6 +32,9 @@ export type ProductRow = {
   id: string;
   title: string;
   priceAmount: number;
+  /** The product's Art. 16(c) custom-made flag. Counsel Q2: a bundle is all
+   *  custom-made or all standard, so the picker has to show which is which. */
+  customMade: boolean;
   /** This product's ACTIVE variants only (FD6) — the picker offers a choice
    *  from exactly these, matching what the checkout itself will accept. */
   variants: ProductVariantRow[];
@@ -140,7 +145,12 @@ type Slot = { productId: string; variantId: string | null; quantity: number };
  *  product WITH active variants gets a picker per slot (FD6) — the artist
  *  fixes the variant when building the bundle; there is no buyer-time choice.
  *  Shows the saving vs buying the selected products separately at their list
- *  (or, when a variant is chosen, variant) prices. */
+ *  (or, when a variant is chosen, variant) prices.
+ *
+ *  Counsel Q2: custom-made and standard products cannot share a bundle. The
+ *  refusal is enforced in `setBundleItemsCore`; this only shows the artist the
+ *  same rule while they are still choosing, the same way the FD6 missing-
+ *  variant refusal is mirrored here. */
 function BundleItemsEditor({
   bundle,
   products,
@@ -171,6 +181,14 @@ function BundleItemsEditor({
     const p = productById.get(s.productId);
     return !!p && p.variants.length > 0 && !s.variantId;
   }).length;
+  // Counsel Q2, evaluated over the SHARED rule so the editor and the server
+  // core cannot disagree about what counts as a mix.
+  const mixesCustomMade = bundleMixesCustomMade(
+    slots
+      .map((s) => productById.get(s.productId))
+      .filter((p): p is ProductRow => !!p)
+      .map((p) => ({ customMade: p.customMade })),
+  );
 
   const components = slots
     .map((s) => {
@@ -233,13 +251,14 @@ function BundleItemsEditor({
     });
   }
 
-  const canSave = !overCap && needsVariantCount === 0;
+  const canSave = !overCap && needsVariantCount === 0 && !mixesCustomMade;
 
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">
       <p className="text-xs text-muted-foreground">
         Products in this bundle. Tick each one and set how many. A product with
-        options needs a variant chosen for each slot.
+        options needs a variant chosen for each slot. A bundle has to be all
+        custom-made products or all standard products.
       </p>
       <ul className="space-y-1.5">
         {products.map((p) => {
@@ -272,6 +291,11 @@ function BundleItemsEditor({
                   <span className="ml-1 text-muted-foreground">
                     {formatPrice(p.priceAmount, bundle.currency)}
                   </span>
+                  {p.customMade && (
+                    <span className="ml-1.5 rounded border border-border px-1 py-0.5 text-[10px] leading-none text-muted-foreground">
+                      Custom-made
+                    </span>
+                  )}
                 </button>
               </div>
 
@@ -366,6 +390,11 @@ function BundleItemsEditor({
       {needsVariantCount > 0 && (
         <p className="text-xs text-destructive">
           Choose a variant for every highlighted product before saving.
+        </p>
+      )}
+      {mixesCustomMade && (
+        <p className="text-xs text-destructive">
+          {MIXED_CUSTOM_MADE_BUNDLE_ERROR}
         </p>
       )}
 

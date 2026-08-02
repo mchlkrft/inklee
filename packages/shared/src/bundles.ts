@@ -78,6 +78,53 @@ export function validateBundlePrice(amount: number): string | null {
   return null;
 }
 
+/**
+ * C1.2 / counsel Q2 (2026-08-02): A BUNDLE IS ALL CUSTOM-MADE OR ALL STANDARD.
+ *
+ * This supersedes the withdrawn engineering rule "any custom-made component
+ * makes the whole bundle non-returnable". That rule suppressed a real return
+ * right on the standard components of a mixed bundle, which is the Art. 10
+ * direction to avoid, and it is legally weak: a bundle is not "made to the
+ * consumer's specification" merely because one of its parts is. Partial
+ * returnability is not available either, because the component list-price
+ * snapshots are records only and explicitly NOT a billing basis (accountant
+ * A8), so there is no per-component price a partial refund could be computed
+ * against. Counsel therefore chose the third option: refuse the mix at source.
+ *
+ * An artist who wants to sell both together lists them as separate products in
+ * one cart, where each line keeps its own return right. Revisit only if
+ * per-component pricing is ever built.
+ */
+export function bundleMixesCustomMade(
+  components: { customMade: boolean }[],
+): boolean {
+  let sawCustom = false;
+  let sawStandard = false;
+  for (const c of components) {
+    if (c.customMade) sawCustom = true;
+    else sawStandard = true;
+    if (sawCustom && sawStandard) return true;
+  }
+  return false;
+}
+
+/** The artist-facing refusal for a mixed bundle. One string, so the web
+ *  editor, the mobile route and the server cores cannot word it differently. */
+export const MIXED_CUSTOM_MADE_BUNDLE_ERROR =
+  "A bundle has to be all custom-made products or all standard products. " +
+  "Custom-made items have no return right and standard ones do, so a mixed " +
+  "bundle would take that right away. Sell them as separate products instead.";
+
+/** Null when the composition is allowed, the artist-facing message when it
+ *  mixes. An empty or single-product bundle can never mix. */
+export function validateBundleCustomMadeMix(
+  components: { customMade: boolean }[],
+): string | null {
+  return bundleMixesCustomMade(components)
+    ? MIXED_CUSTOM_MADE_BUNDLE_ERROR
+    : null;
+}
+
 /** A bundle is shown publicly only when it is both visible and not archived.
  *  Two decisions; either one alone hides it. */
 export function isBundlePublic(b: Bundle): boolean {
@@ -184,7 +231,13 @@ export type BundlePurchasability =
         // but whose bundle slot carries no variant selection at all. The
         // honest remnant of GC7's blanket refusal — un-selectable, not
         // "any variant present".
-        | "component_needs_variant";
+        | "component_needs_variant"
+        // Counsel Q2: the bundle mixes custom-made and standard products.
+        // Refused at the write path (setBundleItemsCore /
+        // addProductToBundleCore), and re-checked here so a bundle that
+        // predates the rule, or one a product edit turned mixed, is never
+        // SOLD under a composition no disclosure can describe honestly.
+        | "component_mixed_custom_made";
     };
 
 /** One resolved bundle component, as `bundlePurchasable` consumes it. Callers
@@ -205,6 +258,11 @@ export type BundleComponentResolution = {
    *  hidden/undropped product, or a variant id that did not resolve against
    *  THIS product's own variant list — the cross-product / unknown case). */
   resolved: { stock: number | null } | null;
+  /** This component product's OWN Art. 16(c) custom-made flag. Required, not
+   *  optional: counsel Q2 makes the bundle's composition a sale-time
+   *  invariant, and an optional field would let a caller omit it and silently
+   *  read every component as standard. */
+  customMade: boolean;
 };
 
 /**
@@ -297,6 +355,14 @@ export function bundlePurchasable(
     if (stock !== null && stock < perBundle * wanted) {
       return { ok: false, reason: "component_out_of_stock" };
     }
+  }
+  // Counsel Q2, checked LAST on purpose: every component has resolved by this
+  // point, so their `customMade` flags all came from a real catalog row. Run
+  // earlier, an unresolved component (which reads as standard because there is
+  // no row to read) could report a mix that is really an availability problem,
+  // and hide the more useful reason.
+  if (bundleMixesCustomMade(components)) {
+    return { ok: false, reason: "component_mixed_custom_made" };
   }
   return { ok: true };
 }

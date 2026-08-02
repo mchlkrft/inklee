@@ -366,7 +366,7 @@ export type CartDisplayLine = {
   available: boolean;
   unavailableReason: string | null;
   /** C1.2: true when this line cannot be returned (a flagged product, or a
-   *  bundle with any flagged component). Display-only, resolved fresh on
+   *  bundle whose components are all flagged). Display-only, resolved fresh on
    *  every read like price/availability — the sale-time snapshot on
    *  order_items is what the receipt and any post-purchase surface read. */
   customMade: boolean;
@@ -572,8 +572,9 @@ export async function getCartForDisplay(
         unavailableReason: available
           ? null
           : "That bundle isn't available right now.",
-        // C1.2: any custom-made component makes the whole bundle line
-        // non-returnable (same rule resolveBundleLines applies at sale time).
+        // C1.2 / counsel Q2: the bundle's uniform custom-made status, read
+        // straight off the line resolveBundleLines produced, so the cart and
+        // the sale cannot describe the same bundle differently.
         customMade:
           available && resolved.ok ? resolved.lines[0]!.customMade : false,
       });

@@ -13,6 +13,8 @@ import type { MobileBundleList } from "@inklee/shared/mobile-api";
 import {
   BUNDLE_NAME_MAX,
   MAX_BUNDLE_ITEMS,
+  MIXED_CUSTOM_MADE_BUNDLE_ERROR,
+  bundleMixesCustomMade,
   bundleSavings,
   canDeleteBundle,
   normalizeBundleName,
@@ -168,8 +170,8 @@ function BundlesList({
         {!data.entitled ? (
           <Card>
             <Text className="text-sm text-shell-dim">
-              Bundles are part of Plus. Any bundles you already made are kept and
-              show again when Plus is active.
+              Bundles are part of Plus. Any bundles you already made are kept
+              and show again when Plus is active.
             </Text>
           </Card>
         ) : null}
@@ -212,7 +214,9 @@ function BundlesList({
                   }
                 />
                 <Button
-                  label={itemsEditingId === b.id ? "Close products" : "Products"}
+                  label={
+                    itemsEditingId === b.id ? "Close products" : "Products"
+                  }
                   variant="secondary"
                   size="sm"
                   disabled={busy || !data.entitled}
@@ -241,7 +245,11 @@ function BundlesList({
                   disabled={busy || !data.entitled}
                   onPress={() =>
                     void run("archiveBundle", () =>
-                      apiPatch(PATH, { op: "archive", id: b.id, archived: true }),
+                      apiPatch(PATH, {
+                        op: "archive",
+                        id: b.id,
+                        archived: true,
+                      }),
                     )
                   }
                 />
@@ -337,8 +345,8 @@ function BundlesList({
           <View className="mt-6">
             <SectionLabel>Archived</SectionLabel>
             <Text className="mb-2 text-xs text-shell-dim">
-              Archived bundles keep their products. Restore one and it comes back
-              as it was, or delete it once archived.
+              Archived bundles keep their products. Restore one and it comes
+              back as it was, or delete it once archived.
             </Text>
             {archived.map((b) => (
               <View key={b.id} className="mb-2">
@@ -480,6 +488,16 @@ function BundleItemsEditor({
     const p = productById.get(s.productId);
     return !!p && p.variants.length > 0 && !s.variantId;
   }).length;
+  // Counsel Q2 (2026-08-02): a bundle is all custom-made or all standard. The
+  // refusal itself lives in `setBundleItemsCore`, which this screen writes
+  // through, so this is the same mirror the web editor keeps: the artist sees
+  // the rule while choosing instead of only in a rejected save.
+  const mixesCustomMade = bundleMixesCustomMade(
+    slots
+      .map((s) => productById.get(s.productId))
+      .filter((p): p is ProductRow => !!p)
+      .map((p) => ({ customMade: p.customMade === true })),
+  );
 
   const components = slots
     .map((s) => {
@@ -525,7 +543,8 @@ function BundleItemsEditor({
     <View className="mt-3 border-t border-shell-border pt-3">
       <Text className="mb-2 text-xs text-shell-dim">
         Tap the products in this bundle, then set how many. A product with
-        options needs a variant chosen for each one you add.
+        options needs a variant chosen for each one you add. A bundle has to be
+        all custom-made products or all standard products.
       </Text>
       {products.map((p) => {
         const hasVariants = p.variants.length > 0;
@@ -540,7 +559,7 @@ function BundleItemsEditor({
             <View key={p.id} className="mb-1.5 flex-row items-center gap-2">
               <View className="flex-1">
                 <FilterChip
-                  label={`${p.title}  ${formatPrice(p.priceAmount, bundle.currency)}`}
+                  label={`${p.title}  ${formatPrice(p.priceAmount, bundle.currency)}${p.customMade ? "  Custom-made" : ""}`}
                   selected={on}
                   onPress={() => toggleNoVariantProduct(p.id)}
                 />
@@ -574,7 +593,9 @@ function BundleItemsEditor({
         // independent slot toggle.
         return (
           <View key={p.id} className="mb-1.5">
-            <Text className="mb-1 text-xs text-shell-text">{p.title}</Text>
+            <Text className="mb-1 text-xs text-shell-text">
+              {p.customMade ? `${p.title}  Custom-made` : p.title}
+            </Text>
             {p.variants.map((v) => {
               const slotIndex = slots.findIndex(
                 (s) => s.productId === p.id && s.variantId === v.id,
@@ -663,11 +684,16 @@ function BundleItemsEditor({
           Choose a variant for every highlighted product before saving.
         </Text>
       ) : null}
+      {mixesCustomMade ? (
+        <Text className="mt-1 text-xs text-danger">
+          {MIXED_CUSTOM_MADE_BUNDLE_ERROR}
+        </Text>
+      ) : null}
 
       <View className="mt-3">
         <Button
           label="Save products"
-          disabled={busy || overCap || needsVariantCount > 0}
+          disabled={busy || overCap || needsVariantCount > 0 || mixesCustomMade}
           onPress={() =>
             onSave(
               slots.map((s) => ({

@@ -36,6 +36,7 @@ import {
   addProductToBundleCore,
   removeProductFromBundleCore,
   setBundleItemsCore,
+  customMadeChangeBundleConflicts,
   publicBundlesForArtist,
   type BundleWriteResult,
 } from "@/lib/server/bundles";
@@ -305,7 +306,11 @@ describe("deleteBundleCore is archive-first (B4)", () => {
 describe("addProductToBundleCore", () => {
   it("enforces the item cap server-side", async () => {
     queue(`${ITEMS}:select`, { data: null }); // not already in the bundle
-    queue(`${ITEMS}:select`, { count: 50 }); // at the cap
+    // ONE read now answers both "how full" and "which products" (counsel Q2),
+    // so the cap is counted off the rows rather than a head count.
+    queue(`${ITEMS}:select`, {
+      data: Array.from({ length: 50 }, (_, i) => ({ product_id: `p${i}` })),
+    });
     const r = await addProductToBundleCore(supabase, ARTIST, "b1", "p1");
     expect(r).toMatchObject({ ok: false, code: "invalid" });
     // No insert happened.
@@ -495,6 +500,227 @@ describe("setBundleItemsCore syncs the full item list", () => {
     expect(upd?.isFilters).toMatchObject({ variant_id: null });
     expect(upd?.filters).toMatchObject({ product_id: "p1" });
     expect(upd?.filters).not.toHaveProperty("variant_id");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Counsel Q2 (2026-08-02): a bundle is ALL custom-made or ALL standard. The
+// withdrawn rule ("any custom-made component makes the whole bundle
+// non-returnable") suppressed a real return right on the standard components,
+// so the mix is refused at the write path instead of being disclosed away.
+
+const PRODUCTS = "products";
+const MIXED = "A bundle has to be all custom-made products";
+
+describe("counsel Q2: the composition rule at the write path", () => {
+  it("setBundleItemsCore SAVES an all-custom-made list, and an all-standard one", async () => {
+    // The DISTINCTION control, first and deliberately: a gate that refused
+    // every custom-made product would satisfy the refusal test below while
+    // making custom-made products unbundleable, and three fixes shipped that
+    // way before this control was demanded.
+    for (const flag of [true, false]) {
+      ops = [];
+      replies = {};
+      queue(`${B}:select`, { data: { id: "b1" } });
+      queue(`${PRODUCTS}:select`, {
+        data: [
+          { id: "p1", custom_made: flag },
+          { id: "p2", custom_made: flag },
+        ],
+      });
+      queue(`${ITEMS}:select`, { data: [] });
+      queue(`${ITEMS}:insert`, { data: null });
+      queue(`${ITEMS}:insert`, { data: null });
+      const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+        { productId: "p1", quantity: 1 },
+        { productId: "p2", quantity: 1 },
+      ]);
+      expect(r).toEqual({ ok: true, id: "b1" });
+      expect(
+        ops.filter((o) => o.table === ITEMS && o.verb === "insert"),
+      ).toHaveLength(2);
+    }
+  });
+
+  it("setBundleItemsCore REFUSES a mixed list and writes nothing", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${PRODUCTS}:select`, {
+      data: [
+        { id: "p1", custom_made: true },
+        { id: "p2", custom_made: false },
+      ],
+    });
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 1 },
+      { productId: "p2", quantity: 1 },
+    ]);
+    // FAILS IF the composition gate is removed: every other rule here passes
+    // (owned bundle, under cap, no variant needed), so the mix would save.
+    expect(r).toMatchObject({ ok: false, code: "invalid" });
+    expect((r as { error: string }).error).toContain(MIXED);
+    // Refused BEFORE any item row is touched, so a rejected save cannot leave
+    // the bundle half-rewritten.
+    expect(ops.some((o) => o.table === ITEMS)).toBe(false);
+  });
+
+  it("setBundleItemsCore scopes the flag read to the artist and to the wanted products", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${PRODUCTS}:select`, {
+      data: [
+        { id: "p1", custom_made: false },
+        { id: "p2", custom_made: false },
+      ],
+    });
+    queue(`${ITEMS}:select`, { data: [] });
+    queue(`${ITEMS}:insert`, { data: null });
+    queue(`${ITEMS}:insert`, { data: null });
+    await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 1 },
+      { productId: "p2", quantity: 1 },
+    ]);
+    const read = ops.find((o) => o.table === PRODUCTS && o.verb === "select");
+    // FAILS IF the read drops the artist filter: another artist's product
+    // flags would decide this artist's composition.
+    expect(read?.filters).toMatchObject({ artist_id: ARTIST });
+    expect(read?.inFilter).toEqual({ column: "id", values: ["p1", "p2"] });
+  });
+
+  it("setBundleItemsCore does not ask the database about a single product", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${ITEMS}:select`, { data: [] });
+    queue(`${ITEMS}:insert`, { data: null });
+    queue(`${ITEMS}:insert`, { data: null });
+    // FD6: one product at two variants is two slots but ONE product, and one
+    // product cannot disagree with itself.
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 1, variantId: "v1" },
+      { productId: "p1", quantity: 1, variantId: "v2" },
+    ]);
+    expect(r).toEqual({ ok: true, id: "b1" });
+    expect(ops.some((o) => o.table === PRODUCTS)).toBe(false);
+  });
+
+  it("setBundleItemsCore fails CLOSED when the flags cannot be read", async () => {
+    queue(`${B}:select`, { data: { id: "b1" } });
+    queue(`${PRODUCTS}:select`, { error: { message: "boom" } });
+    const r = await setBundleItemsCore(supabase, ARTIST, "b1", [
+      { productId: "p1", quantity: 1 },
+      { productId: "p2", quantity: 1 },
+    ]);
+    expect(r).toMatchObject({ ok: false, code: "failed" });
+    expect(ops.some((o) => o.table === ITEMS)).toBe(false);
+  });
+
+  it("addProductToBundleCore refuses a product that would mix with what the bundle holds", async () => {
+    queue(`${ITEMS}:select`, { data: null }); // not already in the bundle
+    queue(`${ITEMS}:select`, { data: [{ product_id: "pHeld" }] });
+    queue(`${PRODUCTS}:select`, {
+      data: [
+        { id: "pHeld", custom_made: false },
+        { id: "pNew", custom_made: true },
+      ],
+    });
+    const r = await addProductToBundleCore(supabase, ARTIST, "b1", "pNew");
+    expect(r).toMatchObject({ ok: false, code: "invalid" });
+    expect((r as { error: string }).error).toContain(MIXED);
+    expect(ops.some((o) => o.verb === "insert")).toBe(false);
+  });
+
+  it("addProductToBundleCore ADDS a product that agrees with what the bundle holds", async () => {
+    // The distinction control for the singular path.
+    queue(`${ITEMS}:select`, { data: null });
+    queue(`${ITEMS}:select`, { data: [{ product_id: "pHeld" }] });
+    queue(`${PRODUCTS}:select`, {
+      data: [
+        { id: "pHeld", custom_made: true },
+        { id: "pNew", custom_made: true },
+      ],
+    });
+    queue(`${ITEMS}:select`, { data: { position: 0 } });
+    queue(`${ITEMS}:insert`, { data: { id: "it11" } });
+    const r = await addProductToBundleCore(supabase, ARTIST, "b1", "pNew");
+    expect(r).toEqual({ ok: true, id: "it11" });
+  });
+});
+
+describe("counsel Q2: flipping custom_made on a product already in a bundle", () => {
+  it("allows the change when the product is in no bundle", async () => {
+    queue(`${ITEMS}:select`, { data: [] });
+    await expect(
+      customMadeChangeBundleConflicts(supabase, ARTIST, "p1", true),
+    ).resolves.toEqual({ ok: true });
+  });
+
+  it("allows the change when every other component agrees with the NEW value", async () => {
+    // Distinction control: an artist converting a whole bundle to custom-made
+    // one product at a time must not be blocked at the last one.
+    queue(`${ITEMS}:select`, { data: [{ bundle_id: "b1" }] });
+    queue(`${ITEMS}:select`, {
+      data: [
+        { bundle_id: "b1", product_id: "p1" },
+        { bundle_id: "b1", product_id: "p2" },
+      ],
+    });
+    queue(`${PRODUCTS}:select`, { data: [{ id: "p2", custom_made: true }] });
+    await expect(
+      customMadeChangeBundleConflicts(supabase, ARTIST, "p1", true),
+    ).resolves.toEqual({ ok: true });
+  });
+
+  it("refuses the change when it would leave a bundle mixed, and names the bundle", async () => {
+    queue(`${ITEMS}:select`, { data: [{ bundle_id: "b1" }] });
+    queue(`${ITEMS}:select`, {
+      data: [
+        { bundle_id: "b1", product_id: "p1" },
+        { bundle_id: "b1", product_id: "p2" },
+      ],
+    });
+    queue(`${PRODUCTS}:select`, { data: [{ id: "p2", custom_made: false }] });
+    queue(`${B}:select`, { data: [{ name: "Starter kit" }] });
+    const r = await customMadeChangeBundleConflicts(
+      supabase,
+      ARTIST,
+      "p1",
+      true,
+    );
+    // FAILS IF the product editor is left unguarded: the bundle write path
+    // alone is one checkbox away from being bypassed, which is what makes
+    // the composition an invariant rather than a suggestion.
+    expect(r).toMatchObject({ ok: false });
+    expect((r as { ok: false; error: string }).error).toContain("Starter kit");
+  });
+
+  it("fails CLOSED when the memberships cannot be read", async () => {
+    queue(`${ITEMS}:select`, { error: { message: "boom" } });
+    const r = await customMadeChangeBundleConflicts(
+      supabase,
+      ARTIST,
+      "p1",
+      true,
+    );
+    expect(r).toMatchObject({ ok: false });
+  });
+
+  it("is NOT entitlement-gated: a lapsed artist's bundles still have to hold", async () => {
+    // A downgrade must not silently reopen the hole. FAILS IF someone adds
+    // `requireEntitlement` here for symmetry with the write cores.
+    getAccountOverrides.mockResolvedValue(LAPSED_TO_FREE);
+    queue(`${ITEMS}:select`, { data: [{ bundle_id: "b1" }] });
+    queue(`${ITEMS}:select`, {
+      data: [
+        { bundle_id: "b1", product_id: "p1" },
+        { bundle_id: "b1", product_id: "p2" },
+      ],
+    });
+    queue(`${PRODUCTS}:select`, { data: [{ id: "p2", custom_made: false }] });
+    queue(`${B}:select`, { data: [{ name: "Starter kit" }] });
+    const r = await customMadeChangeBundleConflicts(
+      supabase,
+      ARTIST,
+      "p1",
+      true,
+    );
+    expect(r).toMatchObject({ ok: false });
   });
 });
 

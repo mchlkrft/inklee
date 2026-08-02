@@ -968,6 +968,16 @@ export type MobileAccount = {
   oauthProvider: string | null;
   /** True when a verified TOTP factor is enrolled. */
   mfaEnabled: boolean;
+  /**
+   * True when a paid Plus subscription is live (active/trialing/past_due).
+   * Counsel Q12: account deletion ends it immediately and refunds the unused
+   * part of the current period, and that must be disclosed on the delete
+   * confirmation screen before the irreversible act. ADDITIVE field, optional
+   * so an installed build that has never seen it keeps parsing this payload
+   * (the breaking wire change is adding a value to a union the app switches
+   * on, not adding a field).
+   */
+  hasActiveSubscription?: boolean;
 };
 
 /** GET/POST /api/mobile/settings/reminders — the artist's automated reminder
@@ -1195,6 +1205,12 @@ export type MobileBundleList = {
     id: string;
     title: string;
     priceAmount: number;
+    /** The product's Art. 16(c) custom-made flag. Counsel Q2 (2026-08-02): a
+     *  bundle is all custom-made or all standard, and the server cores refuse
+     *  a mix, so the native editor needs this to show the rule rather than
+     *  discovering it from a rejected save. Additive field, not a wire
+     *  break: an older app ignores it. */
+    customMade: boolean;
     /** This product's ACTIVE variants only — the editor offers a choice from
      *  exactly these, matching what the checkout itself will accept. */
     variants: { id: string; name: string; priceAmount: number | null }[];

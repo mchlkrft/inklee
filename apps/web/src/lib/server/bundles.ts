@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   normalizeBundleName,
   validateBundleName,
+  validateBundleCustomMadeMix,
+  bundleMixesCustomMade,
   MAX_BUNDLE_ITEMS,
   type Bundle,
   type BundleItem,
@@ -249,6 +251,44 @@ function byVariant<T>(query: T, variantId: string | null): T {
   ) as T;
 }
 
+/**
+ * Counsel Q2 (2026-08-02), the ONE composition gate: a bundle is all
+ * custom-made or all standard, never a mix. Returns a refusal, or null when
+ * the composition is allowed.
+ *
+ * `productIds` is the FINAL set of component products, never the delta: the
+ * question this answers is what the bundle would contain AFTER the write.
+ *
+ * A product id that comes back with no row is read as standard, which is
+ * deliberate rather than a hole. The select runs on the same artist-scoped,
+ * RLS-bound client as the write, so a row that does not come back is one this
+ * artist cannot put in a bundle either: the composite FK and the item RLS
+ * WITH CHECK refuse it, and the insert a few lines later fails on its own. A
+ * read ERROR is a different matter and fails closed.
+ */
+async function refuseMixedCustomMade(
+  supabase: SupabaseClient,
+  artistId: string,
+  productIds: string[],
+): Promise<BundleWriteResult | null> {
+  // One distinct product can never mix with itself, however many slots or
+  // variants it holds, so there is nothing to ask the database.
+  const ids = [...new Set(productIds.filter(Boolean))];
+  if (ids.length < 2) return null;
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, custom_made")
+    .eq("artist_id", artistId)
+    .in("id", ids);
+  if (error) return { ok: false, code: "failed", error: "Couldn't save." };
+
+  const mixError = validateBundleCustomMadeMix(
+    (data ?? []).map((p) => ({ customMade: p.custom_made === true })),
+  );
+  return mixError ? { ok: false, code: "invalid", error: mixError } : null;
+}
+
 /** Add a product to a bundle (idempotent per (product, variant): a repeat is
  *  a no-op). Quantity defaults to 1; a caller may pass more. `variantId` is
  *  the artist's fixed choice for this slot (FD6); the RLS WITH CHECK (0138)
@@ -281,17 +321,31 @@ export async function addProductToBundleCore(
   ).maybeSingle();
   if (existing) return { ok: true, id: existing.id as string };
 
-  const { count } = await supabase
+  // ONE read answers both questions the insert depends on: how full the bundle
+  // already is (the cap) and which products it already holds (counsel Q2's
+  // composition rule). Two separate reads could disagree with each other.
+  const { data: siblings, error: siblingsError } = await supabase
     .from("product_bundle_items")
-    .select("id", { count: "exact", head: true })
-    .eq("bundle_id", bundleId);
-  if ((count ?? 0) >= MAX_BUNDLE_ITEMS) {
+    .select("product_id")
+    .eq("bundle_id", bundleId)
+    .eq("artist_id", artistId);
+  if (siblingsError) {
+    return { ok: false, code: "failed", error: "Couldn't save." };
+  }
+  const held = siblings ?? [];
+  if (held.length >= MAX_BUNDLE_ITEMS) {
     return {
       ok: false,
       code: "invalid",
       error: `A bundle can hold at most ${MAX_BUNDLE_ITEMS} products.`,
     };
   }
+
+  const mixed = await refuseMixedCustomMade(supabase, artistId, [
+    ...held.map((r) => r.product_id as string),
+    productId,
+  ]);
+  if (mixed) return mixed;
 
   const { data: last } = await supabase
     .from("product_bundle_items")
@@ -412,6 +466,16 @@ export async function setBundleItemsCore(
   if (!bundle)
     return { ok: false, code: "failed", error: "That bundle is gone." };
 
+  // Counsel Q2, before any row is touched: `wanted` IS the bundle's finished
+  // composition (this core is a full replace), so the whole rule is decided
+  // here in one place rather than per insert.
+  const mixed = await refuseMixedCustomMade(
+    supabase,
+    artistId,
+    wanted.map((w) => w.productId),
+  );
+  if (mixed) return mixed;
+
   const { data: current, error: readError } = await supabase
     .from("product_bundle_items")
     .select("product_id, variant_id")
@@ -481,6 +545,104 @@ export async function setBundleItemsCore(
     if (error) return { ok: false, code: "failed", error: "Couldn't save." };
   }
   return { ok: true, id: bundleId };
+}
+
+/**
+ * The OTHER way a bundle could come to mix (counsel Q2): not by editing the
+ * bundle at all, but by flipping `custom_made` on a product that is already
+ * inside one. Refusing only at the bundle write path would leave the rule
+ * trivially breakable from the product editor, and a rule with a one-click
+ * bypass is not an invariant.
+ *
+ * Deliberately NOT entitlement-gated, unlike every write core above. A lapsed
+ * artist keeps their bundles (the manager says so), so their composition still
+ * has to hold; gating this would mean a downgrade silently reopens the hole.
+ *
+ * Returns `{ ok: true }` when the change is safe, naming the offending bundles
+ * otherwise. Read errors fail CLOSED: an unverifiable composition is not an
+ * allowed one.
+ */
+export async function customMadeChangeBundleConflicts(
+  supabase: SupabaseClient,
+  artistId: string,
+  productId: string,
+  nextCustomMade: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const unreadable = {
+    ok: false as const,
+    error: "Couldn't check this product's bundles. Please try again.",
+  };
+
+  const { data: memberships, error: membershipError } = await supabase
+    .from("product_bundle_items")
+    .select("bundle_id")
+    .eq("artist_id", artistId)
+    .eq("product_id", productId);
+  if (membershipError) return unreadable;
+  const bundleIds = [
+    ...new Set((memberships ?? []).map((m) => m.bundle_id as string)),
+  ];
+  if (bundleIds.length === 0) return { ok: true };
+
+  // Every component of every affected bundle, so each bundle is judged on its
+  // finished composition rather than on this product alone.
+  const { data: siblings, error: siblingError } = await supabase
+    .from("product_bundle_items")
+    .select("bundle_id, product_id")
+    .eq("artist_id", artistId)
+    .in("bundle_id", bundleIds);
+  if (siblingError) return unreadable;
+
+  const otherIds = [
+    ...new Set((siblings ?? []).map((s) => s.product_id as string)),
+  ].filter((pid) => pid !== productId);
+  const flagById = new Map<string, boolean>();
+  if (otherIds.length > 0) {
+    const { data: rows, error: rowsError } = await supabase
+      .from("products")
+      .select("id, custom_made")
+      .eq("artist_id", artistId)
+      .in("id", otherIds);
+    if (rowsError) return unreadable;
+    for (const r of rows ?? []) {
+      flagById.set(r.id as string, r.custom_made === true);
+    }
+  }
+
+  const byBundle = new Map<string, { customMade: boolean }[]>();
+  for (const s of siblings ?? []) {
+    const bundleId = s.bundle_id as string;
+    const pid = s.product_id as string;
+    const list = byBundle.get(bundleId) ?? [];
+    // The product being edited counts with its PROPOSED flag; that is the
+    // whole question.
+    list.push({
+      customMade:
+        pid === productId ? nextCustomMade : (flagById.get(pid) ?? false),
+    });
+    byBundle.set(bundleId, list);
+  }
+  const conflicting = [...byBundle.entries()]
+    .filter(([, components]) => bundleMixesCustomMade(components))
+    .map(([bundleId]) => bundleId);
+  if (conflicting.length === 0) return { ok: true };
+
+  const { data: named } = await supabase
+    .from("product_bundles")
+    .select("name")
+    .eq("artist_id", artistId)
+    .in("id", conflicting);
+  const label = (named ?? [])
+    .map((n) => `"${n.name as string}"`)
+    .join(", ")
+    .trim();
+  return {
+    ok: false,
+    error:
+      `Changing this would leave ${label || "one of your bundles"} with a ` +
+      "mix of custom-made and standard products. A bundle has to be all one " +
+      "or all the other. Take this product out first, then change the setting.",
+  };
 }
 
 // ---------------------------------------------------------------------------

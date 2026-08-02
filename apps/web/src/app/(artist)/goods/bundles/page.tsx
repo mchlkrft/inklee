@@ -15,14 +15,16 @@ export default async function BundlesPage() {
 
   // Every read goes through RLS scoped to the owner, so the queries are the
   // authorization. Products carry their list price so the editor can show the
-  // saving a bundle offers vs buying the parts separately, and their ACTIVE
-  // variants (FD6) so a variant-bearing product gets a picker per slot.
+  // saving a bundle offers vs buying the parts separately, their ACTIVE
+  // variants (FD6) so a variant-bearing product gets a picker per slot, and
+  // `custom_made` so the editor can show counsel Q2's all-or-nothing rule
+  // while the artist is choosing rather than only when the save is refused.
   const [bundles, { data: rawProducts }] = await Promise.all([
     listBundlesForArtist(supabase, user!.id),
     supabase
       .from("products")
       .select(
-        "id, title, price_amount, product_variants(id, name, price_amount_override, status, sort_order)",
+        "id, title, price_amount, custom_made, product_variants(id, name, price_amount_override, status, sort_order)",
       )
       .eq("artist_id", user!.id)
       .neq("status", "archived")
@@ -33,6 +35,7 @@ export default async function BundlesPage() {
     id: p.id as string,
     title: p.title as string,
     priceAmount: toPriceNumber(p.price_amount),
+    customMade: p.custom_made === true,
     variants: (
       (p.product_variants ?? []) as {
         id: string;

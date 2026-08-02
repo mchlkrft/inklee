@@ -254,6 +254,7 @@ export default async function ShopCheckoutPage({
           variantId: c.variantId,
           productHasActiveVariants: c.productHasActiveVariants,
           resolved: c.resolved,
+          customMade: c.customMade,
         })),
         1,
       );
@@ -267,11 +268,13 @@ export default async function ShopCheckoutPage({
           .map((c) => `${c.quantity > 1 ? `${c.quantity}x ` : ""}${c.title}`)
           .join(" + "),
         available: verdict.ok,
-        // C1.2: any custom-made component (present or not — a hidden
-        // personalised component is still part of what fulfilment ships)
-        // makes the whole bundle line non-returnable, mirroring
-        // resolveBundleLines' rule on the money path.
-        customMade: components.some((c) => c.customMade),
+        // C1.2 / counsel Q2: a bundle is all custom-made or all standard, so
+        // this is the one answer all of its components give. `every` mirrors
+        // resolveBundleLines exactly, including the direction it fails in:
+        // a bundle that somehow mixed would keep the return right rather
+        // than lose it, and `available` above is already false for it.
+        customMade:
+          components.length > 0 && components.every((c) => c.customMade),
       };
     });
 

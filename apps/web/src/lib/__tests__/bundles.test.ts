@@ -11,6 +11,9 @@ import {
   canDeleteBundle,
   bundleSavings,
   bundlePurchasable,
+  bundleMixesCustomMade,
+  validateBundleCustomMadeMix,
+  MIXED_CUSTOM_MADE_BUNDLE_ERROR,
   resolveBundleComponent,
   type Bundle,
   type BundleComponentResolution,
@@ -134,12 +137,14 @@ describe("bundleSavings (display only)", () => {
 function comp(
   quantity: number,
   stock: number | null,
+  customMade = false,
 ): BundleComponentResolution {
   return {
     quantity,
     variantId: null,
     productHasActiveVariants: false,
     resolved: { stock },
+    customMade,
   };
 }
 const MISSING: BundleComponentResolution = {
@@ -147,6 +152,7 @@ const MISSING: BundleComponentResolution = {
   variantId: null,
   productHasActiveVariants: false,
   resolved: null,
+  customMade: false,
 };
 
 describe("bundlePurchasable (sale rule, GC6)", () => {
@@ -279,6 +285,7 @@ function variantComp(
     variantId: "v1",
     productHasActiveVariants: true,
     resolved: { stock: 10 },
+    customMade: false,
     ...over,
   };
 }
@@ -345,6 +352,90 @@ describe("bundlePurchasable: variant-aware components (FD6)", () => {
         variantComp({ variantId: null, resolved: null }),
       ]),
     ).toEqual({ ok: false, reason: "component_needs_variant" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Counsel Q2 (2026-08-02): a bundle is ALL custom-made or ALL standard. This
+// REPLACES the withdrawn engineering rule "any custom-made component makes the
+// whole bundle non-returnable" — that rule suppressed a real return right on
+// the standard components, which is the Art. 10 direction to avoid.
+
+describe("bundleMixesCustomMade (counsel Q2)", () => {
+  it("allows an all-standard and an all-custom-made bundle", () => {
+    // The DISTINCTION control, first: a rule that refused every composition
+    // would pass every refusal test below and ship a bundle feature that can
+    // never save anything.
+    expect(bundleMixesCustomMade([{ customMade: false }])).toBe(false);
+    expect(
+      bundleMixesCustomMade([{ customMade: false }, { customMade: false }]),
+    ).toBe(false);
+    expect(
+      bundleMixesCustomMade([{ customMade: true }, { customMade: true }]),
+    ).toBe(false);
+    expect(validateBundleCustomMadeMix([{ customMade: true }])).toBeNull();
+  });
+
+  it("refuses a mix, in either order", () => {
+    // FAILS IF the rule degrades to "any custom-made component" (the
+    // withdrawn one): that predicate is true for [custom, custom] too, so the
+    // all-custom case above would start refusing.
+    expect(
+      bundleMixesCustomMade([{ customMade: true }, { customMade: false }]),
+    ).toBe(true);
+    expect(
+      bundleMixesCustomMade([{ customMade: false }, { customMade: true }]),
+    ).toBe(true);
+    expect(
+      validateBundleCustomMadeMix([
+        { customMade: true },
+        { customMade: false },
+      ]),
+    ).toBe(MIXED_CUSTOM_MADE_BUNDLE_ERROR);
+  });
+
+  it("an empty component list does not mix", () => {
+    expect(bundleMixesCustomMade([])).toBe(false);
+    expect(validateBundleCustomMadeMix([])).toBeNull();
+  });
+
+  it("the artist-facing message obeys the house copy rules", () => {
+    // FAILS IF someone reintroduces an em-dash while rewording it.
+    expect(MIXED_CUSTOM_MADE_BUNDLE_ERROR).not.toContain("—");
+    expect(MIXED_CUSTOM_MADE_BUNDLE_ERROR.endsWith(".")).toBe(true);
+  });
+});
+
+describe("bundlePurchasable refuses a mixed bundle (counsel Q2)", () => {
+  it("sells an all-custom-made bundle and an all-standard one", () => {
+    // Positive control: without it, the refusal below is also satisfied by a
+    // gate that refuses every custom-made bundle, which would silently make
+    // custom-made products unbundleable.
+    expect(
+      bundlePurchasable(bundle(), [comp(1, 5, true), comp(1, 5, true)]),
+    ).toEqual({ ok: true });
+    expect(
+      bundlePurchasable(bundle(), [comp(1, 5, false), comp(1, 5, false)]),
+    ).toEqual({ ok: true });
+  });
+
+  it("refuses a bundle whose components disagree, even when everything is in stock", () => {
+    // FAILS IF the composition check is dropped: every other gate passes here
+    // (public, non-empty, no variants needed, stock ample), so the bundle
+    // would sell under the withdrawn "whole bundle non-returnable" rule.
+    expect(
+      bundlePurchasable(bundle(), [comp(1, 5, true), comp(1, 5, false)]),
+    ).toEqual({ ok: false, reason: "component_mixed_custom_made" });
+  });
+
+  it("reports the AVAILABILITY reason first when a component also did not resolve", () => {
+    // An unresolved component reads as standard (there is no catalog row to
+    // read a flag from), so checking composition first would report a mix
+    // that is really an availability problem and hide the useful reason.
+    expect(bundlePurchasable(bundle(), [comp(1, 5, true), MISSING])).toEqual({
+      ok: false,
+      reason: "component_unavailable",
+    });
   });
 });
 
