@@ -1396,7 +1396,7 @@ findings:
         - "Whether any OTHER Stripe-object-creating path lacks an entitlement gate (account-link
           creation, document upload from b5d33bf) — NOT inspected."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
       proposed_action: "Not yet actioned. See assessment."
     verification:
       status: "not-started"
@@ -1415,6 +1415,28 @@ findings:
         actor: "audit-register backfill"
         action: "backfilled"
         note: "Entered from evidence already committed to the repository."
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "ALREADY FIXED and never marked. Re-check found the defect absent from current
+          code with the fixing code cited. Recorded as fixed-unverified rather than
+          verified: nobody independently confirmed the fix, it was simply found in
+          place. Evidence: apps/web/src/app/(artist)/settings/payouts/actions.ts:71-86
+          now gates account CREATION on entitlement, immediately before the
+          ensureConnectAccount call at :99. The block reads: if the profile has no
+          stripe_account_id, call getAccountOverrides(user.id) and canAccess(overrides,
+          'card_deposit_collection'); on failure return 'Payout setup is available on
+          the Plus plan. Upgrade to start accepting card payments.'; and a thrown read
+          returns 'Couldn't verify your plan. Please try again.' so a plan-read blip
+          fails closed rather than open. The imports were added at :24-25
+          (getAccountOverrides from @/lib The finding's OPEN-AND-DISPUTED status is also
+          resolved in passing: the fix picked a side of the
+          'Free-deposit-rate-implies-Free-Connect collision' founder flag, so the
+          ambiguity the finding preserved has been settled by implementation. The
+          contradictory_evidence entry (grep for 'Connect' in plus-product-spec.md
+          returned zero matches, not supporting 3fce7be's 'against spec section 1's
+          never') is u"
+
   - id: "BILL-ENT-002"
     title: "OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine
       billing/tax tables cascade-delete with the profile"
@@ -1543,6 +1565,25 @@ findings:
         actor: "audit-register backfill"
         action: "backfilled"
         note: "Entered from evidence already committed to the repository."
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: HALF ONE FIXED (deletion never
+          cancels the subscription). apps/web/src/lib/server/account-deletion.ts:169-221
+          adds step 2b: read the newest billing_subscriptions row for the artist, and
+          for status in {active,trialing,past_due} call stripe.subscriptions.cancel at
+          :201 with confirm-by-re-read at :206 and a transient ERROR return at :211-218
+          if cancellation cannot be confirmed.
+          docs/product/plus-remaining-work-plan.md:63 records C1 as DONE against this
+          code. HALF TWO PARTIALLY FIXED (nine tables cascade). Migration
+          0129_billing_record_retention.sql repoints five of them to ON DELETE SET NULL
+          — bi REMAINING/CHANGED: Downgrade severity high -> medium and rewrite the
+          summary; the title as written is now false in its first clause. Three things
+          stay on the record. (1) The count dispute the finding raised is settled and
+          superseded: BDEL-RET-001 established eleven cascading FKs against the live
+          catalog (0106's nine plus account_overrides from 0105 and
+          founder_offer_redemptions from 0113), and after 0129 the current"
+
   - id: "OPS-TOOL-001"
     title: "Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in
       CI or on any other machine"
@@ -2413,6 +2454,25 @@ findings:
         action: "opened"
         note: "SCOPE 0A — Stripe deposit webhook (repo root A:/WORK/inklee,
           apps/web/src/app/api/stripe/webhook/route.ts, 915 lines, read line by line)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: FIXED HALF: the cited
+          charge.refunded booking lookup (old route.ts:188) is now
+          apps/web/src/app/api/stripe/webhook/route.ts:217-247 — `const { data:
+          bookingRows, error: bookingErr }`, with `Sentry.captureException` + `return
+          500 {error:'lookup failed'}` on error (:230-236) and a separate loud 500 on >1
+          row (:237-247). STILL-OPEN HALF: the finding's own 'single most consequential
+          instance', the goods order flip, is unchanged — route.ts:850 `const { data:
+          flipped } = await
+          serviceClient.from('orders').update({status:'paid'...}).eq('status','pending').select('id')`
+          with no `error`, guarded at :86 REMAINING/CHANGED: Exactly one of the five
+          named instances was fixed, and a NEW unguarded read was added in the same
+          period: route.ts:202 `const { count: allocCount }` (payment_allocations
+          dispatch, commit d123ab5a) — a failed count reads as 0 and silently routes an
+          appointment-payment refund down the deposit path. So the ratio is unchanged at
+          17-of-24 rather than improved. Severity should stay high: the goods-flip"
+
   - id: "WHK-TOK-001"
     title: "The customer's magic-link token is rotated inside the atomic settlement flip, then delivered
       by an email path that swallows every error and can never be retried"
@@ -2590,7 +2650,7 @@ findings:
           could ever carry booking_id"
         - "Any future `project_id`-subject P9 intent reaching this endpoint"
     remediation:
-      status: "open"
+      status: "fixed-unverified"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -2606,6 +2666,27 @@ findings:
         action: "opened"
         note: "SCOPE 0A — Stripe deposit webhook (repo root A:/WORK/inklee,
           apps/web/src/app/api/stripe/webhook/route.ts, 915 lines, read line by line)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "ALREADY FIXED and never marked. Re-check found the defect absent from current
+          code with the fixing code cited. Recorded as fixed-unverified rather than
+          verified: nobody independently confirmed the fix, it was simply found in
+          place. Evidence: The deposit webhook now dispatches on `payment_request_id`
+          BEFORE the deposit path on every branch that could collide.
+          apps/web/src/app/api/stripe/webhook/route.ts:479-485: `// Appointment payment
+          settlement (P5b A4). Dispatched BEFORE the deposit path because appointment
+          PIs also carry booking_id in metadata, and payment_request_id is the
+          unambiguous discriminator.` → `if (intent.metadata?.payment_request_id) {
+          const settled = await settlePaymentRequestSuccess(intent); return
+          NextResponse.json({ received: true, settled }); }` — so `const bookingId =
+          intent.metadata?.booking_id` at :506 is nev f57023e0 added the failed/canceled
+          arms later. Reachability also changed and the finding's mitigating premise is
+          now GONE: `createPaymentRequestIntentCore` DOES have a production caller today
+          — apps/web/src/app/pay/[token]/page.tsx:86 — so the collision was
+          live-reachable before the discriminator landed; it is the discriminator, not
+          the absence of a caller, that closes this. One residual the ledge"
+
   - id: "WHK-DSP-001"
     title: "The charge.dispute.* handler exists in code but no artifact in the repository subscribes the
       endpoint to it, and the commit that added the handler changed no runbook"
@@ -2704,6 +2785,25 @@ findings:
         action: "opened"
         note: "SCOPE 0A — Stripe deposit webhook (repo root A:/WORK/inklee,
           apps/web/src/app/api/stripe/webhook/route.ts, 915 lines, read line by line)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: CODE: the handler is unchanged
+          and still complete — apps/web/src/app/api/stripe/webhook/route.ts:323 `if
+          (event.type.startsWith('charge.dispute.')) {` … :420 `return
+          NextResponse.json({ received: true })`. DOC HALF NOW CLOSED: the repo now
+          names the missing subscription as an explicit, tracked, open launch item —
+          docs/product/plus-open-decisions-handoff.md:61 `| F11 | Subscribe dispute
+          webhook | 🔴 open | Stripe dashboard change; handler built + tested. |`, its
+          detail section at :317-323 (`The Stripe webhook endpoint must subscribe to
+          charge.dispute.created and charge.dispute.closed … Blocks: c
+          REMAINING/CHANGED: The half that is fixed is the one the finding could act on:
+          the repo no longer silently omits the requirement. The substantive claim
+          (endpoint unsubscribed → handler is dead code) is corroborated as STILL TRUE
+          by the repo's own F11 status but is Dashboard state I cannot query. Settled by
+          one read-only `GET https://api.stripe.com/v1/webhook_endpoints` in live AND
+          test mode. Worth a separate low-sev"
+
   - id: "WHK-DEA-001"
     title: "The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id;
       ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment"
@@ -3378,6 +3478,22 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "SCOPE 0B — production schema drift detection (method + first read-only execution)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "UNDETERMINED FROM THE REPOSITORY. This is a claim about PRODUCTION database
+          state, which no session can query from here. It stays open and is ROUTED TO
+          THE RELEASE SEQUENCER's catalog check, which is the only step that sees
+          production. Claim is about PRODUCTION pg_enum (`cancel\r\n led` in
+          order_status); production is not reachable from here. Repo side is unchanged
+          and contains no repair: `grep -ln order_status
+          apps/web/supabase/migrations/*.sql` matches only 0036_orders.sql (migrations
+          now run to 0141, none of them touch the type), and apps/web/src/db/schema.ts
+          still declares 'cancelled'. Read-only probe of the LOCAL stack
+          (postgresql://postgres:postgres@127.0.0.1:54322) returns pending(7), paid(4),
+          cancelled(9), refunded(8), partially_refunded(18) — i.e. local is correct,
+          exactly as the finding said, so local cannot discr"
+
   - id: "DRIFT-POL-001"
     title: "Production's booking_interests RLS policy name contains an embedded CRLF, so the house `drop
       policy if exists` repair pattern silently cannot address it"
@@ -3475,6 +3591,22 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "SCOPE 0B — production schema drift detection (method + first read-only execution)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "UNDETERMINED FROM THE REPOSITORY. This is a claim about PRODUCTION database
+          state, which no session can query from here. It stays open and is ROUTED TO
+          THE RELEASE SEQUENCER's catalog check, which is the only step that sees
+          production. Claim is about the PRODUCTION policy NAME on booking_interests
+          carrying an embedded CRLF; production not reachable. Repo unchanged:
+          booking_interests appears in exactly one migration,
+          0037_booking_interests.sql, and no migration 0038-0141 renames, drops or
+          recreates that policy. Local read-only probe: pg_policies for
+          booking_interests returns a single row, policyname 'artist can read and update
+          own booking interests', length 48 — the correct unmangled name, so the local
+          stack again cannot discriminate. No `alter policy ... rename` anywhere in
+          apps/web/supabase/migrations."
+
   - id: "DRIFT-NN-001"
     title: "Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056
       declares, because 0056 was written retroactively to describe a table production already had"
@@ -3580,6 +3712,22 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "SCOPE 0B — production schema drift detection (method + first read-only execution)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "UNDETERMINED FROM THE REPOSITORY. This is a claim about PRODUCTION database
+          state, which no session can query from here. It stays open and is ROUTED TO
+          THE RELEASE SEQUENCER's catalog check, which is the only step that sees
+          production. Claim is that PRODUCTION's founding_artist_applications has 5
+          nullable columns the migration declares NOT NULL; production not reachable.
+          Repo unchanged:
+          apps/web/supabase/migrations/0056_founding_artist_applications.sql is still
+          the only file creating the table (0063_email_campaigns.sql:13 mentions it only
+          in a comment), and a sweep of all migrations for `set not null` returns zero
+          hits touching founding_artist_applications — so no repair migration exists.
+          Local read-only probe of information_schema.columns: country, city,
+          tattoo_style, career_stage, artist_type all is_nullable='NO', matching"
+
   - id: "DRIFT-FN-001"
     title: "Production's map_search body and idx_map_locations_city_trgm expression differ from
       committed migration 0097, which documents in its own header that it was hand-applied to
@@ -3683,6 +3831,21 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "SCOPE 0B — production schema drift detection (method + first read-only execution)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "UNDETERMINED FROM THE REPOSITORY. This is a claim about PRODUCTION database
+          state, which no session can query from here. It stays open and is ROUTED TO
+          THE RELEASE SEQUENCER's catalog check, which is the only step that sees
+          production. Claim is that PRODUCTION's map_search body and
+          idx_map_locations_city_trgm expression differ from committed 0097; production
+          not reachable. Repo unchanged: `grep -ln map_search
+          apps/web/supabase/migrations/*.sql` matches only 0097_map_search.sql, and no
+          migration up to 0141 does a `create or replace function map_search` or
+          reindexes/recreates the city trigram index. git log on 0097 still shows the
+          single commit 939949e, so the committed text the finding diffed against is
+          byte-identical to today's."
+
   - id: "SEED-GRT-001"
     title: "seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local
       reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two
@@ -4007,6 +4170,21 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "SCOPE 0B — production schema drift detection (method + first read-only execution)"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "UNDETERMINED FROM THE REPOSITORY. This is a claim about PRODUCTION database
+          state, which no session can query from here. It stays open and is ROUTED TO
+          THE RELEASE SEQUENCER's catalog check, which is the only step that sees
+          production. Claim is four orphan enum types (feedback_type, feedback_status,
+          feedback_importance, roadmap_status) existing only in PRODUCTION; production
+          not reachable. Repo unchanged: full-text grep of
+          apps/web/supabase/migrations/*.sql for all four names returns zero files, so
+          there is still no `drop type` cleanup migration. Local read-only probe:
+          `select typname from pg_type where typname in (...)` returns zero rows,
+          confirming these never existed locally and that the local stack cannot
+          discriminate."
+
   - id: "CRON-RMD-001"
     title: "Deposit-overdue reminder re-sends to the same customer every day forever; one production
       recipient has received 46"
@@ -5435,7 +5613,7 @@ findings:
         - "The same collision shape could exist between any future append-only guard and any
           cascading FK. No lint or test exists to catch it."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
       proposed_action: "Not yet actioned. Opened by a targeted audit."
     verification:
       status: "not-started"
@@ -5450,6 +5628,29 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "BILL-ENT-002 design pass: billing-aware account-deletion orchestration"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "ALREADY FIXED and never marked. Re-check found the defect absent from current
+          code with the fixing code cited. Recorded as fixed-unverified rather than
+          verified: nobody independently confirmed the fix, it was simply found in
+          place. Evidence: Fixed by
+          apps/web/supabase/migrations/0129_billing_record_retention.sql:45-71. It
+          repoints transaction_tax_snapshots_artist_id_fkey from CASCADE to ON DELETE
+          SET NULL (drops NOT NULL first) and replaces tts_block_mutation with a version
+          that permits exactly the SET-NULL update (NEW.artist_id IS NULL AND
+          OLD.artist_id IS NOT NULL, with the full composite compared via IS NOT
+          DISTINCT FROM after restoring artist_id) while still raising on DELETE and any
+          other UPDATE. Verified in the live local catalog: pg_constraint
+          confdeltype='n' for
+          transaction_tax_snapshots/billing_subscriptions/billing_conse Two caveats for
+          the ledger, neither reopening the finding. (1) NOT DEPLOYED:
+          docs/product/go-live-worklist.md:9 states migrations 0125-0141 are not in
+          production, and GATE 4 FA1 (line 134) is unchecked, so the production catalog
+          this finding cited still carries the CASCADE + old trigger. The repo defect is
+          fixed; the production exposure is CANNOT-TELL from here and closes only when
+          FA1 lands. (2)"
+
   - id: "BDEL-SUB-001"
     title: "Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade
       is now empirically shown to destroy billing_subscriptions and billing_consent_records"
@@ -5566,6 +5767,25 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "BILL-ENT-002 design pass: billing-aware account-deletion orchestration"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: FIXED HALF 1 (deletion never
+          touches the subscription): apps/web/src/lib/server/account-deletion.ts:169-221
+          is a new step 2b that reads the artist's newest billing_subscriptions row, and
+          when status is in {active,trialing,past_due} calls
+          stripe.subscriptions.cancel(subId) at :201, then applies the same
+          confirm-by-re-read discipline as the deposit path
+          (stripe.subscriptions.retrieve at :206, only proceeding if sub.status ===
+          'canceled', otherwise returning a transient ERROR at :211-218). The outcome is
+          recorded into the retained archive as BillingSnapshot.canceledForDeletion
+          (account-deletion.t REMAINING/CHANGED: Severity should drop (high -> medium):
+          the immediate cancel at step 2b removes the ordinary path to the 23503 chain
+          (no live subscription survives a completed deletion), but does not remove the
+          chain. Remaining reachable windows: (a) the customer.subscription.deleted
+          event that step 2b's own cancel emits can land after step 4's profile delete,
+          driving reconcile to write the now-dangling artist_id;"
+
   - id: "BDEL-RET-001"
     title: "Terms and Privacy promise post-deletion retention of billing and tax records that the
       cascade destroys, and the retained archive has no field for any of them"
@@ -5686,6 +5906,25 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "BILL-ENT-002 design pass: billing-aware account-deletion orchestration"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: FIXED: five of the eleven
+          tables the finding enumerated no longer cascade. Migration
+          0129_billing_record_retention.sql moves billing_consent_records (:25-30),
+          billing_subscriptions (:33-38), transaction_tax_snapshots (:45-50),
+          billing_contract_confirmations (:74-79) and withdrawal_cases (:82-87) to ON
+          DELETE SET NULL, so those records survive deletion pseudonymised with their
+          Stripe IDs. Confirmed in the live local catalog (confdeltype='n' for all five)
+          and behaviourally (rolled-back profile delete: tts/subs/consent rows all
+          survive with artist_id NULL). STILL OPEN: the count is now six, not e
+          REMAINING/CHANGED: Two things the ledger should record as changed rather than
+          closed. (1) The count correction: eleven cascading tables became six; the
+          finding's own arithmetic entry should be superseded rather than kept as
+          current fact. (2) A NEW inverse gap created by the fix: the five SET-NULL
+          tables now survive indefinitely and nothing purges them.
+          apps/web/src/app/api/cron/retention-purge/route.ts time-boxes on"
+
   - id: "BDEL-CON-001"
     title: "Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but
       the scheduled account deletion at window-end was never built, and the pointer is purged at
@@ -5984,6 +6223,25 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "BILL-ENT-002 design pass: billing-aware account-deletion orchestration"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: The finding's central claim is
+          factually wrong and was wrong when written, not fixed since. DISPROVEN: 'no
+          public page consults account_status' and 'no non-admin hit anywhere under
+          apps/web/src/app'. There are many non-admin consumers today —
+          src/app/[slug]/page.tsx:76 (generateMetadata) and :136 with `if (!profile)
+          notFound()` at :139, so a non-active account's public page 404s;
+          src/app/[slug]/hub/page.tsx:47 and :76; src/app/[slug]/flash/page.tsx:31,
+          flash/[flashSlug]/page.tsx:32, flash/days/[dayId]/page.tsx:32;
+          src/app/[slug]/actions.ts:80 and :766 (the booking-request intake path);
+          src/app REMAINING/CHANGED: Record this as a CORRECTION to the original
+          evidence, not a remediation — there is no fixing commit, the code predates the
+          finding. The consequence matters for BDEL-TGT-001's design: the finding's
+          conclusion ('a pending_deletion value would create a flag that describes
+          intent without restraining anything') is unsound. Because ~10 public/read
+          paths filter on account_status = 'active', any non-activ"
+
   - id: "BDEL-TGT-001"
     title: "DESIGN RECORD (not a defect): target billing-aware deletion flow, boundaries, schema,
       migration, test and rollback plan"
@@ -6178,6 +6436,25 @@ findings:
         actor: "owner-authorized targeted audit"
         action: "opened"
         note: "BILL-ENT-002 design pass: billing-aware account-deletion orchestration"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: This is a design record;
+          roughly a third of it has been built by commit 69514b8a plus migration 0129.
+          BUILT: Phase 2 terminate-billing with confirm-by-re-read
+          (account-deletion.ts:169-221, cancel at :201, retrieve-and-verify at :206);
+          Phase 3's archive extension and the schemaVersion bump the design called for
+          (account-deletion-logic.ts:108 `schemaVersion: 2`, :136 `billing`,
+          BillingSnapshot at :93-99); schema item 4, the cascade-aware tts trigger, and
+          it took the direction the design flagged as correct rather than the trap —
+          0129 removed the cascade (SET NULL) instead of relaxing the trigger
+          REMAINING/CHANGED: The design's load-bearing claim needs restating rather than
+          deleting: it argued the fail-safe 'cannot be built on the current cascade at
+          all' because the RI cascade can abort on a child trigger after irreversible
+          Stripe action. 0129 removed that specific abort, so the premise is now weaker
+          — but the structural objection survives untouched, because the archive/delete
+          pair is still non-transactional"
+
   - id: "OPS-CIX-001"
     title: "The legal-artifact gate and the new path-resolution test are runnable everywhere but
       enforced nowhere"
@@ -6707,7 +6984,7 @@ findings:
           back through PostgREST with a different filter: `delete_collection_atomic` (0124) and
           `send_payment_request` (0126) were not inspected for this shape."
     remediation:
-      status: "open"
+      status: "not-applicable"
       proposed_action: "Decide the key, then make both halves use it. Either change
         `convergeRequestStatusAfterRefund` to read by `payment_intent_id` (and state what that means
         for a request collected against twice), or write `request_id` on the refund row in 0128 and
@@ -6727,6 +7004,27 @@ findings:
         note: "Found by the first test ever written against A4's settlement path. Recorded as an `it.fails`
           tripwire rather than patched, because the two candidate fixes carry different downstream
           contracts and choosing between them belongs to whoever owns A5."
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "NOT APPLICABLE, not fixed. Re-check establishes the cited code NEVER EXISTED
+          in any commit: git log -S on both named symbols returns only this register's
+          own audit commits, and the named migration filename is not the one that
+          shipped. The entry was recorded against an UNCOMMITTED prototype; the
+          implementation that actually landed is a different one that never had the
+          defect. Recorded as a false finding rather than a closed one, because the
+          distinction matters to anyone measuring this register's precision. Evidence:
+          The cited code never existed in a commit: `git log -S
+          'convergeRequestStatusAfterRefund'` and `-S 'converge_payment_refund'` return
+          ONLY the findings.yaml audit commits (d755b7f2, 9f55ab73), and there is no
+          `0128_payment_settlement.sql` (0128 is now
+          `payment_request_client_token.sql`). The committed refund path is
+          `settlePaymentRequestRefund`,
+          apps/web/src/lib/server/appointment-payment-settlement.ts:317-430. It has no
+          request_id-keyed re-read at all: it reads the allocations by
+          `.eq('payment_intent_id', intentId).neq('component','refund_adjustment')`
+          (:335-336), takes `const requestId = alloc"
+
   - id: "PAY-ORD-001"
     title: "The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale
       `charge.refunded` created in the same second as the newest one is applied and walks the
@@ -6996,7 +7294,7 @@ findings:
         - "`expired` and `cancelled`, which are also reachable while a claimed intent is still live
           and are likewise absent from the settle from-set; I did not construct those."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
       proposed_action: "State the invariant and make the settlement path responsible for it. Either add
         `failed -> paid` / `failed -> partially_paid` to A1's table and to the settle from-set (a
         deliberate widening, since a succeeded is later evidence than a failed on one intent), or,
@@ -7018,6 +7316,27 @@ findings:
         action: "opened"
         note: "Found by moving the ordering question off charge.refunded, where all prior work sits, and
           onto the pair of payment_intent events that share one intent id."
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "ALREADY FIXED and never marked. Re-check found the defect absent from current
+          code with the fixing code cited. Recorded as fixed-unverified rather than
+          verified: nobody independently confirmed the fix, it was simply found in
+          place. Evidence: `payment_intent.payment_failed` no longer moves any state.
+          apps/web/src/lib/server/appointment-payment-settlement.ts:275 wraps the status
+          UPDATE in `if (kind === 'canceled')`, and the doc block at :246-252 states the
+          rule: ''failed' = payment_intent.payment_failed. Fires PER ATTEMPT and the
+          client can retry the same intent immediately ... So this NEVER transitions
+          state ... Audit-only'. The webhook dispatches payment_failed to exactly that
+          call (apps/web/src/app/api/stripe/webhook/route.ts:435-438,
+          `settlePaymentRequestFailure(intent, 'failed')`). The finding's precondition
+          (a declined attempt Fixed by design change, not by widening the transition
+          table: `failed -> paid` is still absent from PAYMENT_REQUEST_TRANSITIONS,
+          which is now correct because only `payment_intent.canceled` (a dead intent
+          that cannot later succeed) reaches `failed`. Residual worth a NEW note rather
+          than reopening this one: if a succeeded lands while the request is in any
+          status other than payment_processing, settle"
+
   - id: "PAY-FEE-003"
     title: "The fee-actuals write is the only write on the settlement path with no ordering guard and no
       derivation from stored state, so a later delivery overwrites it from whatever its payload
@@ -7133,6 +7452,26 @@ findings:
         action: "opened"
         note: "Opened at low severity with the contradictory evidence stated first: the trigger is
           hypothetical, the structural property is not."
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "PARTIALLY FIXED; STAYS OPEN. Re-check split it: FIXED HALF (the actual
+          defect): the fee-actuals write no longer runs on every delivery.
+          apps/web/src/lib/server/appointment-payment-settlement.ts:80-90 is the claim
+          gate (`if (!claimed) return false`), and the `payment_collections` update at
+          :176-191 sits after it, so a redelivery returns at :90 and never reaches the
+          write. The reproduction is dead — there is no `already_settled`
+          continue-branch any more, and the two columns the probe measured
+          (`appointment_base_minor`, `goods_base_minor`) do not exist:
+          0131_payment_collection_processor_cost.sql:55 adds only
+          `application_fee_minor`. NOT-FIXED REMAINING/CHANGED: Downgrade to
+          informational: the residual is theoretical because
+          appointment-payment-intent.ts:682 always stamps `application_fee_minor`, so
+          only a pre-P9 intent could hit the `?? '0'` fallback, and the lane is dark.
+          The 'derive from stored allocations' recommendation was not implemented and is
+          now moot (single write, source is immutable per-intent metadata). Separately
+          noticed while enumerating wr"
+
   - id: "ABUSE-PUB-001"
     title: "The public project intake server action has none of the five abuse controls its direct
       sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no
@@ -8139,7 +8478,7 @@ findings:
         - "0125 may have other grant/revoke pairs that are not mirrored. A systematic diff of all
           0125 privilege statements against seed.sql was not performed."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
       proposed_action: "Add REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_collections
         FROM anon, authenticated to seed.sql, next to the payment_allocations mirror."
     verification:
@@ -8158,6 +8497,26 @@ findings:
         action: "evidence-added"
         note: "Stale in the SAFE direction: seed.sql now carries the payment_collections REVOKE mirror
           while this entry's remediation still reads open. Verified during the 2026-08-02 audit."
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "ALREADY FIXED and never marked. Re-check found the defect absent from current
+          code with the fixing code cited. Recorded as fixed-unverified rather than
+          verified: nobody independently confirmed the fix, it was simply found in
+          place. Evidence: apps/web/supabase/seed.sql:72-75 now carries the mirror:
+          comment `-- Mirror of 0125:1062-1068 (payment_collections is service-role-only
+          at settlement, same rationale as payment_allocations above).` followed by
+          `REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.payment_collections FROM
+          anon, authenticated;`. Confirmed by execution against the local stack:
+          has_table_privilege('authenticated','payment_collections','INSERT') = false
+          and 'TRUNCATE' = false (SELECT remains true, which is correct - 0125 revokes
+          only I/U/D/TRUNCATE). The exact remediation text proposed in the ledger entry
+          is what ship Found with `git log -S 'REVOKE INSERT, UPDATE, DELETE, TRUNCATE
+          ON public.payment_collections' -- apps/web/supabase/seed.sql`: commit
+          af2e466b, 2026-07-31, 'fix(seed): mirror 0125 payment_collections REVOKE in
+          seed.sql', +5 lines to seed.sql only. The 2026-08-02 history note already
+          spotted this ('stale in the SAFE direction') but left remediation.status: open
+          - set it to fixed-unverified with fix"
 
   - id: "DATA-RACE-002"
     title: "0124's self-documented residual risks (timeout and deadlock) not recorded in the audit
@@ -9766,6 +10125,21 @@ findings:
       - date: "2026-08-01"
         actor: "market-analysis research wave"
         action: "opened"
+      - date: "2026-08-02"
+        actor: "open-finding recheck sweep (8 agents, read-only, against current code + local Postgres)"
+        action: "evidence-added"
+        note: "UNDETERMINED FROM THE REPOSITORY. This is a claim about PRODUCTION database
+          state, which no session can query from here. It stays open and is ROUTED TO
+          THE RELEASE SEQUENCER's catalog check, which is the only step that sees
+          production. The finding is a claim about production web_analytics_events row
+          counts, which is not reachable from here. The repo narrows but cannot settle
+          it. Emitters and registry are all present and wired:
+          src/lib/public-analytics/event-registry.ts:140/149/158/170 defines
+          map_studio_opened, map_filter_applied, map_signup_cta_clicked,
+          studio_claim_started, and trackPublicEvent is actually called at
+          src/app/(map)/map/immersive-map-shell.tsx:148, :282, :303, :628, :930 and
+          src/app/(map)/map/map-detail-panel.tsx:384-385. The gate is
+          src/lib/public-analytics/collector.ts:96-98 (isTrackablePath returns false f"
 
   - id: "PAY-AUD-001"
     title: "audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not"
@@ -16909,3 +17283,14 @@ coverage:
       verified only its five most serious fresh findings; lower-severity ones were reported but
       NOT verified and are listed in the workflow output rather than the register. UI/UX coverage
       is code-reading only, with no rendering, no screen-reader pass and no device testing."
+
+  - area: "Re-check of every OPEN finding in this register against current code, prompted by the founder asking whether the older items were still open or merely never marked"
+    subsystem: "governance"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "c3d7ae49"
+    reviewer: "eight read-only agents, one per finding cluster, each required to CITE the fixing code before marking anything fixed and told to be skeptical in BOTH directions"
+    evidence: "All 63 open findings re-checked. Result: 43 STILL OPEN (confirmed present, most with line-level evidence and several with `git diff` showing the file byte-identical to the audited commit), 6 ALREADY FIXED and never marked, 8 PARTIALLY FIXED, 6 UNDETERMINABLE because they are claims about production database state. The sweep was worth running for three reasons beyond the bookkeeping. (1) It found a FALSE FINDING: PAY-RFD-001 was recorded against an uncommitted prototype and the code it cites never existed in any commit - now marked not-applicable, because a register that cannot distinguish a closed finding from one that was never true is measuring nothing. (2) Two fixes CREATED new gaps that nobody had recorded: BDEL-RET-001 an inverse gap from its own repair, and WHK-ERR-001 a NEW unguarded read added in the same period, where a failed count reads as zero and silently routes an appointment payment down the wrong path. (3) It corrected severities in both directions, e.g. BDEL-SUB-001 drops high to medium because the ordinary path to the failure is gone while the chain is not."
+    recommended_next_inspection: "The 6 production-state findings need the release sequencer's catalog check; they cannot be settled any other way. The two newly-surfaced gaps inside WHK-ERR-001 and BDEL-RET-001 should be split into their own findings rather than left inside entries whose titles no longer describe them."
+    known_exclusions: "Read-only and repository-scoped: production was never queried. Where a finding had a code half and a production-measurement half (several CRON-* entries), only the code half was settled. No fix was verified by execution in this sweep - ALREADY-FIXED means the defect is absent and the fixing code was cited, not that anyone re-tested it."

@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `d2f0f2750d24`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `c17f57db4d37`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (63)
+## Open (57)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -18,19 +18,14 @@ Operational view. Generated from the ledger; do not edit.
 | BDEL-PAY-001 | high | billing | directly-reachable | latent | Account deletion does not archive or pseudonymize P9 appointment payment data before the cascade destroys it |
 | BDEL-RET-001 | high | data-retention | conditionally-reachable | latent | Terms and Privacy promise post-deletion retention of billing and tax records that the cascade destroys, and the retained archive has no field for any of them |
 | BDEL-SUB-001 | high | billing | conditionally-reachable | latent | Confirms and extends BILL-ENT-002: deletion never touches the subscription, and the cascade is now empirically shown to destroy billing_subscriptions and billing_consent_records |
-| BDEL-TTS-001 | high | billing | conditionally-reachable | latent | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
 | BILL-ENT-002 | high | billing | conditionally-reachable | latent | OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile |
 | CRON-CLN-001 | high | jobs | conditionally-reachable | latent | cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records |
 | CRON-RMD-001 | high | jobs | directly-reachable | actively-impacting | Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46 |
 | DRIFT-ENUM-001 | high | database | conditionally-reachable | latent | Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production |
 | PAY-ORD-001 | high | payment | conditionally-reachable | latent | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
-| PAY-ORD-002 | high | payment | conditionally-reachable | latent | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
-| PAY-RFD-001 | high | payment | conditionally-reachable | latent | A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status |
-| WHK-COLL-001 | high | webhook | currently-unreachable | latent | P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator |
 | WHK-ERR-001 | high | webhook | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | webhook | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
 | BDEL-CON-001 | medium | billing | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
-| BILL-ENT-001 | medium | entitlement | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
 | CRON-CAP-001 | medium | jobs | conditionally-reachable | latent | The per-artist 10-email daily cap is consumed in branch order, and a capped appointment reminder is lost rather than deferred |
 | CRON-COV-001 | medium | jobs | conditionally-reachable | unknown | coverage-worker has no run-level mutual exclusion and its real cadence comes from a GitHub Actions schedule against production, making overlap plausible for the non-task work |
 | CRON-GRW-001 | medium | jobs | directly-reachable | historically-impacting | The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or backfills a missed run |
@@ -48,7 +43,6 @@ Operational view. Generated from the ledger; do not edit.
 | PAY-CHK-001 | medium | payment | conditionally-reachable | latent | prepareCheckoutAction deletes orphaned order on failure without verifying concurrent state |
 | PAY-RFD-008 | medium | payment | conditionally-reachable | latent | refundDepositCore now issues a PARTIAL Stripe refund with refund_application_fee, and has no test of any kind; the platform fee it returns is proportional to the amount, not to the deposit lane |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
-| SEED-GRT-002 | medium | production-config | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | WHK-DEA-001 | medium | webhook | conditionally-reachable | latent | The deauthorize branch's own comment claims re-onboarding overwrites the stored Connect id; ensureConnectAccount returns it unchanged, and AGENTS.md says the opposite of the comment |
 | WHK-DSP-001 | medium | webhook | unknown | unknown | The charge.dispute.* handler exists in code but no artifact in the repository subscribes the endpoint to it, and the commit that added the handler changed no runbook |
 | WHK-RFD-001 | medium | webhook | directly-reachable | latent | charge.refunded records at most one audit row per booking carrying the first cumulative amount, so a partial refund is indistinguishable from a full one and later partials are never recorded |
@@ -81,7 +75,7 @@ Operational view. Generated from the ledger; do not edit.
 
 _None._
 
-## Fixed but NOT verified (45)
+## Fixed but NOT verified (50)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -89,16 +83,20 @@ A commit exists. Nothing independent has confirmed it works.
 | --- | --- | --- | --- | --- | --- |
 | AUTH-RPC-001 | critical | authorization | currently-unreachable | historically-impacting | book_flash_item and increment_fee_sponsored_used were callable by anon via PostgREST until 0060 revoked the grants |
 | PAY-DEP-001 | critical | payment | directly-reachable | historically-impacting | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
+| BDEL-TTS-001 | high | billing | conditionally-reachable | latent | An append-only trigger on transaction_tax_snapshots aborts the profiles cascade, so account deletion fails permanently after irreversibly cancelling the client's deposit PaymentIntents |
 | DATA-MIG-001 | high | migration | directly-reachable | historically-impacting | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
 | PAY-AUTHZ-001 | high | payment | conditionally-reachable | latent | refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION |
 | PAY-AUTHZ-002 | high | payment | conditionally-reachable | latent | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-CONN-001 | high | payment | directly-reachable | historically-impacting | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
 | PAY-FEE-002 | high | payment | currently-unreachable | latent | The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount |
+| PAY-ORD-002 | high | payment | conditionally-reachable | latent | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |
 | PAY-RFD-002 | high | payment | currently-unreachable | latent | Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost |
 | PAY-RLS-005 | high | payment | currently-unreachable | latent | 0128 anon SELECT policies expose every sent payment request via the anon key |
 | PAY-SPON-001 | high | payment | directly-reachable | historically-impacting | Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target |
 | PAY-WHK-001 | high | webhook | currently-unreachable | latent | A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on |
 | WEB-XSS-001 | high | web | conditionally-reachable | latent | Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper |
+| WHK-COLL-001 | high | webhook | currently-unreachable | latent | P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator |
+| BILL-ENT-001 | medium | entitlement | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
 | BILL-UI-001 | medium | billing | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | billing | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
 | DATA-MIG-002 | medium | migration | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
@@ -117,6 +115,7 @@ A commit exists. Nothing independent has confirmed it works.
 | PAY-RFD-009 | medium | payment | conditionally-reachable | latent | The appointment by-line refund summed each selected line's FULL original allocation every call, so re-selecting an exhausted line over-refunded by misattribution |
 | PAY-RFD-010 | medium | payment | conditionally-reachable | latent | The appointment refund's idempotency key omitted the line selection the goods path deliberately fingerprints, and the ledger insert that caught the collision was swallowed, so the artist was told a refund succeeded while Stripe moved nothing |
 | PAY-WHK-002 | medium | webhook | conditionally-reachable | latent | charge.refunded treated an AMBIGUOUS booking lookup as absence: two rows claiming one intent silently skipped the sponsorship release and the double-refund guard |
+| SEED-GRT-002 | medium | production-config | directly-reachable | latent | seed.sql mirrors payment_allocations REVOKE from 0125 but omits payment_collections REVOKE, leaving local stack with authenticated TRUNCATE on a service-role-only table |
 | SHOP-FUL-004 | medium | payment | conditionally-reachable | latent | Post-flip WRITE failures on the refund path are silently swallowed: restockInventory ignores its PostgREST errors and the redemption delete's result is discarded, losing restock and/or cap release with the flip consumed and no observability |
 | TEST-VAC-004 | medium | testing | currently-unreachable | latent | The sweep test claiming cancelled-on-Stripe-then-the-order-row asserts only existence, not sequence: reversing the order (the exact SHOP-ORD-002 defect ordering) survives the full suite |
 | TEST-VAC-006 | medium | testing | currently-unreachable | latent | SHOP-FUL-004's observability has zero tests: deleting a capture site leaves the full suite green, and no test references reportStockWriteFailure or either Sentry tag |

@@ -5,15 +5,17 @@
 
 # Structural risk report
 
-**Ledger content hash:** `d2f0f2750d24`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `c17f57db4d37`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-136 recorded finding(s), 3 structural pattern(s), across 87 mapped area(s).
-113 remain open by remediation status. 107 are reachable (directly or conditionally) rather than latent.
+136 recorded finding(s), 3 structural pattern(s), across 88 mapped area(s).
+112 remain open by remediation status. 107 are reachable (directly or conditionally) rather than latent.
 109 have not passed independent verification.
 179 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
@@ -35,9 +37,10 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 45 |
+| fixed-unverified | 50 |
 | mitigated | 2 |
-| open | 63 |
+| not-applicable | 1 |
+| open | 57 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -279,16 +282,20 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | --- | --- | --- | --- | --- |
 | AUTH-RPC-001 | critical | fixed-unverified | not-started | 364a10f |
 | PAY-DEP-001 | critical | fixed-unverified | not-started | 7e59c79 |
+| BDEL-TTS-001 | high | fixed-unverified | not-started | - |
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
 | PAY-AUTHZ-001 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-AUTHZ-002 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-CONN-001 | high | fixed-unverified | not-started | 7e59c79 |
 | PAY-FEE-002 | high | fixed-unverified | not-started | - |
+| PAY-ORD-002 | high | fixed-unverified | not-started | - |
 | PAY-RFD-002 | high | fixed-unverified | pending | bdfc132 |
 | PAY-RLS-005 | high | fixed-unverified | not-started | 6fb2eb1 |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | WEB-XSS-001 | high | fixed-unverified | not-started | 8db7b2dc |
+| WHK-COLL-001 | high | fixed-unverified | not-started | - |
+| BILL-ENT-001 | medium | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | 45a44bee |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
@@ -307,6 +314,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-RFD-009 | medium | fixed-unverified | not-started | c3699793 |
 | PAY-RFD-010 | medium | fixed-unverified | not-started | 01003200 |
 | PAY-WHK-002 | medium | fixed-unverified | not-started | 3d308203 |
+| SEED-GRT-002 | medium | fixed-unverified | not-started | - |
 | SHOP-FUL-004 | medium | fixed-unverified | not-started | b483efc7 |
 | TEST-VAC-004 | medium | fixed-unverified | not-started | 5fa0110e |
 | TEST-VAC-006 | medium | fixed-unverified | not-started | 5fa0110e |
