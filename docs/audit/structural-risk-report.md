@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `edf0ed701a79`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `982563f0afe7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
@@ -35,8 +35,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 63 |
-| in-progress | 5 |
+| fixed-unverified | 64 |
+| in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
 | open | 52 |
@@ -351,6 +351,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | HUB-GAL-008 | medium | fixed-unverified | not-started | c3d7ae49 |
 | HUB-GAL-009 | medium | fixed-unverified | not-started | a56548ce |
 | MAP-SSRF-001 | medium | fixed-unverified | not-started | c3d7ae49 |
+| MIG-DROP-001 | medium | fixed-unverified | not-started | 573d742a |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | 45a44bee |
 | PAY-AUTHZ-003 | medium | fixed-unverified | not-started | 3d308203 |
 | PAY-FEE-004 | medium | fixed-unverified | not-started | e698be7 |

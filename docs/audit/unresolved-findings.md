@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `edf0ed701a79`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `982563f0afe7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -66,17 +66,16 @@ Operational view. Generated from the ledger; do not edit.
 | DRIFT-ENM-001 | informational | database | currently-unreachable | latent | Four orphan enum types exist in production that no migration file mentions and no column uses |
 | OPS-DOC-001 | informational | tooling | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 
-## In progress (5)
+## In progress (4)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
 | GAL-REL-001 | high | storage | conditionally-reachable | latent | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
 | GOODS-SET-001 | high | web | directly-reachable | latent | A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal |
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
-| MIG-DROP-001 | medium | migration | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means two migrations cannot repair a dropped constraint: proven non-convergent by execution, and fixed in 0143 |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (63)
+## Fixed but NOT verified (64)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -119,6 +118,7 @@ A commit exists. Nothing independent has confirmed it works.
 | HUB-GAL-008 | medium | web | conditionally-reachable | latent | The IPv6 blanket refusal breaks Import-from-URL for most real image hosts, and the comment justifying it asserted the opposite without measuring |
 | HUB-GAL-009 | medium | data-retention | directly-reachable | latent | A downgraded artist's gallery images stayed publicly fetchable forever: the entitlement gate hid the RENDER, never the objects |
 | MAP-SSRF-001 | medium | jobs | conditionally-reachable | latent | The map coverage ingest fetched third-party URLs behind a hostname check that never resolved DNS, while the hardened resolving guard sat one import away |
+| MIG-DROP-001 | medium | migration | conditionally-reachable | latent | Bare `drop constraint` without `if exists` means two migrations cannot repair a dropped constraint: proven non-convergent by execution, and fixed in 0143 |
 | OPS-TOOL-001 | medium | tooling | directly-reachable | actively-impacting | Ten governance scripts hardcode the absolute Windows path A:/WORK/inklee, so none can run in CI or on any other machine |
 | PAY-AUTHZ-003 | medium | payment | conditionally-reachable | latent | The appointment refund read allocations and updated payment_collections keyed on the intent id alone, held up only by an undocumented accident |
 | PAY-FEE-004 | medium | payment | currently-unreachable | latent | Fee schedule v2 has no defined rate for a legacy_free_v1 artist who carries the deposits override |
