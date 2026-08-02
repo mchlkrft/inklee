@@ -5,14 +5,16 @@
 
 # Structural risk report
 
-**Ledger content hash:** `f3a2b022f135`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `4b10aec82c76`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-138 recorded finding(s), 3 structural pattern(s), across 89 mapped area(s).
+138 recorded finding(s), 3 structural pattern(s), across 90 mapped area(s).
 114 remain open by remediation status. 109 are reachable (directly or conditionally) rather than latent.
 111 have not passed independent verification.
 181 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
@@ -36,10 +38,10 @@ The register is deliberately incomplete. It records what has been examined, not 
 | accepted | 2 |
 | deferred | 1 |
 | fixed-unverified | 55 |
-| in-progress | 1 |
+| in-progress | 2 |
 | mitigated | 2 |
 | not-applicable | 1 |
-| open | 53 |
+| open | 52 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -300,6 +302,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
 | WEB-XSS-001 | high | fixed-unverified | not-started | 8db7b2dc |
 | WHK-COLL-001 | high | fixed-unverified | not-started | - |
+| BDEL-RET-002 | medium | in-progress | not-started | eb1b8aed |
 | BILL-ENT-001 | medium | fixed-unverified | not-started | - |
 | BILL-UI-001 | medium | fixed-unverified | not-started | 45a44bee |
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |

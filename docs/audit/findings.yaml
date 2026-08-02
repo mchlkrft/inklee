@@ -4005,6 +4005,10 @@ findings:
           touch the growth-views instance this finding also documents, which remains open. This fix
           is UNVERIFIED by anyone other than its author, per the standing rule that a worker never
           verifies its own fix."
+      - date: "2026-08-02"
+        actor: "counsel-checkout-worker + supervisor session"
+        action: "fix-committed"
+        note: "The shop_* half was fixed during the C1.1-C1.3 work: seed.sql gained the missing 0141 RLS lockdown mirror for shop_carts, shop_cart_items and shop_wishlist_items. It was found the way this finding predicted: it broke that worker's own db gate, 10 tests short, before any of their own code ran. The growth-views instance this finding also covers is untouched, so it stays in-progress."
 
   - id: "AUTH-GRT-001"
     title: "All 107 public tables in production grant TRUNCATE to `authenticated`, and RLS does not gate
@@ -14815,7 +14819,9 @@ findings:
       related_findings:
         - "BDEL-RET-001"
     remediation:
-      status: "open"
+      status: "in-progress"
+      fix_commit: "eb1b8aed"
+      fixed_at: "2026-08-02"
       proposed_action: "Give the five a retention deadline consistent with the 7-year
         financial-record rule - they ARE the financial records, so 7 years from the end of the
         financial year is the natural anchor, and it is the same arithmetic the C1.4 retention
@@ -14839,6 +14845,10 @@ findings:
         action: "opened"
         note: "Reported rather than fixed, because the purge cron belonged to another worker
           active in the same tree at the time."
+      - date: "2026-08-02"
+        actor: "c14-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "PARTIALLY FIXED in eb1b8aed, remainder ESCALATED rather than absorbed. Four of the five tables now purge at 7 years from financial-year end, scoped to artist_id IS NULL, dependency-ordered leaf-to-root with exclusions for rows still referenced by a NOT-YET-EXPIRED sibling. Proven by a test where a young withdrawal_case protects its consent record and subscription, and one later run then frees the whole chain in the correct order with no 23503: a purge job with the wrong delete order fails in production the first month it has real data, and no ordinary suite catches it. THE FIFTH IS NOT FIXED BY DESIGN: transaction_tax_snapshots has an append-only trigger (0106/0129) refusing every DELETE with the message 'corrections are new rows'. That is a deliberate accounting-immutability control, so the worker refused BOTH shortcuts - weakening it, or calling the gap acceptable - and escalated. CONSEQUENCE that widens the question: because nearly every real subscription generates a tax event, the subscriptions those snapshots reference are effectively permanent too. Now Q1 in the counsel and accountant package."
 
 patterns:
 
@@ -17722,3 +17732,14 @@ coverage:
       test checks). Verify the bio-page shop teaser's custom-made rendering. Independent review of
       the bundle-level customMade rule (any component custom-made -> whole bundle non-returnable),
       which is an engineering judgment call, not counsel-confirmed wording."
+
+  - area: "Counsel-answer implementation, first wave: C1.1-C1.3 checkout disclosures, C1.4 guest retention purges, C1.10 deletion carve-out, BDEL-RET-002 billing purge, and the Gate-0 live cron defects"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "eb1b8aed"
+    reviewer: "four dispatched workers, each writing its own tests; supervisor re-ran every suite on hand-off and read the load-bearing line of each fix"
+    evidence: "Five commits: 9a7c3536 cron, 8e8c6cdc checkout disclosures with migration 0142, 7071ac08 deletion carve-out with migration 0143, 03c67b04 retention purges, eb1b8aed billing purge. Web suite 3103 to 3160 passing; db suite 255 to 297. THE PATTERN WORTH RECORDING: four of the five slices surfaced something the brief could not have contained because it was only discoverable by execution. Nulling client_email violates orders_buyer_identity_check on a booking-less order, so counsel-s erase was not literally implementable and the or-pseudonymise latitude was required. Cart last-activity must be the more recent of cart and ITEM timestamps because the write path never touches the parent, so the obvious implementation would have deleted live carts. The seed.sql RLS mirror gap broke a worker-s own gate before their code ran. And transaction_tax_snapshots cannot be purged at all, by deliberate design. Three fixes had guards mutation-proven, one of which reproduced the original incident shape rather than merely failing."
+    recommended_next_inspection: "Independent verification of all five: every fix here was tested by the worker that wrote it. The FK-ordered billing purge and the deletion carve-out deserve it most, because both fail in ways an ordinary suite would not surface - a wrong delete order, and a wrong survive-or-erase decision per table."
+    known_exclusions: "No production data touched or queried. The retention purges have never expired anything because nothing is old enough: the boundary tests use synthetic dates, so the jobs are proven correct but have never run for real. GOODS-DISC-001, the add-on checkout selling custom-made goods with no disclosure, is confirmed and NOT fixed. Other cron routes were not checked for the abort-on-first-error pattern retention-purge had. OPERATIONAL: pnpm test:db is not safe to run concurrently across agents on one local Docker instance; it produced flakes for three workers today."
