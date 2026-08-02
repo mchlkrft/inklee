@@ -15350,6 +15350,28 @@ findings:
         action: "fix-committed"
         note: "Accepted after independently re-running the mutation rather than accepting the
           worker's proof."
+      - date: "2026-08-02"
+        actor: "a2a7-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "WIDENED AND FIXED in 7dd103ed. The two sibling reads recorded here as uninspected were
+          audited and both proved to be the same class - proceeding on a false premise - so
+          both were fixed.
+          profiles (~92): used .single() with a discarded error. The naive fail-closed reading
+          of the instruction would have been WRONG and the worker caught it: .single() treats
+          zero rows as an error, and this file tolerates a retry-after-partial-success where
+          the profile is already gone, so failing closed on any error would have converted a
+          legitimate retry into a permanently stuck deletion. Fixed with .maybeSingle()
+          instead, which preserves that tolerance exactly while failing closed on a real
+          error. Consequence of the old behaviour: stripe_account_id silently archived as null
+          for an artist who HAD a Connect account, a false premise written into the
+          counsel-mandated seven-year retained record.
+          auth.admin.getUserById (~101): same shape, but GoTrue signals 'not found' as an
+          error rather than a null row, so the worker mirrored this file's OWN existing
+          precedent for that distinction (the not-found regex already used on
+          auth.admin.deleteUser ~388) rather than inventing a second convention. Consequence
+          of the old behaviour: a null userEmail makes the mobile_waitlist purge a silent
+          no-op, and no FK reaches that table, so a deleted person's email would remain
+          permanently after a deletion whose entire purpose is erasing it."
 
   - id: "PAY-RFD-011"
     title: "The refund path cannot tell a failed payment_collections read from an absent row, and
@@ -15366,7 +15388,7 @@ findings:
       domain: "payment"
       category: "money-correctness"
       severity: "high"
-      confidence: "high"
+      confidence: "confirmed"
     discovery:
       detected_at: "2026-08-02"
       detected_by: "a2a7-worker during the discarded-error sweep; consequences widened by the
@@ -15393,6 +15415,14 @@ findings:
         - "nonRecoverableCostMinor is NOT affected: it requires processor_cost_status ==
           'captured' and so resolves to null on a failed read, which the code comment correctly
           describes as forcing the fail-safe."
+      reproduction: "Disable each guard in turn and run the named tests. Collection guard off: all
+        three consequence tests resolve status ok WITH a real refund id, i.e. the code called
+        Stripe off the fallback path. existingAdj guard off: refundedMinor 15000 where 10000 is
+        correct, after a prior partial refund of 5000 against a 15000 collection. Line-metadata
+        guard off: the whole line refunds instead of the requested 1-of-3 units. Each mutation run
+        independently by the supervisor session, source restored sha256-byte-exact; the distinction
+        tests stay green throughout, which is what separates a correct guard from one that refuses
+        everything."
     assessment:
       interpretation: "A designed fallback for an absent row, silently reused for a failed read.
         The two are different events and only one of them has a safe default."
@@ -15407,9 +15437,9 @@ findings:
         has ever run against real money."
       exploit_preconditions: "A transient database failure during a refund that follows an earlier
         partial refund which retained processor cost."
-      remaining_uncertainty: "Not confirmed by execution. Recorded as high rather than confirmed
-        because it rests on reading the coalescing chain, with no reproduction yet. The fix and its
-        tests are assigned; this entry must be upgraded on evidence, not on completion."
+      remaining_uncertainty: "None on the mechanism. Upgraded to confirmed on 2026-08-02 by
+        REPRODUCTION rather than by the fix landing: the mutation returns a real refund id off
+        the fallback path. The upgrade condition stated when this was opened was met."
     relationships:
       related_findings:
         - "BDEL-PAY-002"
@@ -15419,7 +15449,9 @@ findings:
         - "The allocations read at ~line 135 in the same file, same discard shape, feeds
           collectedMinor."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "7dd103ed"
+      fixed_at: "2026-08-02"
       proposed_action: "Bind the error and refuse to compute a refund outcome on a failed read,
         using the function's own {status: 'error'} shape. PRESERVE the existing fallback for a
         genuinely absent row ({data: null, error: null}), which is correct and intended. Leave
@@ -15442,6 +15474,43 @@ findings:
         note: "Reported and explicitly NOT fixed, pending an owner's go on a money path. Recording
           the restraint because it was correct: the review it prompted found a worse consequence
           than the one reported."
+      - date: "2026-08-02"
+        actor: "a2a7-worker (implementation) + supervisor session (review, override and independent mutation)"
+        action: "fix-committed"
+        note: "FIXED in 7dd103ed, and the file's two REMAINING discarded reads fixed in bf5c8381 after
+          the supervisor overrode the worker's severity read. All three now refuse with the
+          function's own error shape before any degraded value is computed. Upgraded from
+          `high` to CONFIRMED: the three consequences were reproduced by execution, not
+          inferred - disabling the collection guard makes all three consequence tests resolve
+          status ok WITH A REAL REFUND ID, i.e. the mutated code genuinely called Stripe off
+          the fallback path rather than merely failing to refuse.
+          THE DESIGN POINT WORTH KEEPING: each fix is paired with a DISTINCTION test proving
+          a genuinely absent or empty result still takes the correct pre-existing path. Three
+          consequence tests would go red for a guard that refused everything too; only the
+          distinction test separates a correct guard from a broken one, and it is the test
+          most likely to be skipped.
+          THE OVERRIDE, recorded because the worker's judgment was reasonable and I went
+          against it: it rated the existingAdj read lower risk on the argument that Stripe's
+          own API caps a refund at the charge's remaining balance, and explicitly declined to
+          certify that backstop. Overridden because the full branch assigns refundMinor =
+          maxRefundable directly, so the fix would have left an internally-computed wrong
+          number to be caught by an external unverified guarantee, surfacing as an API
+          rejection rather than a clean refusal - in a function that has ALREADY shipped an
+          over-refund bug (PAY-RFD-009). Mutation vindicated the override concretely: with the
+          guard removed the code returns refundedMinor 15000 where 10000 was correct, the
+          exact over-refund predicted.
+          ORDERING QUESTION ANSWERED AND VERIFIED INDEPENDENTLY: nothing internal is written
+          before Stripe confirms. stripe.refunds.create is line ~550 and every internal write
+          (payment_collections ~610, refunds ~656, refund_lines ~721, per-line refund_status
+          ~736/750) follows it; refund_adjustment rows are written only by the separate
+          charge.refunded handler in appointment-payment-settlement.ts. So a refusal at any of
+          these reads strands no internal row - which is why refusing is safe here and would
+          not have been if the ordering were reversed.
+          The fourth read in the file, allocations (~135), was checked and correctly LEFT
+          ALONE: a failed read and a genuinely empty result both hit the same early return
+          before anything downstream computes. Its only defect is a misleading message ('no
+          allocations found' on a genuine read failure), an observability nit, now documented
+          in place so the next reader does not re-derive it."
 
   - id: "OPS-GIT-001"
     title: "Concurrent agents share one git index, so a bare commit captures another agent's staged
@@ -18565,3 +18634,17 @@ coverage:
       - "SHOP-VIS-002"
     recommended_next_inspection: "Independent verification of both fixes by an instance that wrote neither. Then decide SHOP-VIS-002, which is a founder question and not an engineering one, and adopt worktree isolation so OPS-GIT-001 stops depending on every agent remembering a rule."
     known_exclusions: "The sibling audit covered products, product_bundles and product_variants and found no further drop-gate risk; it did NOT cover discount codes, collections or any non-catalogue table. Prior multi-agent commits were not audited for swept-in files, so earlier misattribution in this build is possible and unchecked. account-deletion.ts was failing typecheck at review time due to a THIRD worker-s in-flight edit, so no full-tree gate was run at this commit; each fix was gated in isolation."
+
+  - area: "Remediation of the discarded-error class across the refund core and the account deletion orchestrator, following the mechanism identified by FEE-DSP-002"
+    subsystem: "money"
+    coverage: "comprehensive"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "bf5c8381"
+    reviewer: "a2a7-worker implemented and tested; the supervisor session independently re-ran every decisive mutation and verified the write-ordering claim against the source rather than accepting it"
+    evidence: "SIX discarded-error reads found and resolved in one day across three subsystems - analytics (FEE-DSP-002), account deletion (BDEL-PAY-002 plus two siblings), and the refund core (PAY-RFD-011 plus two more). Every one had the same shape: a read whose failure silently became a plausible zero. Their consequences differed enormously, which is the point - a wrong dashboard number, a deletion proceeding on a false premise, and money refundable twice, all from one code habit. Each fix carries a DISTINCTION test proving the legitimate absent-or-empty case still works, because three consequence tests also go red for a guard that refuses everything. Mutations reproduced the predicted WRONG VALUES rather than generic failures: refundedMinor 15000 where 10000 was correct, a whole-line refund where 1-of-3 was requested, and a real Stripe refund id returned off the fallback path. One supervisor override is recorded against a reasonable worker judgment, and the mutation vindicated it concretely. One read (allocations) was inspected and CORRECTLY LEFT ALONE, documented in place."
+    findings_produced:
+      - "PAY-RFD-011"
+      - "BDEL-PAY-002"
+    recommended_next_inspection: "Sweep the discarded-error mechanism ACROSS the codebase rather than within money paths. Six instances in three subsystems in one day, all found incidentally while looking for something else, is strong evidence the true population is larger and that nobody has ever searched for it directly. A grep for a destructuring that binds data without error is nearly free and has not been run."
+    known_exclusions: "pnpm test:db not run for this wave (Docker held by another worker); every fix here is unit-tested with a mocked client, which is the correct tool because these are control-flow defects rather than schema mismatches - the distinction FEE-DSP-002 forced us to make. Nothing was verified independently of its author except by the supervisor re-running mutations, which is not an independent verification of the FIX. The webhook handler in appointment-payment-settlement.ts, which owns the refund_adjustment writes, was read only far enough to confirm the ordering claim and was NOT audited."
