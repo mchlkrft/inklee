@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { writeAudit } from "@/lib/audit";
 import { ORDER_MONEY_STATES } from "@/lib/server/account-deletion-logic";
@@ -73,6 +74,9 @@ export async function GET(request: Request) {
     .lt("updated_at", cutoff);
 
   if (fetchError) {
+    Sentry.captureException(fetchError, {
+      tags: { route: "cron/cleanup", step: "stale-fetch" },
+    });
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
@@ -100,32 +104,83 @@ export async function GET(request: Request) {
   // those rows are KEPT (pseudonymised at account deletion or by the retention
   // purge). Their reference IMAGES are still purged at 30 days per counsel §6,
   // exactly like non-money bookings. Only non-money booking rows are deleted.
-  const { data: moneyOrders } = await serviceClient
+  const { data: moneyOrders, error: moneyOrdersError } = await serviceClient
     .from("orders")
     .select("booking_id")
     .in("booking_id", staleIds)
     .in("status", ORDER_MONEY_STATES);
+
+  if (moneyOrdersError) {
+    console.error("[cron/cleanup][retention-guard]", moneyOrdersError, {
+      staleCount: staleIds.length,
+    });
+    Sentry.captureException(moneyOrdersError, {
+      tags: { route: "cron/cleanup", step: "retention-guard" },
+      extra: { staleCount: staleIds.length },
+    });
+  }
+
   const moneyBookingIds = new Set<string>(
     (moneyOrders ?? []).map((o) => o.booking_id as string),
   );
   for (const r of stale) {
     if (r.deposit_paid_at) moneyBookingIds.add(r.id);
   }
-  const deletableIds = staleIds.filter((id) => !moneyBookingIds.has(id));
 
   // Delete reference images for ALL stale bookings (PII; counsel §6 30-day rule),
-  // including money-state ones whose rows we retain.
+  // including money-state ones whose rows we retain. A booking whose image
+  // purge fails is excluded from the row delete below (imagePurgeFailedIds):
+  // the row is the only remaining pointer to that storage folder, so deleting
+  // it here would make an unpurged image permanently unreachable. Retrying
+  // next run needs the row to still exist.
+  const imagePurgeFailedIds = new Set<string>();
   for (const booking of stale) {
     const folder = `${booking.artist_id}/${booking.id}`;
-    const { data: files } = await serviceClient.storage
+    const { data: files, error: listError } = await serviceClient.storage
       .from("bookings")
       .list(folder);
+
+    if (listError) {
+      console.error("[cron/cleanup][image-purge-list]", listError, {
+        bookingId: booking.id,
+      });
+      Sentry.captureException(listError, {
+        tags: { route: "cron/cleanup", step: "image-purge-list" },
+        extra: { bookingId: booking.id },
+      });
+      imagePurgeFailedIds.add(booking.id);
+      continue;
+    }
+
     if (files && files.length > 0) {
-      await serviceClient.storage
+      const { error: removeError } = await serviceClient.storage
         .from("bookings")
         .remove(files.map((f) => `${folder}/${f.name}`));
+
+      if (removeError) {
+        console.error("[cron/cleanup][image-purge-remove]", removeError, {
+          bookingId: booking.id,
+        });
+        Sentry.captureException(removeError, {
+          tags: { route: "cron/cleanup", step: "image-purge-remove" },
+          extra: { bookingId: booking.id },
+        });
+        imagePurgeFailedIds.add(booking.id);
+      }
     }
   }
+
+  // CRON-CLN-001: `moneyBookingIds` is the ONLY source of truth for which
+  // stale bookings carry a 7-year financial record. If the retention query
+  // above errored, the set built from it is incomplete rather than empty —
+  // deleting anything on that basis risks cascading away a real financial
+  // record (orders.booking_id is ON DELETE CASCADE). Fail closed: skip the
+  // delete step entirely and retry on the next run once the guard succeeds.
+  const deletableIds = moneyOrdersError
+    ? []
+    : staleIds.filter(
+        (id) => !moneyBookingIds.has(id) && !imagePurgeFailedIds.has(id),
+      );
 
   if (deletableIds.length > 0) {
     const { error: deleteError } = await serviceClient
@@ -134,6 +189,10 @@ export async function GET(request: Request) {
       .in("id", deletableIds);
 
     if (deleteError) {
+      Sentry.captureException(deleteError, {
+        tags: { route: "cron/cleanup", step: "delete" },
+        extra: { deletableCount: deletableIds.length },
+      });
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
   }
@@ -181,6 +240,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     deleted: deletableIds.length,
     retained_with_financial_record: moneyBookingIds.size,
+    retention_guard_failed: Boolean(moneyOrdersError),
+    image_purge_failed: imagePurgeFailedIds.size,
     flagged_unreconciled: flagged,
     stays_activated: stayLifecycle.activated,
     stays_completed: stayLifecycle.completed,
