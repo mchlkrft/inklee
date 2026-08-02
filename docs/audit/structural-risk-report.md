@@ -5,14 +5,14 @@
 
 # Structural risk report
 
-**Ledger content hash:** `9cbda0d36de0`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `f3cfb7f2e783`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-145 recorded finding(s), 3 structural pattern(s), across 94 mapped area(s).
+145 recorded finding(s), 3 structural pattern(s), across 95 mapped area(s).
 121 remain open by remediation status. 116 are reachable (directly or conditionally) rather than latent.
 118 have not passed independent verification.
 186 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
@@ -35,11 +35,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 61 |
+| fixed-unverified | 62 |
 | in-progress | 2 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 52 |
+| open | 51 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -304,6 +304,7 @@ supabase-js returns errors in the result object rather than throwing. The idiom 
 | PAY-FEE-002 | high | fixed-unverified | not-started | - |
 | PAY-ORD-002 | high | fixed-unverified | not-started | - |
 | PAY-RFD-002 | high | fixed-unverified | pending | bdfc132 |
+| PAY-RFD-011 | high | fixed-unverified | not-started | 7dd103ed |
 | PAY-RLS-005 | high | fixed-unverified | not-started | 6fb2eb1 |
 | PAY-SPON-001 | high | fixed-unverified | not-started | edb99fb |
 | PAY-WHK-001 | high | fixed-unverified | not-started | - |
