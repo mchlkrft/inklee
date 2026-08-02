@@ -5996,6 +5996,36 @@ findings:
           which is asserted and not yet substantiated. It is deliberately NOT recorded as low
           here. An unqualified severity adjective gets inherited and never re-examined, which
           is the failure mode this register exists to prevent."
+      - date: "2026-08-02"
+        actor: "audit-toctou (full report) + supervisor session"
+        action: "evidence-added"
+        note: "HARM NOW SUBSTANTIATED, having been refused as a bare adjective. After the split the surviving row has artist_id NULL, nulled by the cascade. All TEN readers of
+          billing_subscriptions were enumerated: every artist-facing one filters on
+          artist_id, so the row is invisible to all of them and there is no artist left to
+          open a surface. Exactly three readers can reach it, and one of them is the 7-year
+          purge keyed on artist_id IS NULL, so the split is NOT a retention leak. The only
+          inconsistency is the status column on an already-orphaned, already-unreachable
+          retained record: a clean deletion leaves `trialing`, the split leaves `active`, and
+          everything else is identical between the two. A human observes nothing. Entitlement
+          corruption is STRUCTURALLY impossible rather than merely unlikely, because
+          account_overrides.artist_id is NOT NULL and CASCADE, which is exactly why write 2 is
+          the one that 23503s - a ghost grant cannot be inserted. Net cost: one spurious
+          webhook 500 and one Sentry exception. THIS is what a low-severity judgment should
+          look like before it is accepted.
+          FALSIFICATION WAS EXECUTED, not argued: the author-s claim was encoded as the
+          assertion and run. Expected `trialing`, received `active`. Red on the claim, then
+          green once corrected to the observed value.
+          BLOCKING PROVEN BEHAVIOURALLY, not by timing: pg_blocking_pids sampled WHILE the
+          call is parked, asserted >= 1, and every contended test also asserts elapsed >=
+          HOLD_MS so a call that returned without waiting FAILS rather than passing quietly.
+          The mid-flight row state was read through a separate superuser session while write 2
+          was still parked, so the split is OBSERVED IN FLIGHT rather than inferred afterwards
+          from wreckage.
+          A false comment was also found at reconcile.ts:220, which claims the code will
+          -never attempt either write once the profile is gone-. Under interleaving III write
+          2 IS attempted after the profile is gone. Owed: soften it. A comment asserting a
+          safety property that does not hold tells the next reader not to look, which is
+          PAT-001 exactly."
 
   - id: "BDEL-RET-001"
     title: "Terms and Privacy promise post-deletion retention of billing and tax records that the
@@ -16108,7 +16138,9 @@ findings:
       structural_patterns:
         - "PAT-004"
     remediation:
-      status: "in-progress"
+      status: "fixed-unverified"
+      fix_commit: "63262398"
+      fixed_at: "2026-08-02"
       proposed_action: "Separate the three states the code currently has two of: enrolled and not
         stepped up, not enrolled, and could not determine. The naive inversion is WRONG and was
         explicitly warned against in the brief: failing closed without distinguishing not-enrolled
@@ -16135,6 +16167,118 @@ findings:
         note: "Two agents on different buckets each flagged it and each named the other file as the
           expected backstop. Neither backstops. Convergence from independent directions is why this
           is recorded as confirmed rather than as a reading."
+      - date: "2026-08-02"
+        actor: "mfa-fix-worker (implementation) + supervisor session (independent mutation)"
+        action: "fix-committed"
+        note: "Fixed in 63262398 with a TRI-STATE that makes the two outcomes impossible to
+          collapse again: step-up-required, no-step-up-required, unknown. Unknown fails CLOSED
+          with a Sentry event, after one bounded retry with no backoff (the AAL call mostly
+          re-reads a session getUser fetched moments earlier, so the blip worth absorbing
+          clears within the tick).
+          THE WORKER CHECKED THE ASSUMPTION I TOLD IT TO CHECK RATHER THAN INHERIT IT: admin-
+          guard.ts already fails closed independently on throw, on error, and on absent levels,
+          and is enforced on every admin page. I verified that myself. So /admin was NEVER
+          exploitable through this path, and the real exposure was the nine other gated artist
+          prefixes, none of which has any backstop - /settings was confirmed to be a bare nav
+          shell with zero secondary protection.
+          IT ALSO REJECTED THE NARROWER FIX WITH A GOOD REASON: gating only /admin and
+          /settings needs a second path list that can drift out of sync with ARTIST_PATHS,
+          which is the same assumed-the-other-layer-covers-it shape that produced the bug.
+          INDEPENDENT MUTATION BY THE SUPERVISOR, both directions, because a fail-closed fix
+          can fail in two ways. Restoring the fail-open reds 4 tests including both bypass
+          paths through the REAL proxy wiring rather than the helper in isolation. Making it
+          over-refuse (nextLevel !== aal2, which would lock out the no-MFA majority) reds 6,
+          including both distinction tests. Source restored sha256-byte-exact. A fix that only
+          passed the first mutation would have been a lockout shipped as a security fix.
+          NOT verified against a real MFA-service failure; the tests drive an injected lookup."
+
+  - id: "BILL-BST-001"
+    title: "The deleted-profile safe branch never advances last_reconciled_at, so every dead row is
+      re-picked forever and can STARVE the backstop that exists to catch lost webhooks"
+    summary: "The c39b6a0e fix returns early for a deleted profile without writing anything, which
+      is correct for the row. But the 4-hourly reconciliation backstop selects on last_reconciled_at
+      < cutoff with NO artist filter and NO status filter, limit 20. A deleted-profile row therefore
+      stays permanently below the cutoff, is re-picked every 4 hours until the 7-year purge, and
+      sorts to the FRONT of the batch. Twenty such rows starve the backstop completely: it spends
+      every run re-processing dead rows and never reaches a live subscription whose webhook was
+      genuinely lost, which is the only thing it exists for."
+    classification:
+      domain: "billing"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "audit-toctou, incidentally, while substantiating the harm assessment for a
+        different finding"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "2de0d231"
+      environment: "local"
+      discovery_context: "Not part of the race and not caused by it. Found because the agent was
+        asked to explain WHY harm was low rather than assert it, and enumerating the readers of
+        billing_subscriptions surfaced a reader whose behaviour nobody had considered."
+    location:
+      files:
+        - "apps/web/src/lib/server/billing/reconcile.ts"
+        - "apps/web/src/lib/server/billing/subscription-reconciliation.ts"
+    evidence:
+      observed_facts:
+        - "Executed against a real row: seeded 48h old, profile deleted, reconcile run, then the
+          cron's exact predicate re-evaluated. Result: lastReconciledAt unchanged at the seeded
+          value, stillStale=true."
+        - "subscription-reconciliation.ts:78 selects on last_reconciled_at with no artist filter
+          and no status filter, limit 20."
+      reproduction: "Seed a subscription with last_reconciled_at 48h in the past, delete the owning
+        profile, run the reconciler, then evaluate the backstop's own predicate against the row. It
+        still matches, and will match on every subsequent run."
+    assessment:
+      interpretation: "A correct early return in one component silently degrades a different
+        component that depends on the side effect it skips. The safe branch is right not to write
+        subscription state; it is wrong to leave no trace that the row was considered."
+      root_cause_hypothesis: "last_reconciled_at is written as part of the success path rather than
+        as a record of having looked, so any branch that legitimately declines to write also fails
+        to mark the attempt."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Live subscribers whose webhook was lost, i.e. exactly the
+        population the backstop protects. They would silently stop being reconciled."
+      production_exposure: "None realised: consumer billing has never gone live, so there are no
+        deleted-profile subscription rows in production yet. The starvation threshold is only 20
+        rows."
+      exploit_preconditions: "Not attacker-driven; ordinary account deletions accumulate the rows."
+      remaining_uncertainty: "None on the mechanism. Whether 20 deleted subscribers is a plausible
+        volume is a product question, but the failure is permanent once reached."
+    relationships:
+      related_findings:
+        - "BDEL-SUB-001"
+    remediation:
+      status: "open"
+      proposed_action: "Advance last_reconciled_at on the safe branch too, or exclude artist_id IS
+        NULL rows from the backstop's selection. Advancing it is probably better: it records that
+        the row WAS considered, which is the fact the backstop actually needs, and it does not
+        require the backstop to know about deletion semantics."
+    verification:
+      status: "not-started"
+      independent: true
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "2de0d231"
+      verification_method: "Established by execution against a real row and the cron's real
+        predicate, not by reading. The STARVATION consequence is a deduction from the limit-20
+        selection and has not itself been demonstrated with 20 rows."
+      residual_risk: "Unfixed. The deduction from re-picking to starvation is sound but
+        undemonstrated."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "audit-toctou"
+        action: "opened"
+        note: "Reported as a separate observation rather than folded into the race finding, with an
+          explicit note that it applies to EVERY deleted-profile row and is therefore a property of
+          the fix rather than of the race. Correct call: burying it in the race entry would have
+          hidden it from anyone reading about backstop behaviour."
 
 patterns:
   - id: "PAT-004"
@@ -19206,4 +19350,4 @@ coverage:
     reviewer: "audit-toctou, a concurrency specialist that wrote none of the code and was briefed to FALSIFY the claim rather than confirm it"
     evidence: "THE CLAIM WAS HALF FALSIFIED, by execution, with two real concurrent connections and pg_blocking_pids confirming the block. The author-s framing covered the gap between the existence check and the writes, where the claim holds. It did not cover the gap BETWEEN the two writes: write 1 to billing_subscriptions commits, the delete lands, write 2 to account_overrides raises 23503, and the pair is SPLIT with no repair, because redelivery takes a safe branch that writes nothing. Reproduced against the real single-statement cascade, not only a widened variant. THIS IS THE SECOND TIME in this repository that a sequential probe has agreed with a claim a real interleaving contradicted, which is why the standing bar is that a sequential simulation does not count as evidence. The verification was possible only because the implementing engineer named the window himself and asked for it to be attacked instead of reporting the fix as complete."
     recommended_next_inspection: "Close the split-write window, most plausibly by making the two writes atomic or by making redelivery converge rather than skip. Then re-run this same interleaving against the fix. Also outstanding on the original entry: the alert-s live-status set was reused from a neighbouring check rather than derived from Stripe-s enum, and withdrawal.ts and cancellation.ts call the reconciler directly without the guard the webhook route received."
-    known_exclusions: "One added interleaving (a late event against an ALREADY-RECONCILED subscriber) NEVER EXECUTED and is recorded as unverified, not as passing. Mid-run the local database was broken by another agent - schema-level default privileges revoked, then a reset propagated them to all 121 tables, leaving 2 readable by service_role and every db test failing 42501 - so no further execution was possible. All substantive results here predate that breakage and were obtained against a healthy fully-migrated database with FK shapes asserted in beforeAll on every green run. The harm assessment accompanying the finding is ASSERTED AND NOT SUBSTANTIATED, and is deliberately not recorded as a severity."
+    known_exclusions: "CORRECTED: an earlier version of this row said one interleaving never executed and was unverified. That was WRONG - the supervisor wrote it while the reporting agent was mid-transcript, and the stack had already been restored by another agent, after which all NINE tests ran green on the rebuilt schema. Nothing here is unverified for that reason. What IS outside the evidence: Stripe redelivery after the 500 was simulated by re-calling reconcile rather than observed from Stripe, and interleaving III-s window against the production delete is roughly 10ms wide so REACHABILITY is proven and FREQUENCY is not. Mid-run the local database was broken by another agent - schema-level default privileges revoked, then a reset propagated them to all 121 tables, leaving 2 readable by service_role and every db test failing 42501 - so no further execution was possible. All substantive results here predate that breakage and were obtained against a healthy fully-migrated database with FK shapes asserted in beforeAll on every green run. The harm assessment accompanying the finding is ASSERTED AND NOT SUBSTANTIATED, and is deliberately not recorded as a severity."
