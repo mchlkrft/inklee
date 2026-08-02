@@ -16024,7 +16024,9 @@ findings:
           that found it, split into applied (cannot edit, correct the claimed repair path) and
           unapplied (fixable)."
     remediation:
-      status: "in-progress"
+      status: "fixed-unverified"
+      fix_commit: "573d742a"
+      fixed_at: "2026-08-02"
       proposed_action: "Fix 0143 with `drop constraint if exists` as its own statement, matching
         0138. Do NOT edit 0129: editing an applied migration is not a repair path. Instead
         establish whether any document claims re-running 0129 repairs it, and correct that claim."
@@ -16089,6 +16091,20 @@ findings:
           is editable, so this is a scheduling decision rather than a constraint.
           The literal docs question was answered: no document claims re-running 0129 repairs
           it. The only misleading claim was this register-s own stale framing."
+      - date: "2026-08-02"
+        actor: "db-exec-worker (fix) + supervisor session (independent probe)"
+        action: "fix-committed"
+        note: "ALL SIX SITES NOW FIXED AND THE INVENTORY IS CLOSED. 0143 line 69 in 38d4cfde;
+          0129 lines 28, 36, 48, 77 and 85 in 573d742a. A repo-wide grep now returns ZERO bare
+          `drop constraint` statements across every migration file.
+          The worker verified all five 0129 sites by execution rather than extrapolating from
+          0143-s shape, which was the right call: dropped all five by hand, confirmed pg_constraint
+          empty for each, re-ran, confirmed all five restored with confdeltype n.
+          INDEPENDENTLY RE-PROBED BY THE SUPERVISOR rather than accepted: dropped
+          billing_subscriptions_artist_id_fkey by hand, confirmed absent, re-ran the fixed 0129
+          under ON_ERROR_STOP=1 (stricter than the worker-s run, which is the point - the earlier
+          probe established that psql exits 0 on a failed ALTER without it), exit 0, constraint
+          restored with confdeltype n. Convergence is proven, not reported."
 
   - id: "AUTH-MFA-001"
     title: "The MFA step-up gate fails OPEN on a transient failure, in production, and the page it
