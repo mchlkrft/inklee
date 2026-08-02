@@ -39,11 +39,72 @@ type RawProduct = {
   quantity: number | null;
   available_from?: string | null;
   preorder?: boolean;
-  /** Art. 16(c) exemption (C1.2), artist-set. Optional so the interest-only
-   *  read below (which does not select it) keeps compiling. */
+  /** Art. 16(c) exemption (C1.2), artist-set. */
   custom_made?: boolean | null;
   product_variants: RawVariant[] | null;
 };
+
+// ONE declaration of the `products` column set, read by BOTH functions below.
+//
+// SHOP-DROP-002 (2026-08-02): `getAddonProducts` and `getInterestEligibleProducts`
+// used to hand-copy this list independently. `available_from`/`preorder` were
+// present in one copy and missing from the other, so `computeAddonLines` read
+// `availableFrom` as null on every add-on line and the drop gate could never
+// see a future drop on the PAYABLE path — a column omitted from a SELECT made
+// a downstream gate silently pass, and no test of the gate itself could catch
+// it, because the gate never saw a false value; it saw no value.
+//
+// The fix is structural, not a second corrected copy: both functions below
+// call `.select(PRODUCT_SELECT_COLUMNS)` on this SAME exported constant, so
+// there is no longer a second list for a future column to be added to and
+// forgotten in. `mapProductRow` (below) is the matching single row->domain
+// mapping, for the same reason — the columns and the mapping are the two
+// halves that drifted, not the filters or the return types, which stay
+// intentionally different per function (see each function's own comment).
+export const PRODUCT_SELECT_COLUMNS =
+  "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, custom_made, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)";
+
+/**
+ * The one row -> domain-object mapping for a `products` row selected via
+ * `PRODUCT_SELECT_COLUMNS`, shared by both functions below. Every field
+ * `PRODUCT_SELECT_COLUMNS` fetches is surfaced here unconditionally — even
+ * fields only one CALLER currently acts on (`customMade` is read by the
+ * checkout/receipt path, not by interest-marking; `availableFrom`/`preorder`
+ * drive `computeAddonLines`' drop gate, not `computeInterestRows`) — so a
+ * future caller that starts needing one of them reads it from data already
+ * flowing through, rather than needing yet another one-off column addition
+ * that can drift again.
+ */
+function mapProductRow(p: RawProduct): AddonProductRow {
+  return {
+    id: p.id,
+    title: p.title,
+    imageUrl: p.image_url,
+    price: toPriceNumber(p.price_amount),
+    currency: typeof p.currency === "string" ? p.currency : "eur",
+    status: (isProductStatus(p.status) ? p.status : "active") as ProductStatus,
+    isCheckoutAddon: p.is_checkout_addon,
+    quantity: p.quantity,
+    customMade: p.custom_made === true,
+    availableFrom: p.available_from ?? null,
+    preorder: p.preorder === true,
+    variants: [...(p.product_variants ?? [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((v) => ({
+        id: v.id,
+        name: v.name,
+        priceOverride:
+          v.price_amount_override !== null &&
+          v.price_amount_override !== undefined
+            ? toPriceNumber(v.price_amount_override)
+            : null,
+        stock: v.stock_quantity,
+        status: (isProductStatus(v.status)
+          ? v.status
+          : "active") as ProductStatus,
+      })),
+  };
+}
 
 // Wider set than getAddonProducts: any active EUR public product can be
 // flagged as "interested" at booking-form time, regardless of the
@@ -70,9 +131,7 @@ export async function getInterestEligibleProducts(
 
   const { data } = await serviceClient
     .from("products")
-    .select(
-      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
-    )
+    .select(PRODUCT_SELECT_COLUMNS)
     .eq("artist_id", artistId)
     .eq("is_public_visible", true)
     .eq("status", "active")
@@ -83,7 +142,11 @@ export async function getInterestEligibleProducts(
   // GATE 1 of 3 for drops and preorders (P5c). A product whose drop time has
   // not arrived is filtered OUT of the payable catalogue entirely, so it can
   // neither be selected nor smuggled in by a crafted payload. It still appears
-  // on the shop teaser (gate 2) as an announcement.
+  // on the shop teaser (gate 2) as an announcement. Filter-level behaviour
+  // ONLY — deliberately not shared with getAddonProducts, whose own drop
+  // enforcement lives downstream in computeAddonLines (gate 3); the two
+  // functions filter differently on purpose, only their column set and row
+  // mapping are unified.
   const nowMs = Date.now();
   const rows = ((data ?? []) as unknown as RawProduct[]).filter(
     (p) =>
@@ -99,31 +162,7 @@ export async function getInterestEligibleProducts(
         nowMs,
       ).purchasable,
   );
-  return rows.map((p) => ({
-    id: p.id,
-    title: p.title,
-    imageUrl: p.image_url,
-    price: toPriceNumber(p.price_amount),
-    currency: typeof p.currency === "string" ? p.currency : "eur",
-    status: (isProductStatus(p.status) ? p.status : "active") as ProductStatus,
-    isCheckoutAddon: p.is_checkout_addon,
-    quantity: p.quantity,
-    variants: [...(p.product_variants ?? [])]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((v) => ({
-        id: v.id,
-        name: v.name,
-        priceOverride:
-          v.price_amount_override !== null &&
-          v.price_amount_override !== undefined
-            ? toPriceNumber(v.price_amount_override)
-            : null,
-        stock: v.stock_quantity,
-        status: (isProductStatus(v.status)
-          ? v.status
-          : "active") as ProductStatus,
-      })),
-  }));
+  return rows.map(mapProductRow);
 }
 
 export async function getAddonProducts(
@@ -152,11 +191,15 @@ export async function getAddonProducts(
     return [];
   }
 
+  // GATE 3 of 3 for drops/preorders (P5c) is enforced downstream in
+  // computeAddonLines against `availableFrom`/`preorder` on the mapped row —
+  // this function does not pre-filter by availability itself (unlike
+  // getInterestEligibleProducts's gate 1 above), by design: the interest
+  // catalogue is a display list, while this catalogue feeds the money path,
+  // where the check runs immediately before a charge, not at read time.
   const { data } = await serviceClient
     .from("products")
-    .select(
-      "id, title, image_url, price_amount, currency, status, is_checkout_addon, quantity, custom_made, available_from, preorder, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
-    )
+    .select(PRODUCT_SELECT_COLUMNS)
     .eq("artist_id", artistId)
     .eq("is_checkout_addon", true)
     .eq("status", "active")
@@ -168,44 +211,5 @@ export async function getAddonProducts(
     .order("created_at", { ascending: true });
 
   const rows = (data ?? []) as unknown as RawProduct[];
-  return rows.map((p) => ({
-    id: p.id,
-    title: p.title,
-    imageUrl: p.image_url,
-    price: toPriceNumber(p.price_amount),
-    currency: typeof p.currency === "string" ? p.currency : "eur",
-    status: (isProductStatus(p.status) ? p.status : "active") as ProductStatus,
-    isCheckoutAddon: p.is_checkout_addon,
-    quantity: p.quantity,
-    // GOODS-DISC-001: without this, computeAddonLines' `customMade` was
-    // always false for every add-on line, regardless of the artist's actual
-    // flag — the exemption claim silently never fired.
-    customMade: p.custom_made === true,
-    // DROP GATE ON THE PAYABLE PATH (2026-08-02). These two were selected and
-    // mapped by getInterestEligibleProducts above but NOT here, so
-    // computeAddonLines read `product.availableFrom ?? null` as null on every
-    // add-on line and productAvailability could never see a future drop: an
-    // undropped product was sellable through the appointment add-on checkout
-    // while being refused everywhere else. Exactly the SHOP-DROP-001 shape
-    // that bundles had, on the other payable path — a column omitted from a
-    // SELECT makes a downstream gate silently pass, which no test of the gate
-    // itself can catch.
-    availableFrom: p.available_from ?? null,
-    preorder: p.preorder === true,
-    variants: [...(p.product_variants ?? [])]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((v) => ({
-        id: v.id,
-        name: v.name,
-        priceOverride:
-          v.price_amount_override !== null &&
-          v.price_amount_override !== undefined
-            ? toPriceNumber(v.price_amount_override)
-            : null,
-        stock: v.stock_quantity,
-        status: (isProductStatus(v.status)
-          ? v.status
-          : "active") as ProductStatus,
-      })),
-  }));
+  return rows.map(mapProductRow);
 }

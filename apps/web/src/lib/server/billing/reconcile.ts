@@ -37,6 +37,13 @@ export type ReconcileResult = {
   /** True when a newer event for this subscription already applied, so this
    *  (older/redelivered) event was skipped. */
   stale: boolean;
+  /** True when the event named a real artist_id (Stripe metadata), but that
+   *  artist's profile no longer exists in Inklee (BDEL-SUB-001). Distinct
+   *  from `orphaned` (no artist_id could be found at all): here we know
+   *  exactly who this was and chose not to write, rather than failing to
+   *  attribute it. No billing_subscriptions/account_overrides write is
+   *  attempted in this case. */
+  deletedProfile: boolean;
 };
 
 // Atomic, event-ordering-guarded write. With `eventCreated` set, the row is
@@ -114,6 +121,22 @@ function customerIdOf(sub: Stripe.Subscription): string {
   return typeof sub.customer === "string" ? sub.customer : sub.customer.id;
 }
 
+// BDEL-SUB-001: an artist_id resolved from Stripe metadata is a point-in-time
+// snapshot Stripe keeps forever, even after the artist's Inklee profile is
+// deleted. Never persist against one until we confirm the profile still
+// exists.
+async function profileExists(artistId: string): Promise<boolean> {
+  const { data, error } = await serviceClient
+    .from("profiles")
+    .select("id")
+    .eq("id", artistId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`profiles existence check failed: ${error.message}`);
+  }
+  return !!data;
+}
+
 // current_period_end lives on the subscription in most versions and on the
 // item in newer ones; read defensively so an SDK/apiVersion drift can't null it.
 function periodEndOf(sub: Stripe.Subscription): Date | null {
@@ -178,6 +201,63 @@ export async function reconcileFromStripeSubscription(
       duplicate: false,
       orphaned: true,
       stale: false,
+      deletedProfile: false,
+    };
+  }
+
+  // We have an artist_id, but it may name a profile that no longer exists:
+  // account deletion cancels the subscription in Stripe first (step 2b of
+  // deleteOwnAccountCore), then deletes the profile row -- so the
+  // customer.subscription.deleted event that cancellation itself emits can
+  // still arrive AFTER the profile (and its CASCADE-linked account_overrides
+  // row) are already gone. This is not a hypothetical race; it is that
+  // cancellation's own confirmation echo. Writing against a dangling
+  // artist_id 23503s on both tables: billing_subscriptions' FK is SET NULL
+  // (0129), which only nullifies the row the cascade already touched, and
+  // does not permit a FRESH insert naming a nonexistent profile; account_
+  // overrides stays CASCADE, so its row for this artist is already gone and
+  // the guarded upsert falls through to an INSERT that 23503s the same way.
+  // Root-cause fix: never attempt either write once the profile is gone.
+  //
+  // Rejected: folding this into the `orphaned` branch above. That path
+  // captures a Sentry error on EVERY occurrence -- appropriate when we can't
+  // attribute a subscription to anyone, but here we know exactly who this
+  // was. Reusing it would fire that alert on every single Plus-subscriber
+  // deletion (the routine cancellation echo below), recreating the exact
+  // alert-fatigue trade-off already rejected for a different mitigation on
+  // this same finding (see docs/audit/findings.yaml BDEL-SUB-001 history).
+  //
+  // So: no write, and alert ONLY when the event still names a live Stripe
+  // status (active/trialing/past_due) -- Stripe collecting money against an
+  // account Inklee has no record of is exactly the signal that must not be
+  // dropped silently. A terminal status is just the expected deletion-cancel
+  // echo and needs no human, so it stays quiet.
+  if (!(await profileExists(artistId))) {
+    const stillLiveInStripe =
+      status === "active" || status === "trialing" || status === "past_due";
+    if (stillLiveInStripe) {
+      Sentry.captureMessage(
+        "Stripe subscription still live after its Inklee artist profile was deleted",
+        {
+          level: "error",
+          tags: { action: "billing_reconcile_deleted_profile" },
+          extra: {
+            subscriptionId: sub.id,
+            customerId: customerIdOf(sub),
+            artistId,
+            status,
+          },
+        },
+      );
+    }
+    return {
+      artistId,
+      planTier: "free",
+      status,
+      duplicate: false,
+      orphaned: false,
+      stale: false,
+      deletedProfile: true,
     };
   }
 
@@ -228,6 +308,7 @@ export async function reconcileFromStripeSubscription(
       duplicate: false,
       orphaned: false,
       stale: true,
+      deletedProfile: false,
     };
   }
 
@@ -302,6 +383,7 @@ export async function reconcileFromStripeSubscription(
       duplicate: false,
       orphaned: false,
       stale: true,
+      deletedProfile: false,
     };
   }
 
@@ -362,6 +444,7 @@ export async function reconcileFromStripeSubscription(
     duplicate,
     orphaned: false,
     stale: false,
+    deletedProfile: false,
   };
 }
 

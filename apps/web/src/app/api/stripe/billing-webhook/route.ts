@@ -83,10 +83,19 @@ export async function POST(request: Request) {
           // conclusion). Idempotent per invoice + best-effort: it never fails the
           // webhook (reconcile already succeeded; a confirmation blip must not
           // trigger a redelivery of the money reconcile).
+          //
+          // !reconciled.deletedProfile (BDEL-SUB-001): reconciled.artistId still
+          // carries the raw Stripe-metadata id even when the profile is gone, so
+          // without this guard a "subscription_create" invoice landing after
+          // account deletion would insert into billing_contract_confirmations
+          // (also FK'd to profiles) against a dangling artist_id. The insert
+          // would 23503, get caught below, and land as a Sentry exception
+          // instead of the quiet no-op reconcile.ts already chose for this case.
           if (
             event.type === "invoice.paid" &&
             invoice.billing_reason === "subscription_create" &&
-            reconciled.artistId
+            reconciled.artistId &&
+            !reconciled.deletedProfile
           ) {
             try {
               const { data: bs } = await serviceClient

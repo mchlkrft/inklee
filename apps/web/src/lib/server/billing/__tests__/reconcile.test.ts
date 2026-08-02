@@ -14,6 +14,13 @@ const h = vi.hoisted(() => {
     account_overrides: [],
   };
   const stripeRetrieve = vi.fn();
+  // BDEL-SUB-001: reconcile.ts now checks `profiles` before writing. This
+  // in-memory mock has no real `profiles` table, so every artist id used
+  // across this file is treated as an EXISTING profile by default (matching
+  // every existing test's implicit assumption) unless explicitly listed
+  // here as deleted -- the one thing the new deleted-profile tests below
+  // actually want to model.
+  const deletedProfiles = new Set<string>();
 
   function qb(table: string) {
     const state: {
@@ -58,6 +65,18 @@ const h = vi.hoisted(() => {
       return true;
     };
     const resolve = async () => {
+      if (table === "profiles") {
+        // No real `profiles` table backs this mock. Only reached via
+        // profileExists's `.select("id").eq("id", artistId).maybeSingle()`,
+        // so read the id straight off the eq filter and answer from
+        // `deletedProfiles` (default: exists -- see the comment above it).
+        const idFilter = state.filters.find(
+          (f) => f.t === "eq" && f.col === "id",
+        );
+        const id = idFilter?.val as string | undefined;
+        const exists = !!id && !deletedProfiles.has(id);
+        return { data: exists ? { id } : null, error: null };
+      }
       const rs = rows();
       if (state.op === "update") {
         const matched = rs.filter(match);
@@ -136,6 +155,7 @@ const h = vi.hoisted(() => {
   return {
     store,
     stripeRetrieve,
+    deletedProfiles,
     serviceClient: { from: (t: string) => qb(t) },
   };
 });
@@ -147,10 +167,11 @@ vi.mock("@/lib/server/billing/client", () => ({
     subscriptions: { retrieve: vi.fn() },
   }),
 }));
-vi.mock("@sentry/nextjs", () => ({
+const mockSentry = vi.hoisted(() => ({
   captureException: vi.fn(),
   captureMessage: vi.fn(),
 }));
+vi.mock("@sentry/nextjs", () => mockSentry);
 
 // Gallery relocation (C1.5) is its OWN module with its own dedicated tests
 // (gallery-relocation.test.ts); this file only proves reconcile.ts calls it
@@ -211,9 +232,12 @@ function makeSub(o: SubInput) {
 beforeEach(() => {
   h.store.billing_subscriptions = [];
   h.store.account_overrides = [];
+  h.deletedProfiles.clear();
   h.stripeRetrieve.mockReset();
   mockRelocate.mockClear();
   mockRestore.mockClear();
+  mockSentry.captureMessage.mockClear();
+  mockSentry.captureException.mockClear();
 });
 
 describe("reconcileFromStripeSubscription", () => {
@@ -451,6 +475,77 @@ describe("reconcileFromStripeSubscription", () => {
           status: "canceled",
           customer: "cus_stale",
           artistId: "artist_stale",
+        }),
+        1000,
+      );
+      expect(mockRelocate).not.toHaveBeenCalled();
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
+  });
+
+  // BDEL-SUB-001 (task #59): an artist_id resolved from Stripe metadata can
+  // still name a profile that no longer exists (account deletion cancels the
+  // subscription in Stripe before deleting the profile, so the cancellation's
+  // own customer.subscription.deleted event can arrive after the profile is
+  // gone). See tests/db/billing-reconcile-deleted-profile.test.ts for the
+  // real-Postgres proof that writing against a deleted profile 23503s; this
+  // file proves the orchestration decision (skip both writes; alert only on
+  // a live status) against the mock.
+  describe("BDEL-SUB-001: the artist_id names a deleted profile", () => {
+    it("writes neither table and stays quiet for the routine deletion-cancel echo (terminal status)", async () => {
+      h.deletedProfiles.add("artist_gone");
+      const r = await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_gone_echo",
+          status: "canceled",
+          customer: "cus_gone",
+          artistId: "artist_gone",
+        }),
+        1000,
+      );
+      expect(r.deletedProfile).toBe(true);
+      expect(r.orphaned).toBe(false);
+      expect(r.artistId).toBe("artist_gone");
+      expect(h.store.billing_subscriptions).toHaveLength(0);
+      expect(h.store.account_overrides).toHaveLength(0);
+      expect(mockSentry.captureMessage).not.toHaveBeenCalled();
+    });
+
+    it("alerts (but still writes nothing) when Stripe still shows a LIVE status against a deleted profile", async () => {
+      h.deletedProfiles.add("artist_gone_live");
+      const r = await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_gone_live",
+          status: "active",
+          customer: "cus_gone_live",
+          artistId: "artist_gone_live",
+        }),
+        1000,
+      );
+      expect(r.deletedProfile).toBe(true);
+      expect(h.store.billing_subscriptions).toHaveLength(0);
+      expect(h.store.account_overrides).toHaveLength(0);
+      expect(mockSentry.captureMessage).toHaveBeenCalledTimes(1);
+      expect(mockSentry.captureMessage).toHaveBeenCalledWith(
+        expect.stringContaining("still live"),
+        expect.objectContaining({
+          tags: { action: "billing_reconcile_deleted_profile" },
+          extra: expect.objectContaining({
+            artistId: "artist_gone_live",
+            status: "active",
+          }),
+        }),
+      );
+    });
+
+    it("does not run the gallery relocation hook for a deleted profile", async () => {
+      h.deletedProfiles.add("artist_gone_gallery");
+      await reconcileFromStripeSubscription(
+        makeSub({
+          subId: "sub_gone_gallery",
+          status: "canceled",
+          customer: "cus_gone_gallery",
+          artistId: "artist_gone_gallery",
         }),
         1000,
       );
