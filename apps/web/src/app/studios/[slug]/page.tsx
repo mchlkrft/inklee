@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { publicMapEnabled } from "@/lib/map-features";
 import { getClientIp } from "@/lib/get-client-ip";
 import { checkPublicMapDetailRateLimit } from "@/lib/ratelimit";
+import { serializeJsonLd } from "@/components/seo/json-ld";
 import { getPublicStudioPage } from "@/lib/server/studio-page";
 import { SITE_URL } from "@/lib/seo";
 import {
@@ -178,7 +179,16 @@ export default async function StudioPage({
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+          // serializeJsonLd, not JSON.stringify: the values here are
+          // studio-owner free text (name/description/city/country/address are
+          // written by the claimant with only trim + length caps), and
+          // JSON.stringify escapes neither `<` nor `/`, so a description
+          // containing `</script><script>...` breaks out of this tag. The
+          // production CSP is script-src 'self' 'unsafe-inline' with no nonce,
+          // so it would execute, on the same origin as /dashboard. This was the
+          // ONE ld+json emitter in the repo bypassing the shared escaper that
+          // exists for exactly this and whose test asserts this payload.
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(schema) }}
         />
       ))}
 
