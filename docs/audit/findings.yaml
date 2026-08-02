@@ -14742,7 +14742,9 @@ findings:
           identified in this task)."
         - "The bio-page shop teaser / public shop showcase's own custom-made rendering."
     remediation:
-      status: "open"
+      status: "fixed-unverified"
+      fix_commit: "b036075e"
+      fixed_at: "2026-08-02"
       proposed_action: "Locate the appointment add-on / deposit checkout's settlement function,
         confirm whether it writes custom_made_snapshot and whether its receipt/UI carries the
         C1.1 seller block and C1.2 return/custom-made notice, and extend it to match the
@@ -14763,6 +14765,13 @@ findings:
         action: "opened"
         note: "Raised proactively while implementing the standalone-shop-only scope named in the
           task brief; not reproduced end-to-end."
+      - date: "2026-08-02"
+        actor: "refund-disclosure-worker (implementation) + supervisor session (review)"
+        action: "fix-committed"
+        note: "Fixed in b036075e. The appointment add-on checkout now carries the same custom-made and
+          drop disclosures the standalone shop already had, sourced from one shared
+          consumer-disclosures module rather than a second copy of the wording - the
+          divergence itself was the defect, so a duplicated string would have rebuilt it."
 
   - id: "BDEL-RET-002"
     title: "The 0129 retention repair created the inverse gap: five billing tables now survive
@@ -14943,6 +14952,206 @@ findings:
         actor: "gallery-compliance-worker + supervisor session"
         action: "fix-committed"
         note: "Fixed in a56548ce the same day."
+
+  - id: "FEE-DSP-002"
+    title: "The artist fee-savings goods lane has been dead since it shipped: a column that does
+      not exist, an error nobody read, and a double-count hiding underneath it"
+    summary: "getArtistFeeSavings selected `subtotal` from `orders`. No such column exists - 0036
+      defines `subtotal_amount`. PostgREST returned 42703 on every call, the error was discarded
+      by a destructuring that bound `data` and not `error`, and the entire goods lane reported
+      zero fees, zero transactions and zero hypothetical on /analytics and /api/mobile/analytics.
+      Underneath it sat a second defect the first one concealed: the same query counted
+      booking-coupled orders, whose platform_fee_amount is the SAME Stripe application fee already
+      counted from booking_requests.platform_fee_collected_cents, so repairing only the column
+      name would have converted a silent under-report into a credible-looking double-count."
+    classification:
+      domain: "analytics"
+      category: "silent-failure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "a2a7-worker reported the double-count half as an out-of-scope incidental while
+        building the A2 tax rollup; the supervisor session found the dead column while verifying
+        that report"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "9f3e7d66"
+      environment: "local"
+      discovery_context: "The A2 rollup had to reason carefully about which fee sources overlap on
+        this exact pair of tables. Having done that, the worker recognised the same overlap
+        unguarded in a neighbouring reader and reported it rather than fixing it, because that file
+        was outside its assigned surface."
+    location:
+      files:
+        - "apps/web/src/lib/server/fee-savings-query.ts"
+      clients:
+        - "web"
+        - "mobile"
+    evidence:
+      observed_facts:
+        - "The exact production select string against local PostgREST returns {code 42703, message
+          'column orders.subtotal does not exist'}; the same query with subtotal_amount returns
+          HTTP 200. Executed, not inferred."
+        - "request/[token]/actions.ts:571 stamps the FULL applicationFeeMinor into a coupled
+          order's platform_fee_amount, and the webhook stamps the same intent's whole
+          application_fee_amount into booking_requests.platform_fee_collected_cents."
+        - "Restoring the column name alone, with the dedup filter removed, produces a goods lane
+          of 1250 cents where 350 is correct and a total of 2150 where 1250 is correct."
+      references:
+        - "apps/web/tests/db/fee-savings-read.test.ts"
+    assessment:
+      interpretation: "Two failures with one cause: nothing ever executed this query against a real
+        schema. The pre-existing unit test covered only the pure fallbackTier helper and declared
+        the limitation in its own header - 'independent of the DB read the full query performs' -
+        which is an accurate description of the hole the defect lived in for its whole life."
+      root_cause_hypothesis: "A mocked Supabase client returns whatever rows the test author hands
+        it regardless of the select string, so mock-based tests cannot in principle detect a column
+        that does not exist. Every test on this module was of that kind."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      affected_users_or_systems: "Every artist entitled to advanced analytics, on both the web
+        analytics page and the native app."
+      production_exposure: "The wrong number has been served in production for as long as the panel
+        has existed. Financial harm is nil because no goods order has ever been paid in live mode,
+        so the true figure is also zero - the display was right by accident, and would have gone
+        wrong the moment the shop took its first payment."
+      exploit_preconditions: "Not attacker-driven."
+      remaining_uncertainty: "The lane attribution for a COMBINED payment remains approximate by
+        choice: its goods portion is reported under the appointment lane, because that is the only
+        row carrying the total fee. Splitting it means netting each coupled order's
+        goods_fee_amount out of the deposit lane, which is an accounting-presentation decision
+        rather than a defect, and is not made here."
+    relationships:
+      related_findings:
+        - "FEE-DSP-001"
+        - "FEE-STP-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "1b8671fc"
+      fixed_at: "2026-08-02"
+      proposed_action: "Column corrected, `booking_id IS NULL` added to match what the A2 rollup
+        does on the same table, and both reads now return null on error instead of zero. Null is
+        already a supported outcome at both call sites, so an absent panel replaces a fabricated
+        one; throwing was rejected because it would take down an analytics page whose other panels
+        are fine. Covered by a DB test rather than a unit test, deliberately: only a real Postgres
+        can fail on a column that does not exist."
+    verification:
+      status: "not-started"
+      independent: false
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "1b8671fc"
+      verification_method: "Both guards mutation-proven separately against real Postgres, source
+        restored sha256-byte-exact. NOT independent: the same session found the defect, wrote the
+        fix and wrote its test."
+      residual_risk: "Sibling readers of these two tables have not been swept for the same overlap.
+        The A2 rollup handles it correctly and is the reference; anything else reading both
+        booking_requests fees and orders fees should be checked."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "a2a7-worker"
+        action: "opened"
+        note: "Reported the double-count half only, explicitly as out-of-scope and as a hypothesis
+          it had read but not reproduced. The dead column was not part of that report and was found
+          during verification of it."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Worth recording as a near miss: the reported half was the SMALLER one, and had the
+          report been actioned literally - add the missing filter - the dead lane would have
+          survived and the double-count would have been introduced into a query that until then
+          returned nothing at all."
+
+  - id: "SHOP-DROP-002"
+    title: "The drop gate was absent from the PAYABLE add-on read while present on the display
+      read beside it, so an undropped product was sellable where it was refused everywhere else"
+    summary: "addon-products.ts holds two reads of the same catalogue. getInterestEligibleProducts,
+      which drives DISPLAY, selects available_from and preorder and applies the drop filter.
+      getAddonProducts, which drives the PAYABLE appointment add-on checkout, selected neither, so
+      computeAddonLines read product.availableFrom as null on every line and productAvailability
+      could never see a future drop. A product the standalone shop correctly refused to sell could
+      be bought through the appointment checkout."
+    classification:
+      domain: "payment"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "refund-disclosure-worker, as an out-of-scope incidental while fixing an
+        adjacent bug in the same function"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "b036075e"
+      environment: "local"
+      discovery_context: "Reported verbatim as 'not fixed, not tested, just noting it exists in
+        case it is worth its own pass'. The supervisor session initially judged it a false alarm
+        after seeing available_from present in the file, then found the two reads are inverted
+        relative to that assumption."
+    location:
+      files:
+        - "apps/web/src/lib/addon-products.ts"
+    evidence:
+      observed_facts:
+        - "getInterestEligibleProducts selects available_from and preorder and carries the drop
+          filter; getAddonProducts, the payable path, selected neither and mapped neither."
+        - "Removing the restored mapping reds the named test: availableFrom returns null and the
+          drop time is lost before productAvailability ever runs."
+      references:
+        - "apps/web/src/lib/__tests__/addon-products.test.ts"
+        - "apps/web/src/lib/addon-products.ts"
+    assessment:
+      interpretation: "Third instance of one mechanism: a column omitted from a SELECT makes a
+        downstream gate pass silently. The gate is correct and well tested in isolation; it is
+        simply never shown the data that would make it refuse."
+      root_cause_hypothesis: "Two reads of one table drifted because nothing binds them. The
+        display read was extended when the drop feature landed and the payable read was not."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      affected_users_or_systems: "Buyers on the appointment add-on checkout; artists whose
+        scheduled drop was not honoured on that surface."
+      production_exposure: "None realised: the goods commerce flag has never been on in
+        production."
+      exploit_preconditions: "An artist configures a future available_from and a client opens the
+        appointment payment page."
+      remaining_uncertainty: "None on the mechanism."
+    relationships:
+      related_findings:
+        - "SHOP-DROP-001"
+        - "GOODS-DISC-001"
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "006c3ac9"
+      fixed_at: "2026-08-02"
+      proposed_action: "Both columns added to the payable read's select and mapping. The durable
+        fix is structural and is NOT done: these two reads should share one column list, because
+        the next column added to one will drift from the other exactly as this one did."
+    verification:
+      status: "not-started"
+      independent: false
+      verified_by: "queued"
+      verified_at: "2026-08-02"
+      verification_commit: "006c3ac9"
+      verification_method: "Mutation-proven, source restored sha256-byte-exact. Not independent:
+        found by a worker, fixed and tested by the supervisor session."
+      residual_risk: "The two reads remain independently maintained, so the drift can recur with
+        the next column. That is the finding worth acting on, not this instance of it."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-02"
+        actor: "refund-disclosure-worker"
+        action: "opened"
+        note: "Out-of-scope report rather than an unrequested fix - the third such report today
+          that turned out to be a real defect."
+      - date: "2026-08-02"
+        actor: "supervisor session"
+        action: "fix-committed"
+        note: "Recorded against myself: I nearly dismissed this after a partial read that found the
+          columns present in the FILE without checking which of the two functions held them."
 
 patterns:
 
@@ -17848,3 +18057,14 @@ coverage:
     evidence: "C1.5 recorded as HUB-GAL-009 and fixed. C1.6 is a new control rather than a defect: the URL import now refuses server-side unless the rights attestation is present, checked BEFORE the rate limit and the outbound fetch so a refused import spends no egress, with the consent record written before the fetch and failing closed - the ordering IS the gate, because an unattested hosted copy is what the gate exists to prevent. Two judgment calls were confirmed on their merits: prompt relocation rather than waiting out the 60-day window (counsel-s resubscribe clause explains relocate-versus-delete, so the window is a deadline, not a delay), and covering admin overrides with a state-driven sweep instead of a fourth hook - a sweep comparing physical location against entitlement catches half-failures and paths nobody hooked, where a hook only catches the one someone remembered."
     recommended_next_inspection: "Exercise the cross-bucket move against a real bucket; it is currently proven only against a mocked storage client. Then the signed-URL fast-follow and the LO-5 DPIA, both of which counsel dated rather than waived."
     known_exclusions: "No real storage and no database: migration 0144 is unapplied, and pnpm test:db was deliberately NOT run because another worker had an uncommitted 0145 in the same directory and supabase migration up applies all pending files together. That abstention was correct and it surfaced a coordination requirement: THE RELEASE SEQUENCER NEEDS AN ISOLATED DB PASS COVERING BOTH 0144 AND 0145 before either moves. No numbering collision was introduced."
+
+  - area: "Counsel-answer implementation, third wave: C1.8 partial-refund notice, A6 retained-cost line, A2 tax-threshold monitor, A7 fee-payer-bound claim, C1.9 Terms inputs, and the two payable-path defects those slices surfaced"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "1b8671fc"
+    reviewer: "two dispatched workers wrote the slices and their tests; the supervisor session re-ran every suite, traced both fee WRITE paths to confirm the A2 dedup rather than accepting the reasoning, and read the A7 binding line itself"
+    evidence: "Four commits: b036075e refunds and disclosures, 9f3e7d66 A2/A7/C1.9 with migration 0145, 006c3ac9 the payable drop gate, 1b8671fc the fee-savings goods lane. A2-s dedup was independently confirmed at both write sites: the webhook stamps the whole intent fee on booking_requests and actions.ts:571 stamps the same fee on a coupled order, so counting both double-counts every combined payment. A7 requires payer-is-application AND a founder row that does not exist, so the claim is suppressed today. THE PATTERN THIS WAVE ADDS: both new findings came from workers reporting OUTSIDE their scope instead of staying silent, and in both cases the reported item was smaller than what verifying it uncovered - the drop-gate report was nearly dismissed by the supervisor on a partial read, and the fee-savings report named the double-count while the same query was returning nothing at all."
+    recommended_next_inspection: "Independent verification of all four; none has been verified by anyone who did not write it. Then the structural halves neither fix addresses: addon-products.ts still maintains two independent column lists for one catalogue, and no sweep has been done for other readers that sum booking_requests fees alongside orders fees."
+    known_exclusions: "Production untouched; migrations 0144 and 0145 remain unapplied there. The A2 rollup writes only ee_registration_40k - the OSS and Union-turnover rows are deliberately left seeded pending LO-10 fee classification, which is a recorded judgment call, not a covered area. Two counsel questions are open rather than answered: whether tax-snapshot immutability makes the subscriptions they reference permanent, and how a bundle containing one custom-made component is treated."
