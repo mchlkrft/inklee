@@ -142,19 +142,24 @@ dispositioned (three DPIA merges, #86 landed renumbered, the §7.2 fix landed,
 one worktree's remainder proved duplicated and was dropped). Register rows:
 `DATA-MIG-004`, `DISC-FORM-001`, plus three coverage entries.
 
-### Step 2 — Apply migrations 0125-0153 to production (precondition: step 1 ✅; needs the founder's go)
+### Step 2 — Apply migrations 0125-0153 to production — ✅ DONE 2026-08-03
 
-Migration-first, before any push. The release sequencer owns this. Nothing in
-0125-0149 is reachable from deployed code today, so applying them cannot break
-what is live; deploying the code first WOULD.
+Executed under explicit founder go via the release-sequencer. The enum repair
+(0154, DRIFT-ENUM-001) was applied FIRST and catalog-verified clean, then
+0125-0153 in strict order, each atomic, catalog-verified object by object.
+**Production DB is now at 0154; ledger holds 0125-0154 complete.** A blocker
+the plan had missed was caught in pre-flight: 0149's `where status='cancelled'`
+backfill would have aborted with 22P02 against production's mangled enum label;
+0154 repaired it first. See execution-plan A2 and register DRIFT-ENUM-001.
 
-### Step 3 — Push master (precondition: step 2 complete and verified)
+### Step 3 — Push master — ✅ DONE 2026-08-03
 
-240 commits after the reconciliation. Everything stays dark: `consumer_sales_launch_approved` is
-unrecorded and `GOODS_COMMERCE_ENABLED` is unset, so no commercial surface
-turns on by pushing. Suggested belt-and-braces: run `pnpm check:imports` and
-`pnpm audit:check` first. The former exists because master has shipped a commit
-that could not build its own imports three times.
+Pushed fast-forward to `38d233c2` (0 behind). Everything stays dark:
+`consumer_sales_launch_approved` unrecorded, `GOODS_COMMERCE_ENABLED` unset,
+shop/store routes 404. Pre-push `check:imports` and `audit:check` were green.
+Live site serves; PostgREST schema cache confirmed reloaded; the 0146
+apply-before-push window closed by the deployed service-role markGoodsPickedUp
+fix. Open: confirm the Vercel build for `38d233c2` promoted to green (dashboard).
 
 ### Step 4 — Close the three DPIA gate keys — the work is BUILT; recording is the founder's
 

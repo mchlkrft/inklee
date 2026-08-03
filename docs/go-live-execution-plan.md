@@ -78,6 +78,18 @@ pnpm check:imports && pnpm audit:check      # both green
 
 ## Phase A — Release: migrations 0125-0153 to production, then push master
 
+**STATUS: A1/A2/A3 DONE 2026-08-03 under explicit founder go.** A1 pre-flight
+green (unit 3638, db 452, prod at 0124). A2.0 the DRIFT-ENUM-001 enum repair
+(0154) applied first + catalog-verified clean; A2.1 duplicate-index precheck
+zero; A2.2 the 0125-0153 batch applied in order + catalog-verified object by
+object (prod DB now at 0154, ledger 0125-0154 complete). A3 pushed master
+(fast-forward to `38d233c2`); live site serves with the shop/consumer surfaces
+dark (404), PostgREST schema cache confirmed reloaded, and the 0146
+apply-before-push window closed (deployed markGoodsPickedUp now uses the
+service-role core). No approval key recorded, no flag flipped. **REMAINING IN
+PHASE A: A4 (founder, Stripe webhook config) and watching the Vercel build for
+`38d233c2` promote to green.** Details below are kept as the executed record.
+
 **🧑 FOUNDER GO REQUIRED before anything in this phase touches production.**
 Owner: the `inklee-release-sequencer` flow. Migration-first is NOT negotiable:
 deployed code already contains modules referencing tables that do not exist in
