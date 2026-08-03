@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  publicCardDepositAvailability,
+  publicCardDepositCopy,
   publicDepositFeeAnswer,
   publicDepositFeeFragment,
+  type PublicCardDepositSurface,
 } from "@inklee/shared/platform-fee";
 import {
   FEE_SCHEDULE_V1,
@@ -128,6 +131,90 @@ describe("publicDepositFeeAnswer", () => {
       const answer = publicDepositFeeAnswer(v);
       expect(answer).not.toContain("—");
       expect(answer.trim().endsWith(".")).toBe(true);
+    }
+  });
+});
+
+// #95: the AVAILABILITY FRAMING around the number. The fragment tests above
+// bound the rate; these bind the sentence it sits in. All five surfaces used
+// to hand-write "connect Stripe and clients can pay by card" around the
+// fragment, which becomes false for Free at v2 (null rate: the lane is
+// closed, not discounted) no matter what number the fragment substitutes.
+describe("publicCardDepositCopy", () => {
+  const SURFACES: PublicCardDepositSurface[] = [
+    "home_faq",
+    "home_feature",
+    "tool_faq",
+    "tool_hero",
+    "guide",
+  ];
+
+  it("derives availability from the schedule: v1 all tiers, v2 Plus only", () => {
+    expect(publicCardDepositAvailability(FEE_SCHEDULE_V1.version)).toBe(
+      "all_tiers",
+    );
+    expect(publicCardDepositAvailability(FEE_SCHEDULE_V2.version)).toBe(
+      "plus_only",
+    );
+    expect(publicCardDepositAvailability()).toBe(
+      publicCardDepositAvailability(ACTIVE_FEE_SCHEDULE_VERSION),
+    );
+  });
+
+  // THE REFACTOR IS A NO-OP TODAY, byte-for-byte per surface, same discipline
+  // as publicDepositFeeAnswer above: nothing a visitor reads changes until the
+  // schedule does. Each literal below is what its surface previously
+  // hard-coded around the fragment.
+  it("reproduces each surface's previously hard-coded span EXACTLY under the active schedule", () => {
+    expect(publicCardDepositCopy("home_faq")).toBe(
+      "Yes, and it is optional. You can request a deposit on an approved booking. Connect Stripe to let clients pay by card, and the deposit lands in your own Stripe account (Inklee keeps a 3% fee that covers card processing). Prefer not to? Collect deposits manually and mark them received.",
+    );
+    expect(publicCardDepositCopy("home_feature")).toBe(
+      "Optional. Ask for a deposit on an approved request. Clients can pay by card into your own Stripe account (Inklee keeps a 3% fee that covers card processing), or you track a manual one. Status stays on the booking.",
+    );
+    expect(publicCardDepositCopy("tool_faq")).toBe(
+      "Not for the booking workflow. Inklee keeps the deposit step on the request itself. Card collection is optional: connect Stripe and clients can pay the deposit by card into your own account (Inklee keeps a 3% fee that covers card processing), or you can track a deposit you collect manually. Either way, the paid and confirmed status stays on the booking.",
+    );
+    expect(publicCardDepositCopy("tool_hero")).toBe(
+      "Card collection is optional. Connect Stripe and the deposit lands in your own account (Inklee keeps a 3% fee that covers card processing), or track a deposit you collect manually.",
+    );
+    expect(publicCardDepositCopy("guide")).toBe(
+      "Clients can pay by card into your own Stripe account (Inklee keeps a 3% fee that covers card processing), or you track a deposit you collect your own way for free.",
+    );
+  });
+
+  // THE POINT OF THE FILE, extended to the framing: under v2 every surface
+  // must scope the card lane to Plus and keep manual tracking available,
+  // and none may keep the universal "connect Stripe and pay by card" framing.
+  it("under v2 every surface scopes the card lane to Plus and keeps manual tracking open", () => {
+    for (const s of SURFACES) {
+      const copy = publicCardDepositCopy(s, FEE_SCHEDULE_V2.version);
+      expect(copy, s).toContain("Plus");
+      // The guide surface says "you collect your own way" where the others
+      // say "manually"; both are the manual lane staying open.
+      expect(copy.toLowerCase(), s).toMatch(/manual|your own way/);
+      expect(copy, s).not.toContain("3%");
+    }
+  });
+
+  // DISTINCTION: neither the v1 pin nor the v2 scoping can be satisfied by a
+  // constant per surface.
+  it("DISTINCTION: v1 and v2 spans differ on every surface", () => {
+    for (const s of SURFACES) {
+      expect(publicCardDepositCopy(s, FEE_SCHEDULE_V1.version), s).not.toBe(
+        publicCardDepositCopy(s, FEE_SCHEDULE_V2.version),
+      );
+    }
+  });
+
+  // House copy rules: public marketing strings, every surface, both schedules.
+  it("carries no em-dash and ends in terminal punctuation on every surface", () => {
+    for (const v of [FEE_SCHEDULE_V1.version, FEE_SCHEDULE_V2.version]) {
+      for (const s of SURFACES) {
+        const copy = publicCardDepositCopy(s, v);
+        expect(copy, s).not.toContain("—");
+        expect(copy.trim().endsWith("."), s).toBe(true);
+      }
     }
   });
 });

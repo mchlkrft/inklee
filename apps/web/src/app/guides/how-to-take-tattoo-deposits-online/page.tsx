@@ -5,7 +5,7 @@ import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
-import { publicDepositFeeFragment } from "@inklee/shared/platform-fee";
+import { publicCardDepositCopy } from "@inklee/shared/platform-fee";
 
 const PAGE_PATH = "/guides/how-to-take-tattoo-deposits-online";
 const PAGE_TITLE = "How to take tattoo deposits online · Inklee";
@@ -369,10 +369,8 @@ export default function HowToTakeTattooDepositsOnlineGuide() {
                 <p className="mt-5 text-base leading-relaxed text-brand-charcoal/80">
                   In Inklee the deposit is a step on the request you accepted:
                   you set the amount, note, and due date, and the paid, pending,
-                  or overdue status lives on the booking. Clients can pay by
-                  card into your own Stripe account (
-                  {publicDepositFeeFragment()}), or you track a deposit you
-                  collect your own way for free. Overdue deposits get an
+                  or overdue status lives on the booking.{" "}
+                  {publicCardDepositCopy("guide")} Overdue deposits get an
                   automatic follow-up email.
                 </p>
                 <div className="mt-6">

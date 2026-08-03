@@ -9,7 +9,7 @@ import { PillNav } from "@/components/marketing-v2";
 import SiteFooter from "@/components/marketing-v2/site-footer";
 import { tattooMapEnabled } from "@/lib/map-features";
 import { mapMarketingCta } from "@/lib/map-marketing";
-import { publicDepositFeeFragment } from "@inklee/shared/platform-fee";
+import { publicCardDepositCopy } from "@inklee/shared/platform-fee";
 
 /* ─── FAQ data ───────────────────────────────────────────────────────────── */
 
@@ -51,7 +51,7 @@ const HOMEPAGE_FAQ: FaqItem[] = [
   },
   {
     question: "Can artists collect tattoo deposits with Inklee?",
-    answer: `Yes, and it is optional. You can request a deposit on an approved booking. Connect Stripe to let clients pay by card, and the deposit lands in your own Stripe account (${publicDepositFeeFragment()}). Prefer not to? Collect deposits manually and mark them received.`,
+    answer: publicCardDepositCopy("home_faq"),
   },
 ];
 
@@ -296,7 +296,7 @@ const FEATURES: Array<{
   },
   {
     title: "Deposit collection",
-    description: `Optional. Ask for a deposit on an approved request. Clients can pay by card into your own Stripe account (${publicDepositFeeFragment()}), or you track a manual one. Status stays on the booking.`,
+    description: publicCardDepositCopy("home_feature"),
     illustration: "/branding/illustrations/feature-deposit.svg",
     variant: "rosa",
     href: "/tattoo-deposit-tool",

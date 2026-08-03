@@ -296,14 +296,13 @@ export function publicDepositFeeAnswer(version?: string): string {
  * NO TRAILING PUNCTUATION and no leading capital beyond the brand name: callers
  * embed this inside their own sentence, frequently inside parentheses.
  *
- * KNOWN LIMITATION, deliberately not solved here. Under v2 this renders "Inklee
- * keeps a 0.5% fee on Plus", but the prose AROUND it at every call site frames
- * card collection as an option any artist can take ("connect Stripe and clients
- * can pay by card"). That framing becomes wrong for Free artists at v2
- * independently of the number, because their appointment rate is `null` -
- * they cannot use the lane at all. Substituting the rate does not fix the
- * sentence it sits in. Those five surfaces need a copy review before v2
- * activates, and that is tracked rather than quietly half-done here.
+ * The framing AROUND this fragment used to be the known limitation here: every
+ * call site's own prose said "connect Stripe and clients can pay by card" as
+ * an option any artist can take, which becomes false for Free at v2 (`null`
+ * rate: the lane is closed to them, not discounted). That is now solved one
+ * level up by `publicCardDepositCopy`, which derives the WHOLE span, framing
+ * included, per surface. New surfaces should use that instead of embedding
+ * this fragment inside hand-written framing.
  */
 export function publicDepositFeeFragment(version?: string): string {
   const free = appointmentFeeDisplay("free", version);
@@ -328,4 +327,106 @@ export function publicDepositFeeFragment(version?: string): string {
   // No tier can transact the lane. Say nothing about a rate rather than
   // inventing one; callers render the fragment inside their own sentence.
   return "card deposit collection is not available";
+}
+
+// ===========================================================================
+// #95: the AVAILABILITY FRAMING around the fee number, derived per surface.
+// ===========================================================================
+
+/**
+ * Who can use the card-deposit lane under a schedule. `all_tiers` is v1 (one
+ * rate for everyone), `plus_only` is v2 (Free's appointment rate is `null`:
+ * the lane is CLOSED to them, not discounted), `none` is only reachable from
+ * a malformed schedule.
+ */
+export type PublicCardDepositAvailability = "all_tiers" | "plus_only" | "none";
+
+export function publicCardDepositAvailability(
+  version?: string,
+): PublicCardDepositAvailability {
+  const free = appointmentFeeDisplay("free", version);
+  const plus = appointmentFeeDisplay("plus", version);
+  if (free) return "all_tiers";
+  if (plus) return "plus_only";
+  return "none";
+}
+
+/** The five public surfaces that carry the card-collection framing. */
+export type PublicCardDepositSurface =
+  | "home_faq"
+  | "home_feature"
+  | "tool_faq"
+  | "tool_hero"
+  | "guide";
+
+/**
+ * The full card-collection span per surface, FRAMING INCLUDED, derived from
+ * the active schedule.
+ *
+ * WHY THIS EXISTS. `publicDepositFeeFragment` bound the fee NUMBER to the
+ * schedule, but the prose around it at all five call sites stayed
+ * hand-written, and all five framed card collection as an option any artist
+ * can take ("connect Stripe and clients can pay by card"). Under v2 that
+ * framing is false for Free artists independently of the number: their rate
+ * is `null`, so they cannot use the lane at all. Substituting the rate never
+ * fixed the sentence it sat in; this derives the sentence too.
+ *
+ * Under the ACTIVE v1 schedule every string below is byte-identical to what
+ * its surface previously hard-coded, asserted exactly in
+ * `public-deposit-fee-answer.test.ts` — same no-op-today discipline as
+ * `publicDepositFeeAnswer`. The `plus_only` variants scope the card lane to
+ * Plus and keep manual tracking open to every plan, which is the truth v2
+ * creates. Manual deposits never depend on tier.
+ */
+export function publicCardDepositCopy(
+  surface: PublicCardDepositSurface,
+  version?: string,
+): string {
+  const availability = publicCardDepositAvailability(version);
+  const frag = publicDepositFeeFragment(version);
+
+  if (availability === "all_tiers") {
+    switch (surface) {
+      case "home_faq":
+        return `Yes, and it is optional. You can request a deposit on an approved booking. Connect Stripe to let clients pay by card, and the deposit lands in your own Stripe account (${frag}). Prefer not to? Collect deposits manually and mark them received.`;
+      case "home_feature":
+        return `Optional. Ask for a deposit on an approved request. Clients can pay by card into your own Stripe account (${frag}), or you track a manual one. Status stays on the booking.`;
+      case "tool_faq":
+        return `Not for the booking workflow. Inklee keeps the deposit step on the request itself. Card collection is optional: connect Stripe and clients can pay the deposit by card into your own account (${frag}), or you can track a deposit you collect manually. Either way, the paid and confirmed status stays on the booking.`;
+      case "tool_hero":
+        return `Card collection is optional. Connect Stripe and the deposit lands in your own account (${frag}), or track a deposit you collect manually.`;
+      case "guide":
+        return `Clients can pay by card into your own Stripe account (${frag}), or you track a deposit you collect your own way for free.`;
+    }
+  }
+
+  if (availability === "plus_only") {
+    switch (surface) {
+      case "home_faq":
+        return `Yes, and it is optional. You can request a deposit on an approved booking. On Plus, connect Stripe to let clients pay by card, and the deposit lands in your own Stripe account (${frag}). On any plan, you can collect deposits manually and mark them received.`;
+      case "home_feature":
+        return `Optional. Ask for a deposit on an approved request. On Plus, clients can pay by card into your own Stripe account (${frag}). On any plan, you track a manual one. Status stays on the booking.`;
+      case "tool_faq":
+        return `Not for the booking workflow. Inklee keeps the deposit step on the request itself. Card collection is part of Plus: connect Stripe and clients can pay the deposit by card into your own account (${frag}). On any plan, you can track a deposit you collect manually. Either way, the paid and confirmed status stays on the booking.`;
+      case "tool_hero":
+        return `Card collection is part of Plus. Connect Stripe and the deposit lands in your own account (${frag}), or track a deposit you collect manually on any plan.`;
+      case "guide":
+        return `On Plus, clients can pay by card into your own Stripe account (${frag}). On any plan, you track a deposit you collect your own way for free.`;
+    }
+  }
+
+  // Malformed schedule: no tier can transact the lane. Manual tracking is the
+  // only claim left standing, so it is the only claim made.
+  switch (surface) {
+    case "home_faq":
+      return `Yes. You can request a deposit on an approved booking, collect it manually, and mark it received.`;
+    case "home_feature":
+      return `Optional. Ask for a deposit on an approved request and track it manually. Status stays on the booking.`;
+    case "tool_faq":
+      return `Not for the booking workflow. Inklee keeps the deposit step on the request itself: you can track a deposit you collect manually, and the paid and confirmed status stays on the booking.`;
+    case "tool_hero":
+      return `Track a deposit you collect manually.`;
+    case "guide":
+      return `You track a deposit you collect your own way for free.`;
+  }
 }

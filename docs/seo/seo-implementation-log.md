@@ -26,6 +26,28 @@ Strategic decisions belong in `inklee-seo-strategy.md`.
 
 ---
 
+### 2026-08-03 — Deposit-fee claim derived on five public surfaces: number, then framing (rendered output unchanged)
+
+**Implemented by:** Claude Code
+
+**Related strategy section:** Deposits (`/tattoo-deposit-tool`, primary keyword `tattoo deposit software`), the deposits guide, and the homepage. No ownership or indexation change.
+
+**Files changed:**
+
+- `packages/shared/src/platform-fee.ts` — `publicDepositFeeAnswer` / `publicDepositFeeFragment` (fee NUMBER derived from the fee schedule; committed earlier on 2026-08-03, `fbe89b62` + `3640167e`, logged here late), then `publicCardDepositAvailability` + `publicCardDepositCopy` (the availability FRAMING derived too, #95).
+- `apps/web/src/app/page.tsx`, `apps/web/src/app/tattoo-deposit-tool/page.tsx`, `apps/web/src/app/guides/how-to-take-tattoo-deposits-online/page.tsx` — the five call sites now render the shared span instead of hand-written framing around the fragment.
+- `apps/web/src/lib/__tests__/public-deposit-fee-answer.test.ts` — byte-identical pins per surface under the active v1 schedule, Plus-scoped assertions under v2.
+
+**Implementation:** Under the ACTIVE v1 schedule every rendered string is byte-for-byte what the pages previously hard-coded (test-pinned), so nothing a visitor or crawler reads changed today. The point is fee-schedule v2: at v2 the Free tier's card-deposit rate is `null` (the lane closes for Free, it does not become 0%), and the old hand-written framing ("connect Stripe and clients can pay by card") would have kept promising the lane to everyone. The derived spans scope the card lane to Plus and keep manual tracking open on every plan the moment v2 activates, with a red test instead of a silently wrong public page.
+
+**Validation performed:** 17/17 tests in `public-deposit-fee-answer.test.ts` (byte-identical v1 pins, v2 Plus scoping, em-dash and terminal-punctuation copy rules), `tsc --noEmit` clean.
+
+**Remaining issues:** None for these surfaces. The v2 copy variants are engineering copy written to the house rules; if marketing wants different Plus-scoped wording before FA11, the strings live in one place.
+
+**Commit:** _(the #95 framing commit on 2026-08-03)_
+
+---
+
 ### 2026-07-27 — Public map slices S2 and S2b: `/map` robots correction and the claimed studio entity page (built, dark)
 
 **Implemented by:** Claude Code
