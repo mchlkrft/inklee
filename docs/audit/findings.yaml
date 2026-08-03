@@ -19745,10 +19745,25 @@ coverage:
       tests; the artist's payout was not followed through to a bank settlement."
     recommended_next_inspection: "On the first real UNSPONSORED deposit, read
       application_fee_amount on the charge and compare it to 3% of the amount. That single call
-      closes the one open criterion and is task #91. Separately, two production defects surfaced
-      during onboarding and are NOT fixed: Refresh status on /settings/payouts never writes, and
-      account.updated never synced the cached profiles.stripe_* columns, while
-      payment_intent.succeeded demonstrably did write in the same window. Task #92."
+      closes the one open criterion and is task #91.
+
+      CORRECTION, 2026-08-03, same day. An earlier version of this field asserted that 'Refresh
+      status on /settings/payouts never writes'. THAT WAS FALSE and it was mine. Production
+      Supabase edge logs show Refresh status completed the full read -> Stripe -> PATCH ->
+      revalidate cycle TWICE, at 07:39:51 and 07:45:41, and profiles.stripe_account_updated_at is
+      exactly 07:45:41. Those two presses converged the cache and are what made the 07:58 deposit
+      routable. The invocations that wrote nothing were the founder's failing passport uploads,
+      which issue a byte-identical two-column read from the same page with no server-side trace on
+      either. The column name in that earlier text was wrong too: it is stripe_account_updated_at
+      (migration 0039), not stripe_account_status_last_sync_at. Both errors came from reasoning
+      about the UI instead of reading the schema and the logs.
+
+      What IS true and is now confirmed rather than inferred: account.updated is never DELIVERED.
+      account.updated events exist ON the connected account (evt_1U0Ff4H3gYinii8EQ65JwqDX,
+      acct_1U0FdrH3gYinii8E) and there are ZERO on the platform account, while both live endpoints
+      are platform-only. Under destination charges the PaymentIntent lives on the platform
+      account, so payment_intent.succeeded lands and a connected-account event does not. The fix
+      is Stripe endpoint configuration, not code. Task #92."
 
   - area: "Migrations 0147 and 0148 reconciled against what is actually committed, and the master
       branch reunited with the production hotfix. Convergence of both files proven by

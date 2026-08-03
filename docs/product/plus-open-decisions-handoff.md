@@ -307,11 +307,19 @@ This is the single most important missing data point.
   enabled on the test artist, so `application_fee_amount` was 0 on every live
   charge and the 3% split has never been produced by live code. Founder ruling
   FD14 (`plus-build-time-decisions.md`) keeps it open and off the launch path.
-- **Two production defects surfaced and are NOT fixed:** "Refresh status" on
-  `/settings/payouts` never writes, and `account.updated` never synced the
-  cached `profiles.stripe_*` columns. Narrowing detail:
-  `payment_intent.succeeded` landed and wrote in the same window, so the fault
-  is in the Connect-sync path, not webhook delivery generally.
+- **One production defect, and a correction to what was first recorded here.**
+  This bullet previously said "Refresh status never writes". Corrected
+  2026-08-03: production edge logs show it wrote twice (07:39:51, 07:45:41) and
+  those presses are what converged the cache before the 07:58 deposit. The
+  presses that did nothing were the failing passport uploads, which issue a
+  byte-identical read from the same page with no trace on either path.
+- **The real one, confirmed:** `account.updated` is never DELIVERED. Events
+  exist on the connected account and there are zero on the platform account,
+  while both live endpoints are platform-only. Under destination charges the
+  PaymentIntent lives on the platform account, which is why
+  `payment_intent.succeeded` lands and a connected-account event does not. Fix
+  is Stripe endpoint config, not code, so it needs founder authorisation rather
+  than a deploy.
 
 ### F9: fresh EAS / iOS build
 

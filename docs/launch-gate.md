@@ -35,13 +35,34 @@ of the ARTIST's transfer, so a wrong fee over-collects from them).
 **Post-launch check, not a gate:** on the first real unsponsored deposit, read
 `application_fee_amount` on the charge and compare it to 3% of the amount.
 
-**Two production defects surfaced during onboarding and are NOT fixed:**
-"Refresh status" on `/settings/payouts` never writes (the sync timestamp stayed
-frozen across presses), and `account.updated` did not update the cached
-`profiles.stripe_*` columns despite the webhook being enabled and subscribed.
-"Update details" was the only path that worked. Note the contrast:
-`payment_intent.succeeded` demonstrably DOES land and write, so this is specific
-to the Connect-sync path, not to webhooks generally.
+**One production defect surfaced during onboarding, and the first version of
+this paragraph got the other one wrong.**
+
+CORRECTED 2026-08-03, same day. This previously said *"Refresh status on
+/settings/payouts never writes (the sync timestamp stayed frozen across
+presses)"*. **That was false.** Production edge logs show Refresh status
+completed the full read → Stripe → PATCH → revalidate cycle twice, at 07:39:51
+and 07:45:41, and `profiles.stripe_account_updated_at` is exactly 07:45:41.
+Those two presses converged the cache and are what made the 07:58 deposit
+routable. Refresh status is the control that **worked**.
+
+The presses that appeared to do nothing were the **failing passport uploads**.
+Upload and refresh issue a byte-identical profile read from the same page and
+neither leaves a server-side trace, so the two are indistinguishable from
+outside. That observability gap is the real defect on this half, and it is why a
+wrong conclusion looked well-supported for a day. Fixed on master (Sentry on
+both paths, plus the discarded read error), not yet in production.
+
+**The real defect, now confirmed rather than inferred: `account.updated` is
+never DELIVERED.** The handler exists and the endpoint subscribes to the event
+name, but `account.updated` events exist **on the connected account**
+(`evt_1U0Ff4H3gYinii8EQ65JwqDX`) with **zero** on the platform account, and both
+live endpoints are platform-only. Under destination charges the PaymentIntent
+lives on the platform account, which is exactly why `payment_intent.succeeded`
+lands while a connected-account event does not. **The fix is Stripe endpoint
+configuration, not code:** an endpoint with connected-account delivery enabled.
+Both Connect checkboxes in `docs/ot-12-rollout-runbook.md` are still unticked,
+and every setup doc lists event names only, never the toggle.
 
 ## 🔴 G-5 update 2026-07-21 — the first live attempt failed, and what it now needs
 
