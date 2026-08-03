@@ -20239,3 +20239,30 @@ coverage:
     recommended_next_inspection: "After A3 (push master), a LIVE REST read + a live RPC (e.g.
       purge_expired_tax_snapshots dry-run) to confirm the PostgREST schema cache reloaded; and
       confirm the deployed markGoodsPickedUpCore service-role fix closed the 0146 window."
+  - area: "Stripe webhook signature verification — multi-secret loop (route.ts POST): accept events
+      signed by either STRIPE_WEBHOOK_SECRET or STRIPE_CONNECT_WEBHOOK_SECRET for shared
+      account.updated / account.application.deauthorized handling (A4/OT-12)"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-03"
+    commit_inspected: "50135c6f"
+    reviewer: "adversarial verifier, separate instance; did NOT author the fix (independent)"
+    evidence: "vitest 18/18 across the 3 webhook route test files on committed HEAD 50135c6f (5 new
+      connect-secret cases named). Non-vacuity + no-weakening PROVEN by mutation on a verbatim
+      extraction of the loop + the exact secret-aware constructEvent mock: single-secret revert ->
+      connect-signed REJECT(400) while platform ACCEPT (control intact); a pass-through mock would
+      spuriously accept the attacker case, so the reject tests are non-vacuous only because the mock
+      is secret-aware. tsc --noEmit exit 0. Diff confined to the pre-branch verification block; all
+      money-path handler branches byte-identical; only 3 test files import the route. Empty-candidate
+      impossible (line-141 guard precedes the loop)."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "Real HMAC + Stripe timestamp-tolerance enforcement is mocked in every test, so
+      per-attempt replay/tolerance is UNEXECUTED (holds by construction, unchanged real call). No
+      prod state or live Stripe touched by the verifier. Mutation was against a verbatim copy of the
+      loop, not the compiled route module (read-only constraint). Operational precondition
+      unverified: STRIPE_CONNECT_WEBHOOK_SECRET must be set in prod env or connect events drop 400."
+    recommended_next_inspection: "Confirm STRIPE_CONNECT_WEBHOOK_SECRET is provisioned in prod before
+      enabling the connect webhook endpoint; consider one integration test exercising the real
+      constructEvent timestamp tolerance if the connect endpoint ever carries money events."
