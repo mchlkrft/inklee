@@ -19,7 +19,7 @@ import {
   buildOrderReceiptBody,
   type ReturnDisclosureItem,
 } from "@inklee/shared/consumer-disclosures";
-import { getLegalDoc } from "@/lib/legal/documents";
+import { receiptTermsSection } from "@/lib/legal/receipt-terms";
 import { appointmentFeeTier } from "@/lib/server/order-fee-sync";
 import { resolveDiscount } from "@/lib/server/discounts";
 import { recordDiscountRedemption } from "@/lib/server/discounts";
@@ -173,12 +173,10 @@ type ResolvedBundleLine = {
   /** Bundle price, major units (the charged unit price, decision B2/GC6). */
   unitAmount: number;
   totalMinor: number;
-  /** C1.2: true when ANY component is custom-made. A bundle is sold as one
-   *  fixed unit, so if a personalised component cannot legally be returned
-   *  the return right on the bundle as a whole is compromised too — the
-   *  disclosing-more-often direction, since counsel's wording does not cover
-   *  bundles explicitly and an undisclosed exemption is the failure mode
-   *  that extends the statutory window (never the reverse). */
+  /** C1.2 / counsel Q2: the bundle's UNIFORM custom-made status. A bundle is
+   *  all custom-made or all standard (`bundleMixesCustomMade` refuses the mix
+   *  at the write path and again in `bundlePurchasable`), so every component
+   *  agrees and this is simply what they all say. */
   customMade: boolean;
   /** Sale-time composition snapshot rows (0135, variant fields added 0138),
    *  quantity per ONE bundle. */
@@ -286,13 +284,15 @@ export async function resolveBundleLines(
   // purchasability verdict and the sale-time snapshot, so the two cannot
   // disagree about which variant resolved (a risk a second independent
   // lookup would reintroduce).
+  // `customMade` lives on `resolution` and nowhere else: `bundlePurchasable`
+  // now consumes it (counsel Q2's composition rule), and a second copy on the
+  // outer object is exactly the kind of duplicate that drifts.
   type ResolvedComponent = {
     resolution: BundleComponentResolution;
     productId: string;
     title: string;
     unitListPrice: number;
     variantSnapshot: string | null;
-    customMade: boolean;
   };
   function resolveComponentRow(c: {
     product_id: unknown;
@@ -312,12 +312,15 @@ export async function resolveBundleLines(
           variantId,
           productHasActiveVariants: false,
           resolved: null,
+          // Nothing in the sellable catalog to read a flag from. Harmless:
+          // `resolved: null` refuses this bundle as `component_unavailable`
+          // before the composition rule is ever consulted.
+          customMade: false,
         },
         productId,
         title: "",
         unitListPrice: 0,
         variantSnapshot: null,
-        customMade: false,
       };
     }
     // The compositor's own gate: drops, preorder and status, evaluated at
@@ -353,12 +356,17 @@ export async function resolveBundleLines(
       ? (activeVariants.find((v) => v.id === variantId)?.name ?? null)
       : null;
     return {
-      resolution: { quantity, variantId, productHasActiveVariants, resolved },
+      resolution: {
+        quantity,
+        variantId,
+        productHasActiveVariants,
+        resolved,
+        customMade: product.custom_made === true,
+      },
       productId,
       title: product.title,
       unitListPrice: Number(product.price_amount ?? 0),
       variantSnapshot,
-      customMade: product.custom_made === true,
     };
   }
 
@@ -409,9 +417,13 @@ export async function resolveBundleLines(
       quantity: qty,
       unitAmount: bundle.priceAmount,
       totalMinor: bundlePriceMinor(bundle.priceAmount) * qty,
-      // C1.2: any custom-made component makes the whole bundle line
-      // non-returnable (see the type's own doc comment for why).
-      customMade: resolvedComponents.some((rc) => rc.customMade),
+      // Counsel Q2: the verdict above has already refused a mixed bundle, so
+      // the components are uniform and `every` and `some` agree. `every` is
+      // written on purpose: if the invariant were ever breached upstream, the
+      // honest failure is to keep the return right, not to suppress it.
+      customMade:
+        resolvedComponents.length > 0 &&
+        resolvedComponents.every((rc) => rc.resolution.customMade),
       components: resolvedComponents.map((rc) => ({
         productId: rc.productId,
         title: rc.title,
@@ -419,7 +431,7 @@ export async function resolveBundleLines(
         unitListPrice: rc.unitListPrice,
         variantId: rc.resolution.variantId,
         variantSnapshot: rc.variantSnapshot,
-        customMade: rc.customMade,
+        customMade: rc.resolution.customMade,
       })),
     });
   }
@@ -661,7 +673,8 @@ export async function createStandaloneGoodsCheckoutCore(input: {
             unit_amount: l.unitAmount,
             total_amount: l.totalMinor / 100,
             currency: "eur",
-            // C1.2: the bundle-level flag (any custom-made component).
+            // C1.2 / counsel Q2: the bundle-level flag, which is simply what
+            // all of its components say (a bundle cannot mix the two).
             custom_made_snapshot: l.customMade,
           })),
         )
@@ -926,6 +939,13 @@ export async function settleStandaloneGoodsOrder(
           title: i.title_snapshot,
           variant: i.variant_snapshot,
           quantity: Number(i.quantity),
+          // Q4: mark the exempt lines individually. The aggregate lead-in
+          // below is a lead-in to these marks, not a substitute for them; the
+          // add-on lane's receipt carries the same field, so the two payable
+          // surfaces' durable records stay identical in shape.
+          customMade:
+            (i as { custom_made_snapshot?: boolean }).custom_made_snapshot ===
+            true,
         }));
       // C1.2: per-item exemption snapshot, frozen at sale time (order_items
       // and order_item_bundle_components both carry custom_made_snapshot;
@@ -942,11 +962,12 @@ export async function settleStandaloneGoodsOrder(
             }),
           ),
       );
-      let termsSection: string | null = null;
-      try {
-        const terms = getLegalDoc("terms");
-        termsSection = `Terms of Service (version ${terms.version}):\n\n${terms.body}`;
-      } catch (err) {
+      // Q6(b): the Terms text is reproduced, from the ONE helper both goods
+      // receipts now share (receiptTermsSection) rather than assembled here,
+      // so the add-on lane's receipt cannot go on carrying a different amount
+      // of Terms than this one.
+      const terms = receiptTermsSection();
+      if (terms.error) {
         // Fail-soft (mirrors the Plus E2 confirmation's own posture): a
         // receipt missing the inline Terms text is a gap worth knowing about,
         // never a reason to drop the receipt entirely.
@@ -955,10 +976,11 @@ export async function settleStandaloneGoodsOrder(
           {
             level: "warning",
             tags: { action: "standalone_goods_receipt_terms" },
-            extra: { orderId, reason: String(err) },
+            extra: { orderId, reason: terms.error },
           },
         );
       }
+      const termsSection = terms.section;
       const body = buildOrderReceiptBody({
         artistName,
         seller,

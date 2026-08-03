@@ -19,6 +19,7 @@ import {
   assertSalesLaunchApproved,
   evaluateLiveBilling,
   isFeeProcessingSubsidyClaimApproved,
+  resolveNoSeparateCardProcessingFeesClaim,
 } from "@/lib/server/billing/activation";
 
 const ORIGINAL_KEY = process.env.STRIPE_SECRET_KEY;
@@ -291,5 +292,93 @@ describe("isFeeProcessingSubsidyClaimApproved", () => {
   it("propagates a read failure rather than reading it as false", async () => {
     selectMock.mockResolvedValue({ data: null, error: { message: "boom" } });
     await expect(isFeeProcessingSubsidyClaimApproved()).rejects.toThrow(/boom/);
+  });
+});
+
+// D6 (docs/legal/counsel-handoff-2026-08-02.md §5.1, corrected 2026-08-03).
+// The A7 build required the founder's approval at EVERY rate, which suppressed
+// the claim everywhere and withdrew a true, live claim from the 3% cohort.
+// Counsel: "re-scope, don't withdraw" — the approval gates only the rate below
+// processing cost. The four-way rate/approval matrix on the pure predicate is
+// in `src/lib/__tests__/platform-fee-a7-claim.test.ts`; what this block pins is
+// the SERVER wiring, above all WHEN the approvals table is read at all.
+describe("resolveNoSeparateCardProcessingFeesClaim", () => {
+  const THREE_PERCENT_BPS = 300;
+  const PLUS_SUBSIDY_BPS = 50;
+
+  it("3% cohort: visible WITHOUT reading the approvals table at all", async () => {
+    // The rate already covers cost, so the founder's row is never consulted.
+    // Not merely an optimisation: the reader throws on failure by design and
+    // the only caller is a server component, so consulting a row this cohort's
+    // condition does not depend on would put the payouts page at risk of a 500
+    // for no reason. Under the active v1 schedule every tier is 300 bps, so
+    // this is the path every artist takes today.
+    selectMock.mockResolvedValue({ data: [], error: null });
+    await expect(
+      resolveNoSeparateCardProcessingFeesClaim(THREE_PERCENT_BPS),
+    ).resolves.toBe(true);
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it("3% cohort: still visible when the approvals read would FAIL", async () => {
+    // The same property stated as the consequence that matters: a broken
+    // approvals table cannot take down, or silently change, the copy of a
+    // cohort whose claim does not depend on it.
+    selectMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+    await expect(
+      resolveNoSeparateCardProcessingFeesClaim(THREE_PERCENT_BPS),
+    ).resolves.toBe(true);
+  });
+
+  it("0.5% cohort with no approval row: SUPPRESSED, and the table WAS read", async () => {
+    // The distinction case. The suppression the accountant asked for survives
+    // the re-scope, and it is reached by actually consulting the founder's
+    // row rather than by never getting there.
+    selectMock.mockResolvedValue({ data: [], error: null });
+    await expect(
+      resolveNoSeparateCardProcessingFeesClaim(PLUS_SUBSIDY_BPS),
+    ).resolves.toBe(false);
+    expect(selectMock).toHaveBeenCalled();
+  });
+
+  it("0.5% cohort once the founder records the row: visible", async () => {
+    selectMock.mockResolvedValue({
+      data: [row("fee_processing_subsidy_claim_approved", "b2b")],
+      error: null,
+    });
+    await expect(
+      resolveNoSeparateCardProcessingFeesClaim(PLUS_SUBSIDY_BPS),
+    ).resolves.toBe(true);
+  });
+
+  it("0.5% cohort: a failing approvals read throws rather than defaulting the claim on", async () => {
+    // Fail-closed is inherited, not re-implemented: the subsidy cohort has no
+    // covering rate to fall back on, so an unreadable table must never resolve
+    // to "approved".
+    selectMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+    await expect(
+      resolveNoSeparateCardProcessingFeesClaim(PLUS_SUBSIDY_BPS),
+    ).rejects.toThrow(/boom/);
+  });
+
+  it("a tier that cannot transact the lane (null rate) gets nothing", async () => {
+    selectMock.mockResolvedValue({ data: [], error: null });
+    await expect(resolveNoSeparateCardProcessingFeesClaim(null)).resolves.toBe(
+      false,
+    );
+  });
+
+  it("is not a test-mode no-op: the subsidy cohort reads the DB in test mode too", async () => {
+    // Same reasoning as isFeeProcessingSubsidyClaimApproved above — a copy
+    // decision, so a preview environment must be able to preview the flip.
+    forceTestMode();
+    selectMock.mockResolvedValue({
+      data: [row("fee_processing_subsidy_claim_approved", "b2b")],
+      error: null,
+    });
+    await expect(
+      resolveNoSeparateCardProcessingFeesClaim(PLUS_SUBSIDY_BPS),
+    ).resolves.toBe(true);
+    expect(selectMock).toHaveBeenCalled();
   });
 });
