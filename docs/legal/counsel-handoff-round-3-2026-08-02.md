@@ -166,3 +166,127 @@ before the approval key is recorded.
 The activation gates (`consumer_sales_launch_approved`, `GOODS_COMMERCE_ENABLED`) remain closed.
 Today's push contains no consumer-facing commerce change; it is defect remediation on already-live
 paths only.
+
+---
+
+## 6. Answers (counsel review, round 3, 2026-08-02)
+
+### 6.1 On §1 — status and the cherry-pick deviation
+
+**The deviation is approved.** Taking only the escape half was the correct call: shipping code
+that references tables production does not have would have been a worse deviation than splitting
+a commit. The refund half staying in the main batch is right. The no-migration /
+below-ceiling discipline on the expedited branch is exactly what the expedite instruction
+assumed — noted with approval that it was verified rather than assumed.
+
+### 6.2 On §2 — the Art. 33(5) record: adequate, with four amendments
+
+The reasoning is not wrong. The record is close to adequate and becomes adequate with these:
+
+1. **Scope the header correctly and produce the missing sibling.** This is the **Q10 (MFA)**
+   record. The **Q9 record** — the cleanup job's retention guard and the deletion routine's
+   discarded reads, with its own window, population (8 deletions), evidence examined, and the
+   **result of the retrospective waitlist sweep** — is a separate record that was also directed
+   and is not in this document. Produce it; the sweep result is its centrepiece, because it is
+   the one place where "assessed as zero" can be replaced by a checked answer.
+2. **Query the hosting deployment history.** "Not recoverable from our repository" is true and
+   insufficient when one provider lookup would bound the window. Query it; record either the
+   date or the documented reason it cannot be obtained. An Art. 33(5) record should not leave a
+   cheaply-knowable fact unknown.
+3. **Add the population context** (28 accounts, at most 5 plausible external users, 0 paying)
+   into the record itself as the proportionality anchor — it currently lives only in the
+   previous handoff.
+4. **Give the record standing:** date, author, the founder's verification note, a register ID,
+   and indefinite retention in the breach register. A record that only exists inside a handoff
+   document is not yet a record.
+
+The "assessed as zero, with limits" construction is correct and should not be hardened into
+"zero" — the honesty about the empty audit table is what makes the record credible. The
+mutation-verified two-direction remediation is approved as described.
+
+### 6.3 On §3 — the memo: adequate; the reading was deliberate
+
+Confirmed: the answer intentionally accepted the second reviewer's factual conclusion while
+requiring the first reviewer's remediation — the design severity and the realised exposure are
+different questions and both were right in their lane. The residual-risk acceptance is properly
+recorded. One addition: give it a **review date** — after 90 days of authentication-event
+logging in production, confirm events are actually being written (observe real entries, not the
+absence of errors) and note that in the memo. An accepted residual risk with no revisit date is
+how it becomes permanent.
+
+### 6.4 On §4.1 — the split is approved, with two conditions
+
+Your provisional view is endorsed: the abuse controls cut intake immediately, the purge governs
+data already held, and shipping the controls today is strictly better than holding both. The
+retention treatment was not intended as inseparable. Two conditions:
+
+1. **Date the second half.** The purge, privacy notice, and RoP entry land in the main batch,
+   and the main batch's deployment is already a sign-off condition — so the instruction is not
+   half-done indefinitely by construction. Record the linkage explicitly in the worklist.
+2. **Check the entitled population now.** The previous round noted it "may be small or empty."
+   Query it. If zero artists are entitled, the form cannot ingest and the urgency collapses; if
+   nonzero, count the existing submissions and note them in the Q9-sibling record (they are
+   held personal data with no retention rule until the batch lands — an interim manual review
+   of what is already stored is cheap and closes the gap honestly).
+
+### 6.5 On §4.2 — correct
+
+The propagated characterisation is exactly right, and repeating it in each round so that no
+document relies on the standing of another is the correct discipline. Keep doing it. LO-10 and
+the LO-5 DPIA remain the two named items for independent qualified review, and both remain open.
+
+### 6.6 Standing items, restated once
+
+Unchanged and still owed from round 2: the Q9 internal record + waitlist sweep (§6.2(1)), the
+LO-5 DPIA in the ordered worklist with owner and date, the LO-10 round scheduling, the refund
+ledger carve-out and §11 cross-check under C1.10, and the deployed-artifact condition on the
+final sign-off (§5 above, correctly restated). Nothing in round 3 changes any of them.
+
+---
+
+## 7. Answer — the population figure discrepancy (counsel review, 2026-08-02)
+
+Engineering reports: 20 profiles measured, zero rows in `deleted_account_records` (expected —
+the carve-out code is undeployed), and therefore the "8 deletions" figure cannot be reproduced
+from that source. The intent to state this in the record rather than restate an unverifiable
+number is **correct and approved** — a record must never inherit a figure its author could not
+reproduce. Three instructions sharpen it:
+
+### 7.1 Reconcile before recording "unconfirmed" — the number may be derivable
+
+The round-2 figure was "28 auth accounts in total" and "8 deletions between 2026-05-04 and
+2026-07-26." Note the arithmetic: **28 historical accounts − 20 current profiles = 8.** If the
+original figure was derived from the auth table, the audit log, or that account-vs-profile
+delta, it is reproducible — just not from `deleted_account_records`, which was never going to
+hold it. Before writing "cannot confirm": query the auth table (total rows ever, current rows,
+deleted-at timestamps if soft-deleted) and the audit log for deletion events. Then the record
+states one of two things, both acceptable: **(a)** "8 deletions, derived from [source], dated
+[date], corroborated by the 28→20 account/profile delta," or **(b)** "the prior figure of 8
+could not be reproduced from any current source; measured values as of 2026-08-02 are 20
+profiles and [N] auth accounts; the discrepancy is recorded as unresolved." Never (c): silently
+restating 8. State source and measurement date for every number in the record from here on.
+
+### 7.2 The empty table is evidence, not absence of evidence — and it belongs in the Q9 record
+
+Zero rows in `deleted_account_records` with the carve-out undeployed means **every historical
+deletion ran under the old routine** — the one with the fail-open deposit read. That is exactly
+the Q9 population. So the empty table does not merely fail to confirm the count; it confirms
+that whatever deletions occurred had **no retained financial record**, compliant or not. The
+Q9 sibling record must therefore answer the question the table cannot: **did any deleted
+account have financial activity requiring retention?** The surviving source of truth is
+**Stripe** — it retains transaction and Connect-account records independently of anything
+Inklee deleted. Cross-reference the deleted accounts (from the 7.1 reconciliation) against
+Stripe's records. Given the timeline (Stripe live only from 2026-07-04, beta on admin comps,
+zero paying customers), the likely finding is "zero deleted accounts with financial activity,
+verified against Stripe" — which upgrades the Q9 record's central claim from *"the table is
+empty, which is consistent with either explanation"* to a **checked negative**. That is the
+difference between an assessment and a shrug, and it is worth the one query.
+
+### 7.3 The four outstanding items stand, one now enlarged
+
+No drift on the remainder: **(1)** the Q9 sibling record — now expanded to include the 7.2
+Stripe cross-reference alongside the waitlist sweep; **(2)** the hosting deployment-history
+lookup (date or documented reason); **(3)** formal standing for both records — date, author,
+founder verification, register ID, indefinite breach-register retention; **(4)** the 90-day
+logging review date written into the Q10 memo. The §2 record should not be marked final until
+7.1 is resolved, since its population paragraph currently rests on figures two documents old.
