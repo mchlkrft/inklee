@@ -6,9 +6,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // fires for the NEW category with NO per-category branch, which is what makes
 // element 4 "free with element 1" (round-5 §4.2) true rather than assumed.
 
-const { mockSendEmail } = vi.hoisted(() => ({ mockSendEmail: vi.fn() }));
+const { mockSendEmail, mockQueue } = vi.hoisted(() => ({
+  mockSendEmail: vi.fn(),
+  mockQueue: vi.fn(),
+}));
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/server/content-reports", () => ({
+  queueContentReport: (...a: unknown[]) => mockQueue(...a),
+}));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": "1.2.3.4" }),
 }));
@@ -48,6 +54,7 @@ function form(category: string, over: Record<string, string> = {}): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   mockSendEmail.mockResolvedValue(undefined);
+  mockQueue.mockResolvedValue({ id: "cr_test" });
 });
 
 describe("submitReportAction: image_without_consent category (#79 Q16 e1/e4)", () => {
@@ -90,5 +97,24 @@ describe("submitReportAction: image_without_consent category (#79 Q16 e1/e4)", (
     expect(REPORT_CATEGORY_LABELS["image_without_consent"]).toBe(
       "Image of me without consent",
     );
+  });
+
+  it("QUEUE (element 2): a valid submission writes a durable content_reports row", async () => {
+    await submitReportAction(null, form("image_without_consent"));
+    expect(mockQueue).toHaveBeenCalledTimes(1);
+    expect(mockQueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "image_without_consent",
+        reporterEmail: "dana@example.com",
+        url: "https://inklee.app/somebody/hub",
+      }),
+    );
+  });
+
+  it("QUEUE is best-effort: a queue-write failure still returns success and still sends the ack", async () => {
+    mockQueue.mockResolvedValue({ error: "boom" });
+    const res = await submitReportAction(null, form("image_without_consent"));
+    expect(res).toMatchObject({ sent: true });
+    expect(mockSendEmail).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/email/send";
 import { checkReportRateLimit } from "@/lib/ratelimit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { REPORT_CATEGORY_LABELS as CATEGORY_LABELS } from "@/lib/legal/report-categories";
+import { queueContentReport } from "@/lib/server/content-reports";
 
 export type ReportState =
   | { error: string; field?: string }
@@ -111,6 +112,20 @@ export async function submitReportAction(
   const reference = generateReference();
   const submittedAt = new Date().toISOString();
   const ipHeader = (await headers()).get("x-forwarded-for") ?? "";
+
+  // Durable moderation queue (content_reports, 0155) — the record of record for
+  // this notice-and-action, written row-first before the notifications. Q16
+  // element (2) requires a queued item, not just an email. Best-effort: a queue
+  // failure is logged loudly inside `queueContentReport` but never fails the
+  // reporter, whose acknowledgement and the operator email still go.
+  await queueContentReport({
+    category,
+    url,
+    description,
+    reporterName,
+    reporterEmail,
+    reference,
+  });
 
   const operatorHtml = [
     `<p><strong>DSA notice-and-action report</strong></p>`,
