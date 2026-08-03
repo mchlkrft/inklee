@@ -36,9 +36,19 @@ import { deleteOwnAccountCore } from "@/lib/server/account-deletion";
  *   refunds, refund_lines (0147, C1.10 completion). The refund ledger is the
  *   sharpest case in the file: refunds.payment_request_id still points at a
  *   payment_request that DOES get cascade-erased in the same delete (P9
- *   stays CASCADE, archived not schema-preserved), so surviving here also
- *   proves the refund's own NO ACTION subject FK did not block that cascade
- *   — 0147 makes it DEFERRABLE INITIALLY DEFERRED for exactly this reason.
+ *   stays CASCADE, archived not schema-preserved), and refund_lines still
+ *   points at a payment_request_line that ALSO gets cascade-erased — proving
+ *   the surviving rows' subject FKs did not block that cascade.
+ *   refunds_payment_request_fk/refunds_order_fk (composite, include
+ *   artist_id) needed no schema change: isolated execution showed the plain
+ *   NO ACTION check already passes once artist_id is nulled by the same
+ *   cascade. refund_lines_request_line_fk/refund_lines_order_item_fk (do NOT
+ *   involve artist_id) DID need a change — 0147 makes them ON DELETE SET
+ *   NULL — confirmed necessary by isolated execution: reverting just that
+ *   pair, with every other 0147 change left in place, reproducibly fails
+ *   this fixture on its own. See 0147's own header for the full account,
+ *   including the deferred-constraint approach that was tried, tested against
+ *   a compound (not isolated) state, wrongly credited, and retracted.
  *   ERASE (ON DELETE CASCADE, unchanged): account_overrides (pure
  *   entitlement/config, no revenue-substantiation role — 0143's decision).
  *   ARCHIVE THEN ERASE (P9, migration 0125 — BDEL-PAY-001): payment_requests,
