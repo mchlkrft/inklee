@@ -101,9 +101,29 @@ what is live.
   checkout is acceptable) before the production run if it has still never been
   done. Record the rehearsal as a coverage row.
 
-### A2. Apply 0125-0153 (🧑 founder go, then release sequencer)
+### A2. Apply the batch (🧑 founder go, then release sequencer)
 
-- Apply in filename order via the established Management API path.
+- **A2.0 — REPAIR THE ENUM FIRST (DRIFT-ENUM-001, hard gate, discovered 2026-08-03 pre-flight).**
+  Production's `order_status` enum carries a mangled label `cancel\r\n  led`
+  instead of `cancelled` (re-confirmed by live catalog read 2026-08-03).
+  Migration `0149`'s backfill `update orders ... where status = 'cancelled'`
+  coerces that literal to the enum at PLAN time and raises `22P02`, aborting the
+  apply at 0149. Apply **`0154_repair_order_status_enum.sql` FIRST**, ahead of
+  0125-0153 (it touches only the pre-existing type and depends on nothing in the
+  batch). A naive `db push` reaches 0149 before 0154 and aborts, so the
+  sequencer must apply and record 0154 first, then apply 0125-0153. After 0154,
+  verify the label is clean:
+  `select enumlabel, length(enumlabel) from pg_enum e join pg_type t on t.oid=e.enumtypid where t.typname='order_status' order by enumsortorder;`
+  → the third label must be exactly `cancelled` (length 9), no CR/LF. 0154 is
+  proven by execution (`order-status-enum-repair.test.ts`, 7 tests) and is a
+  convergent no-op if the label is already clean.
+- **A2.1 — precheck gate: no duplicate `stripe_payment_intent_id`** before 0146
+  builds its non-concurrent UNIQUE index:
+  `select stripe_payment_intent_id, count(*) from orders where stripe_payment_intent_id is not null group by 1 having count(*) > 1;`
+  → must return zero rows. Confirmed empty 2026-08-03 (prod `orders` has 1
+  `pending` row total), but re-run at apply time.
+- **A2.2 — apply 0125-0153** in filename order via the established Management API
+  path, after A2.0 and A2.1 pass.
 - **Catalog-verify after applying — exit 0 proves nothing** (AGENTS.md).
   Minimum checks, each against prod:
   - tables: `payment_requests`, `payment_request_lines`, `payment_collections`,

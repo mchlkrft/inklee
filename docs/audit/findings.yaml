@@ -3463,12 +3463,38 @@ findings:
         - "No check was made for mangling in object COMMENTS, ACL grantee names, or the auth/storage
           schemas."
     remediation:
-      status: "open"
-      proposed_action: "Not yet actioned. Opened by a targeted audit."
+      status: "fixed-unverified"
+      fix_commit: "07accac0"
+      proposed_action: "Migration 0154_repair_order_status_enum.sql (2026-08-03): a guarded,
+        convergent DO block that renames the single CR/LF order_status label back to 'cancelled'.
+        Applied FIRST in the release, ahead of 0149, because 0149's backfill coerces the literal
+        'cancelled' at plan time and aborts against the mangled label. No-op on a clean enum;
+        refuses to guess if more than one label is mangled. NOT YET APPLIED TO PRODUCTION: that is
+        the founder-gated Phase A2.0 step. The finding stays routed to the release-sequencer's
+        post-apply catalog check for closure."
+      fixed_at: "2026-08-03"
     verification:
-      status: "not-started"
-      independent: false
-      residual_risk: "Not fixed and not verified."
+      status: "partially-verified"
+      independent: true
+      verification_method: "Repair LOGIC independently verified by a different instance than the
+        one that wrote 0154 (2026-08-03), by execution against the LOCAL stack: the production
+        CR/LF corruption was reproduced in rolled-back transactions, 0149's verbatim backfill went
+        RED (22P02, enum_in, plan-time literal coercion) without 0154 and GREEN with it, and the
+        guard's convergence, idempotency, >1-mangled refusal and clean-cancelled-coexist cases were
+        all exercised. 0149's backfill was confirmed the SOLE apply-time order_status literal
+        coercion in 0125-0153 (0125/0126's 'cancelled' target fresh payment_request/collection
+        enums; 0149's trigger defers coercion and is a latent runtime, not apply-time, failure).
+        Test: apps/web/tests/db/order-status-enum-repair.test.ts, 7/7."
+      residual_risk: "PRODUCTION IS NOT YET REPAIRED: verification is on a local reproduction, not
+        prod; prod's enum state and its zero-cancelled-orders assumption were taken as given from
+        the 2026-08-03 read-only reads. R1 (operational, highest): 0154 is numerically LAST but
+        MUST apply BEFORE 0149; a naive `supabase db push` aborts at 0149 before reaching 0154,
+        leaving the fix inert. Mitigated procedurally by execution-plan step A2.0 (apply+record
+        0154 first, verify clean label, then the batch); fails LOUD (22P02 abort, no data loss) if
+        forgotten, but does NOT self-enforce. R2 (scope, acceptable): the guard catches only CR/LF;
+        tab/trailing-space corruption would be missed, but 0149 still aborts loudly then, so no
+        broken enum ships silently. Final closure requires the release-sequencer's post-apply
+        production catalog check."
     disclosure:
       public_repo_safe: true
       redactions_applied: "Cited by path, symbol and commit rather than reproduced. No secrets, personal
@@ -3493,6 +3519,15 @@ findings:
           (postgresql://postgres:postgres@127.0.0.1:54322) returns pending(7), paid(4),
           cancelled(9), refunded(8), partially_refunded(18) — i.e. local is correct,
           exactly as the finding said, so local cannot discr"
+      - date: "2026-08-03"
+        actor: "Phase A pre-flight (release-readiness audit, then founder-directed enum repair)"
+        action: "fix-committed"
+        note: "Re-confirmed the corruption LIVE during Phase A pre-flight (read-only prod catalog
+          read: order_status label 3 = 'cancel\\r\\n  led', len 13, has CR/LF). Built migration
+          0154 (07accac0) to repair it, added order-status-enum-repair.test.ts (7/7), and encoded
+          apply-first ordering in the go-live execution plan A2.0. Independently verified by
+          execution on the local stack (see verification). Stays open, routed to the
+          release-sequencer's production catalog check, until prod is actually repaired."
 
   - id: "DRIFT-POL-001"
     title: "Production's booking_interests RLS policy name contains an embedded CRLF, so the house `drop

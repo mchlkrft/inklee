@@ -5,7 +5,9 @@
 
 # Structural risk report
 
-**Ledger content hash:** `c3a5a2de2e3c`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `21a664f544b5`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
@@ -35,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 67 |
+| fixed-unverified | 68 |
 | in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 53 |
+| open | 52 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -47,8 +49,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 121 |
-| partially-verified | 4 |
+| not-started | 120 |
+| partially-verified | 5 |
 | passed | 27 |
 | pending | 2 |
 
@@ -326,6 +328,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | CRON-RMD-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
+| DRIFT-ENUM-001 | high | fixed-unverified | partially-verified | 07accac0 |
 | PAY-AUTHZ-001 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-AUTHZ-002 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-CONN-001 | high | fixed-unverified | not-started | 7e59c79 |
