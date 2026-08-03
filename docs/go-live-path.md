@@ -227,28 +227,27 @@ C1.9 Terms version. **Never activate on a provisional decision entry.**
 
 ---
 
-## 3. Two founder decisions, open since 2026-08-03
+## 3. Two Connect decisions — BOTH RESOLVED 2026-08-03
 
-Neither has been answered. Both were put and left deliberately unanswered rather
-than assumed.
+1. **Push the Connect code-half fix** (`40687c93`). ✅ DONE: it rode the A3
+   push and is live on `origin/master`. Stops `persistConnectAccountFromEvent`
+   swallowing its lookup error behind an HTTP 200, and adds Sentry to two
+   payouts paths that failed silently.
+2. **Deliver connected-account `account.updated`.** ✅ DONE, and the earlier
+   "Stripe configuration, not code" framing was WRONG. The live
+   `/api/stripe/webhook` was already subscribed to `account.updated`, but both
+   endpoints were platform-only (`connect=false`), and Stripe makes `connect`
+   IMMUTABLE, so the fix needed a NEW `connect=true` endpoint. That endpoint
+   carries its own signing secret, and the route verified a single secret, so
+   the events would fail signature verification: a CODE change, not a toggle.
+   Delivered 2026-08-03: multi-secret verification (`50135c6f`, independently
+   verified), a live `connect=true` endpoint `we_1U0OaPHkG0exykzFN4oqRVGg`, the
+   secret in Vercel prod (`STRIPE_CONNECT_WEBHOOK_SECRET`) + the vault, and a
+   live probe confirming the deployed app accepts a connect-secret-signed event
+   (200) and rejects a bad one (400). See execution-plan A4.
 
-1. **Push the Connect code-half fix** (`40687c93`, on master). Stops
-   `persistConnectAccountFromEvent` swallowing its lookup error behind an HTTP
-   200, and adds Sentry to two payouts paths that fail silently. Mutation-
-   verified. Under the sequence above this rides along with step 3.
-2. **Enable connected-account delivery on the Stripe webhook endpoint.** This
-   is the ONLY real fix for `account.updated`, and it is **Stripe
-   configuration, not code**, so no deploy delivers it. Verified by CLI:
-   `account.updated` events exist on the connected account
-   (`evt_1U0Ff4H3gYinii8EQ65JwqDX`) and there are **zero** on the platform
-   account, while both live endpoints are platform-only. Under destination
-   charges the PaymentIntent lives on the platform account, which is exactly why
-   `payment_intent.succeeded` lands and a connected-account event does not.
-   Both Connect checkboxes in `docs/ot-12-rollout-runbook.md` are still
-   unticked, and every setup doc lists event NAMES only, never the toggle.
-
-Order matters: fixing delivery WITHOUT (1) would restore the events and then
-swallow any lookup failure behind a 200.
+The ordering constraint held: the code-half fix (1) was live before delivery
+(2) was enabled, so no lookup failure is swallowed behind a 200.
 
 ---
 

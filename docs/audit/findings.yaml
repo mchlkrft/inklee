@@ -20266,3 +20266,35 @@ coverage:
     recommended_next_inspection: "Confirm STRIPE_CONNECT_WEBHOOK_SECRET is provisioned in prod before
       enabling the connect webhook endpoint; consider one integration test exercising the real
       constructEvent timestamp tolerance if the connect endpoint ever carries money events."
+  - area: "A4 live config: the connect=true webhook endpoint we_1U0OaPHkG0exykzFN4oqRVGg, its secret
+      in Vercel prod + the vault, and end-to-end verification that a connected-account
+      account.updated verifies against it on the LIVE deployment"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "production-catalog-read"
+    last_inspected: "2026-08-03"
+    commit_inspected: "7fb016c5"
+    reviewer: "the session executing A4 under founder go (self); the code change it depends on
+      (50135c6f) was independently verified in the coverage row above"
+    evidence: "Live connect endpoint created via the Stripe API (application field set confirms
+      connect=true; events account.updated + account.application.deauthorized). Secret set in Vercel
+      prod (env ls shows STRIPE_CONNECT_WEBHOOK_SECRET, Production, encrypted) and mirrored in the
+      Control Tower vault (stripe-connect-webhook-inklee-live, targets []). Deploy 3orfxd1k9 (built
+      AFTER the env var was added) confirmed Ready. LIVE PROBE against
+      https://inklee.app/api/stripe/webhook: an account.updated signed with the connect secret
+      exactly as Stripe signs returned HTTP 200 {received:true}; the same payload signed with a wrong
+      secret returned HTTP 400 {invalid signature} (control), so the 200 is meaningful. A
+      non-existent account id was used so persistConnectAccountFromEvent found no profile and
+      no-op'd, touching no real data."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "The live probe used a SELF-signed event (our own connect secret), not a genuine
+      Stripe delivery, and a non-existent account, so the profile-persist WRITE path was not
+      exercised live (it is unit-tested). A real connected-account delivery reaching the app was not
+      observed (the temp restricted key could not resend a connected-account event). Not independent:
+      the same session created the endpoint and ran the probe. The temp restricted key
+      claude-03-08-2026 remains to be deleted by the founder; the control-tower registry.json entry
+      remains uncommitted."
+    recommended_next_inspection: "Observe the next genuine connected-account account.updated delivery
+      reach the endpoint and bump profiles.stripe_account_updated_at, confirming the full persist
+      path live. Delete the temp restricted key claude-03-08-2026."

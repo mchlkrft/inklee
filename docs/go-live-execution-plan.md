@@ -191,13 +191,23 @@ Done under founder go 2026-08-03:
 3. SECRET: the endpoint's signing secret is in Vercel prod
    (`STRIPE_CONNECT_WEBHOOK_SECRET`, Production) and mirrored in the Control
    Tower vault (`stripe-connect-webhook-inklee-live`, recovery copy, targets []).
-4. ACTIVATING: a deploy is needed for the running functions to pick up the new
-   env var; done via a git push (the `vercel redeploy` path hit a team-scope
-   error). VERIFICATION PENDING: resend an `account.updated` to the connect
-   endpoint and confirm 200 + the profile persists.
+4. ACTIVATED + VERIFIED 2026-08-03. The env var went live via a git push
+   (deploy `3orfxd1k9`, Ready; the `vercel redeploy` path hit a team-scope
+   error). Verified against the LIVE deployment by signing a probe
+   `account.updated` with the connect secret exactly as Stripe would and
+   POSTing it to `https://inklee.app/api/stripe/webhook`: it returned
+   **HTTP 200 {received:true}**, and the same payload signed with a wrong
+   secret returned **HTTP 400 {invalid signature}** (control). A non-existent
+   account id was used so the handler looked it up, found no profile, and
+   no-op'd, touching no real data. So a connected-account `account.updated`
+   now reaches the app, verifies against `STRIPE_CONNECT_WEBHOOK_SECRET`, and
+   would sync the matching profile.
 
-Temp restricted key `claude-03-08-2026` (webhook write + events read) was used
-for the create; delete it after verification.
+**A4 DONE.** Executed by the session under founder go, using a temp restricted
+key `claude-03-08-2026` (webhook write + events read). **FOUNDER: delete that
+temp key now.** The control-tower `registry.json` gained an uncommitted
+`stripe-connect-webhook-inklee-live` entry (the vault value is already stored);
+commit it there when convenient.
 
 ---
 

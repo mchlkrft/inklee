@@ -190,12 +190,19 @@ Deposits have been live since 2026-05-22, so there is **no feature flag to flip*
 for this. The only production prerequisites are the Connect webhook events and
 keeping goods parked.
 
-- [ ] **Live-mode Connect webhook events.** Stripe Dashboard → **Live mode** →
-      Developers → Webhooks → the production `/api/stripe/webhook` endpoint.
-      Confirm it listens to:
-  - `payment_intent.succeeded` (already there — deposits)
-  - `account.updated` (**add**)
-  - `account.application.deauthorized` (**add**)
+- [x] **Live-mode Connect webhook delivery.** DONE 2026-08-03. The platform
+      deposit endpoint (`we_1TpPmy…` → `/api/stripe/webhook`) already listed
+      `account.updated` + `account.application.deauthorized`, but it is
+      platform-only (`connect=false`), so connected-account events never
+      arrived. Fixed by a NEW `connect=true` endpoint
+      (`we_1U0OaPHkG0exykzFN4oqRVGg`, same URL) plus a code change so the route
+      verifies its separate signing secret (`STRIPE_CONNECT_WEBHOOK_SECRET`,
+      in Vercel prod + vault) alongside the platform secret. Not a dashboard
+      toggle: `connect` is immutable, so it required a new endpoint + code. See
+      `docs/go-live-execution-plan.md` A4 and go-live-path §3.
+  - `payment_intent.succeeded` (platform deposit endpoint — deposits)
+  - `account.updated`, `account.application.deauthorized` (connect endpoint,
+    connected accounts)
 - [ ] **Live keys present** in Vercel prod (`sk_live_...`, `pk_live_...`,
       live-mode `STRIPE_WEBHOOK_SECRET`). Already true since 2026-05-22.
 - [ ] **`GOODS_COMMERCE_ENABLED` is NOT set in production** (goods stay
