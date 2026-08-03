@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { adminClient, makeActor, type Actor } from "./helpers/actor";
+import { PgSession } from "./helpers/pg-session";
 
 vi.mock("server-only", () => ({}));
 
@@ -337,5 +338,139 @@ describe("fixture/production cutoff agreement", () => {
     expect(new Date(NOT_OLD_ENOUGH).getTime()).toBeGreaterThanOrEqual(
       cutoff.getTime(),
     );
+  });
+});
+
+/**
+ * The trigger's OWN delete conditions, reached directly.
+ *
+ * WHY THIS BLOCK EXISTS, and it is a correction to this file rather than an
+ * addition. The docblock at the top already claims to pin "a purge-lane delete
+ * of a row that is not actually past the horizon or not actually
+ * de-identified". It did not. A mutation sweep on 2026-08-02 removed the
+ * HORIZON condition from `tts_block_mutation` and the entire suite stayed
+ * green.
+ *
+ * The reason is structural, not an oversight in any one test.
+ * `tts_block_mutation`'s DELETE exemption has THREE conditions:
+ *
+ *   1. the transaction-local marker `inklee.tts_retention_purge` is 'on'
+ *   2. OLD.artist_id is null            (de-identified only)
+ *   3. OLD.created_at < the 7-year horizon, re-derived from now()
+ *
+ * Every pre-existing test reached the trigger through one of two doors, and
+ * neither door can exercise 2 or 3:
+ *
+ *   - the ad-hoc DELETE tests go through PostgREST, which cannot set a
+ *     transaction-local setting, so they are refused by condition 1 and stop
+ *     there;
+ *   - the DISTINCTION tests call the purge RPC, whose own WHERE clause already
+ *     filters out young rows and live-artist rows, so those rows are never
+ *     presented to the trigger at all.
+ *
+ * So conditions 2 and 3 are defence in depth behind the RPC's WHERE, and
+ * defence in depth that no test can fail is indistinguishable from no defence.
+ * It matters because the two layers can drift: widen or mistype the RPC's
+ * WHERE and the trigger is the only thing left standing between a bug and the
+ * deletion of a tax record inside its statutory retention period, which is the
+ * append-only guarantee counsel's Q1 answer is built on.
+ *
+ * These tests use a raw session because that is the ONLY way to hold the
+ * marker and present a disqualified row at the same time. That is deliberately
+ * not a production-reachable path: the point is to test the guard, not the
+ * lane.
+ */
+describe("the trigger's own DELETE conditions (defence in depth behind the RPC)", () => {
+  let session: PgSession;
+
+  beforeAll(() => {
+    session = PgSession.open("tts-trigger-conditions");
+  });
+
+  afterAll(async () => {
+    await session.rollbackIfOpen();
+    await session.close();
+  });
+
+  /** Attempt a DELETE in the purge lane: marker set, one row targeted. Always
+   *  rolled back, so a success does not remove the fixture. Returns the error
+   *  message, or null when the delete was permitted. */
+  async function purgeLaneDelete(id: string): Promise<string | null> {
+    await session.begin();
+    try {
+      await session.query(
+        "select set_config('inklee.tts_retention_purge', 'on', true)",
+      );
+      await session.query(
+        "delete from transaction_tax_snapshots where id = $1",
+        [id],
+      );
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    } finally {
+      await session.rollbackIfOpen();
+    }
+  }
+
+  // FAILS IF condition 3 is removed from tts_block_mutation. This is the exact
+  // mutation that left the old suite green.
+  it("refuses a purge-lane DELETE of a row still INSIDE its retention window", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: NOT_OLD_ENOUGH,
+    });
+    expect(await purgeLaneDelete(id)).toContain("append-only");
+    expect(await snapshotExists(id)).toBe(true);
+  });
+
+  // FAILS IF condition 2 is removed. Distinct from the test above: this row IS
+  // old enough, and is refused only because it still belongs to someone.
+  it("refuses a purge-lane DELETE of an OLD row that still belongs to a LIVE artist", async () => {
+    const id = await insertSnapshot({
+      artist_id: liveArtist.id,
+      created_at: OLD_ENOUGH,
+    });
+    expect(await purgeLaneDelete(id)).toContain("append-only");
+    expect(await snapshotExists(id)).toBe(true);
+  });
+
+  // POSITIVE CONTROL, and the whole block is worthless without it. A trigger
+  // that refused EVERY delete would pass both tests above, and so would a
+  // harness that simply failed to set the marker. This proves the lane these
+  // two are refused in is genuinely open for the row that qualifies.
+  it("POSITIVE CONTROL: the same lane DELETES a de-identified row past the horizon", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    expect(await purgeLaneDelete(id)).toBeNull();
+    // Rolled back, so it is still here. The assertion that matters is the
+    // null above: the trigger permitted it.
+    expect(await snapshotExists(id)).toBe(true);
+  });
+
+  // The marker is the third condition and the only one the old suite covered,
+  // but it covered it through PostgREST. Pinned here too, on the SAME session
+  // and the SAME row shape as the positive control, so the difference between
+  // this and the control is exactly one setting rather than one code path.
+  it("refuses the identical DELETE when the marker is absent", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    await session.begin();
+    let message: string | null = null;
+    try {
+      await session.query(
+        "delete from transaction_tax_snapshots where id = $1",
+        [id],
+      );
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    } finally {
+      await session.rollbackIfOpen();
+    }
+    expect(message).toContain("append-only");
   });
 });
