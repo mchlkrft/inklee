@@ -58,6 +58,15 @@ const REQUIRED_BLOCKS = [
   "purged_deleted_account_billing_contract_confirmations",
   "purged_deleted_account_billing_consent_records",
   "purged_deleted_account_billing_subscriptions",
+  // LO-5 DPIA §7 mitigation R6 (intake-retention.ts). Listed here so the
+  // route-level dry-run proves these four queries are valid against the
+  // DEPLOYED schema, which their own unit tests (a faked store) cannot: a
+  // block keyed to `projects.closed_at` on a database that never ran
+  // migration 0152 must red here rather than on its first unattended run.
+  "purged_unconverted_intake_media",
+  "purged_closed_project_intake_media",
+  "unstamped_closed_projects",
+  "stale_open_projects_retaining_intake_media",
 ];
 
 let admin: SupabaseClient;

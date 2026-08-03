@@ -6,6 +6,7 @@ import {
 } from "@/lib/server/retention-cutoffs";
 import { runShopRetentionPurges } from "@/lib/server/shop-retention";
 import { runBillingRecordRetentionPurges } from "@/lib/server/billing-record-retention";
+import { runIntakeRetentionPurges } from "@/lib/server/intake-retention";
 import { runTaxThresholdRollup } from "@/lib/server/tax-threshold-rollup";
 import { runConnectAccountTeardown } from "@/lib/server/connect-account-teardown";
 import {
@@ -65,6 +66,17 @@ export const runtime = "nodejs";
 //     control (migration 0148) so the ledger stays immutable against EDITS
 //     and becomes deletable by exactly one path, this purge. Delegated to
 //     billing-record-retention.ts, which is DB-tested on its own.
+//   • LO-5 DPIA §7 mitigation R6 (intake-retention.ts): the 90-day intake
+//     retention purge, a precondition of BOTH activation gates. Deletes the
+//     `project_media` rows AND their storage objects for intakes that never
+//     converted past `submitted`, and for projects 90 days closed. Live work
+//     (`under_review`/`consultation`/`active`) is deliberately exempt,
+//     because the intake sells sleeves and bodysuits "over months" and a
+//     90-day-from-creation rule would delete an artist's working references
+//     mid-project. Both clocks run from an EVENT (D4). The module also
+//     reports two non-purging health counts: closed projects with no
+//     `closed_at` (unpurgeable, would otherwise be silent) and the size of
+//     the exempt set.
 //   • A2 tax-threshold rollup (counsel-accountant-handoff-2026-08.md PART 4
 //     A2, tax-threshold-rollup.ts): NOT a purge, but reuses this SAME weekly
 //     schedule deliberately rather than registering a new vercel.json cron
@@ -250,6 +262,14 @@ export async function GET(request: Request) {
 
   const billingSteps = await runBillingRecordRetentionPurges(now, mode);
   for (const [name, result] of Object.entries(billingSteps)) {
+    steps[name] = result;
+  }
+
+  // LO-5 DPIA R6. The only block here that deletes STORAGE OBJECTS as well as
+  // rows, which is why it lives in its own module with its own fail-loud
+  // ordering rather than as a `tableSteps` entry.
+  const intakeSteps = await runIntakeRetentionPurges(now, mode);
+  for (const [name, result] of Object.entries(intakeSteps)) {
     steps[name] = result;
   }
 
