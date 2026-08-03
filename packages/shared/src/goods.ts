@@ -187,6 +187,24 @@ export type PublicProductVariant = {
   stock: number | null;
 };
 
+/**
+ * The columns the PUBLIC bio-page shop reads to build `PublicProduct`.
+ *
+ * Lives beside the type it populates, and not inline at the call site, because
+ * the pair is a contract: a column dropped from this string does not fail to
+ * compile, it makes the corresponding field silently `undefined` and the
+ * surface silently stops rendering whatever depended on it. That is precisely
+ * how `custom_made` came to be selected by the standalone shop and the add-on
+ * lane but not by the bio-page shop, leaving the richest browse surface the
+ * only one unable to mark a non-returnable item (counsel Q5).
+ *
+ * The same shape as `PRODUCT_SELECT_COLUMNS` in the add-on lane, for the same
+ * reason. Asserted by name in the tests so removing a disclosure-critical
+ * column is a red test rather than a quiet regression.
+ */
+export const PUBLIC_SHOP_PRODUCT_SELECT =
+  "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, quantity, available_from, preorder, collection_id, custom_made, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)";
+
 export type PublicProduct = {
   id: string;
   title: string;
@@ -201,6 +219,23 @@ export type PublicProduct = {
   price: number;
   currency: string;
   soldOut: boolean;
+  /**
+   * The Art. 16(c) custom-made flag, surfaced on the BROWSING surface (counsel
+   * Q5, 2026-08-02).
+   *
+   * Q5 held that the legal minimum is pre-contractual and that checkout plus
+   * confirmation satisfies it, so the public shop's omission was explicitly not
+   * sign-off-blocking. The badge is the scheduled fast-follow, on counsel's
+   * reasoning that surfacing "no return right" only at checkout "invites
+   * misleading-omission arguments under the UCPD and, more practically,
+   * disputes".
+   *
+   * OPTIONAL, and deliberately so: `PublicProduct` crosses into shared and is
+   * read by clients that predate this field, and an absent boolean must mean
+   * "not marked" rather than breaking the reader. Every render site therefore
+   * tests `=== true`, never truthiness of a possibly-undefined value.
+   */
+  customMade?: boolean;
   /** Which collection this product sits in on the public shop (P5d). Null or
    *  absent means ungrouped, which is every product before collections. */
   collectionId?: string | null;

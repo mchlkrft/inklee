@@ -286,7 +286,7 @@ to open it.
   in Stage 5.
 - **Source:** `plus-remaining-work-plan.md` Stage 5, item 6.
 
-### F8: G-5: live money test
+### F8: G-5: live money test — ✅ RESOLVED 2026-08-03
 
 Complete Connect onboarding in LIVE mode and run one real card deposit
 end-to-end. Nobody has ever observed the production server handle a real charge.
@@ -294,7 +294,24 @@ This is the single most important missing data point.
 
 - **Blocks:** the entire pricing model validity. Also the first real
   end-to-end verification of the money path.
-- **Current state:** zero real transactions. Zero live Connect accounts.
+- **Current state: DONE.** Artist `stripe-artist` onboarded live as
+  `acct_1U0FdrH3gYinii8E`; one EUR 1.00 deposit paid and refunded on
+  `livemode: true`. Verified from the Stripe API and the production database
+  rather than the UI: destination charge routed to the artist, the booking
+  flipped to `approved` via the live `payment_intent.succeeded` webhook,
+  settlement booked the sponsorship against
+  `deposit_fee_sponsorship_booked_cents`, and the refund converged with the
+  artist-global waiver counter returning to 0. Per-criterion evidence in
+  `docs/launch-gate.md`.
+- **One criterion NOT proven, deliberately de-gated:** fee sponsorship was
+  enabled on the test artist, so `application_fee_amount` was 0 on every live
+  charge and the 3% split has never been produced by live code. Founder ruling
+  FD14 (`plus-build-time-decisions.md`) keeps it open and off the launch path.
+- **Two production defects surfaced and are NOT fixed:** "Refresh status" on
+  `/settings/payouts` never writes, and `account.updated` never synced the
+  cached `profiles.stripe_*` columns. Narrowing detail:
+  `payment_intent.succeeded` landed and wrote in the same window, so the fault
+  is in the Connect-sync path, not webhook delivery generally.
 
 ### F9: fresh EAS / iOS build
 
@@ -449,6 +466,46 @@ to bundle into the LO-10 counseling round.
 - **Blocks:** not a hard Plus launch blocker, but should close before scaling
   real deposit volume.
 - **Current state:** unscheduled. Needs the founder to schedule the LO-10 round.
+
+### C5: the shop's browse panel promises a 14-day return before anything is picked
+
+Raised by engineering 2026-08-03 while implementing Q5. **Not fixed in code on
+purpose** — see the last bullet.
+
+On the standalone shop's browse step (`/{slug}/shop/checkout`, the "pick"
+phase), the disclosure panel derives from the current selection. With an empty
+basket, `summarizeReturnDisclosure([])` returns `"empty"`, which the panel
+treats identically to `"all_returnable"` and prints the full notice: *"Right of
+return. You may withdraw from this purchase within 14 days..."*
+
+An empty basket is the NORMAL landing state of a browse surface, so for an
+artist whose entire catalogue is custom-made, the shop's headline disclosure
+promises a return right that applies to nothing on sale.
+
+- **Why the current behaviour is not obviously wrong.** The C1.1 seller block
+  renders above it, is approved verbatim, and already says *"You have a 14-day
+  right of return (see below). Items marked 'custom-made' cannot be returned."*
+  Its "(see below)" is a reference to exactly the notice in question, and every
+  catalogue row carries its per-row marker. Suppressing the notice on an empty
+  basket would leave approved copy pointing at nothing.
+- **Why it might still be wrong.** Q5's own reasoning was that surfacing "no
+  return right" late "invites misleading-omission arguments under the UCPD and,
+  more practically, disputes". A prominent affirmative return promise on a shop
+  where nothing is returnable is the stronger version of that concern.
+- **Note the two payable surfaces differ here** and both are internally
+  coherent: the add-on lane renders NO disclosure sections on an empty basket
+  (seller block included), so it has no dangling reference. The standalone shop
+  always renders the panel.
+- **Deliberately not changed by engineering.** Any fix is a judgement about
+  what approved consumer copy must say and when, which is counsel's to make.
+  Deviation D6 and open item #87 are both instances of engineering making that
+  call itself and having to unwind it. Options for counsel: (a) leave as is,
+  (b) suppress the return notice on an empty basket and reword the seller
+  block's "(see below)", or (c) derive the empty-state panel from the
+  CATALOGUE's composition rather than the selection, so an all-custom-made shop
+  shows the custom-made notice.
+- **Blocks:** nothing today. `GOODS_COMMERCE_ENABLED` is off, so the surface is
+  dark. Should close before the shop switches on.
 
 ---
 

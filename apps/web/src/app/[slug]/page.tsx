@@ -42,6 +42,7 @@ import { parseBioPageSettings, isModuleVisible } from "@/lib/bio-page-settings";
 import {
   isProductCategory,
   toPriceNumber,
+  PUBLIC_SHOP_PRODUCT_SELECT,
   type PublicProduct,
 } from "@/lib/goods";
 import { canUseGoods } from "@/lib/features";
@@ -192,9 +193,10 @@ export default async function ArtistPublicPage({
   if (isModuleVisible(bioPage, "shop") && canUseGoods(profileSettings)) {
     const { data: rawProducts } = await serviceClient
       .from("products")
-      .select(
-        "id, title, category, image_url, image_urls, price_amount, currency, status, pickup_note, is_checkout_addon, quantity, available_from, preorder, collection_id, product_variants(id, name, price_amount_override, stock_quantity, status, sort_order)",
-      )
+      // Column list lives with the PublicProduct type it populates, so a
+      // dropped column is a red test rather than a field that silently goes
+      // undefined and a surface that silently stops disclosing (counsel Q5).
+      .select(PUBLIC_SHOP_PRODUCT_SELECT)
       .eq("artist_id", profile.id)
       .eq("is_public_visible", true)
       .in("status", ["active", "sold_out"])
@@ -224,6 +226,7 @@ export default async function ArtistPublicPage({
       available_from: string | null;
       preorder: boolean | null;
       collection_id: string | null;
+      custom_made: boolean | null;
       product_variants: RawVariant[] | null;
     };
 
@@ -274,6 +277,10 @@ export default async function ArtistPublicPage({
         price: toPriceNumber(p.price_amount),
         currency,
         soldOut: availability.state === "sold_out",
+        // Counsel Q5. Normalised to a real boolean here rather than passed
+        // through as `boolean | null`, so the render sites cannot disagree
+        // about what a null column means.
+        customMade: p.custom_made === true,
         collectionId: p.collection_id,
         availabilityState:
           availability.state === "unavailable" ? undefined : availability.state,

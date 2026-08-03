@@ -14,6 +14,7 @@ import {
   formatPrice,
   type PublicProduct,
 } from "@/lib/goods";
+import { customMadeRowSuffix } from "@inklee/shared/consumer-disclosures";
 import { MAX_INTEREST_QUANTITY } from "@/lib/booking-interests";
 import {
   groupProductsByCollection,
@@ -344,8 +345,13 @@ function ProductCard({
           <p className="truncate text-sm font-medium text-brand-bone">
             {p.title}
           </p>
+          {/* Counsel Q5: the per-product custom-made marker, from the same
+              shared helper the standalone shop and the add-on lane use, so the
+              three browse surfaces cannot drift on the wording. The suffix
+              carries its own separator and is "" for a returnable product. */}
           <p className="text-xs text-brand-bone/70">
             {formatPrice(unitPrice, p.currency)}
+            {customMadeRowSuffix(p.customMade === true)}
           </p>
           {p.pickupNote && (
             <p className="truncate text-[11px] text-brand-bone/55">
