@@ -76,6 +76,21 @@ export async function checkWaitlistRateLimit(ip: string, artistId?: string) {
   return check(waitlistRl, `${artistId ?? "unknown-artist"}:${ip}`);
 }
 
+// Public project intake (ABUSE-PUB-001): 3 submissions / artist / IP / hour.
+// Tighter than the booking form's 5/hour ceiling because each accepted call
+// processes up to 12 photos (40 MB total) through sharp AND sends mail to an
+// address the caller supplies, same reasoning as the DSA report limiter.
+const projectIntakeRl = makeLimit(
+  Ratelimit.slidingWindow(3, "1 h"),
+  "inklee:project-intake",
+);
+export async function checkProjectIntakeRateLimit(
+  ip: string,
+  artistId?: string,
+) {
+  return check(projectIntakeRl, `${artistId ?? "unknown-artist"}:${ip}`);
+}
+
 // Login: 10 attempts / IP / 15 min
 const loginRl = makeLimit(Ratelimit.slidingWindow(10, "15 m"), "inklee:login");
 export async function checkLoginRateLimit(ip: string) {

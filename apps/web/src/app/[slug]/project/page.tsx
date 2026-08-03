@@ -76,6 +76,11 @@ export default async function ProjectIntakePage({
       : {};
 
   const homeHref = await apexHref("/");
+  // Apex-only namespace (host.ts APEX_ONLY_PREFIXES): a relative /terms or
+  // /privacy on an artist subdomain would be slug-prefixed by the proxy and
+  // 404, same reasoning as every other public intake's privacy notice.
+  const termsHref = await apexHref("/terms");
+  const privacyHref = await apexHref("/privacy");
 
   return (
     <div className="flex min-h-screen flex-col bg-brand-charcoal text-brand-bone">
@@ -120,7 +125,12 @@ export default async function ProjectIntakePage({
             </p>
           </div>
 
-          <ProjectForm slug={slug} artistFirstName={firstName} />
+          <ProjectForm
+            slug={slug}
+            artistFirstName={firstName}
+            termsHref={termsHref}
+            privacyHref={privacyHref}
+          />
 
           {!hideBranding && (
             <p className="pt-4 text-center text-xs text-muted-foreground">

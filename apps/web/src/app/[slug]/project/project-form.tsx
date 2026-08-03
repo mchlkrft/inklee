@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import Spinner from "@/components/spinner";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import {
   BODY_AREAS,
   COVERAGE_LEVELS,
@@ -74,9 +76,13 @@ function Chips({
 export default function ProjectForm({
   slug,
   artistFirstName,
+  termsHref,
+  privacyHref,
 }: {
   slug: string;
   artistFirstName: string;
+  termsHref: string;
+  privacyHref: string;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     submitProjectIntakeAction,
@@ -407,6 +413,19 @@ export default function ProjectForm({
         />
       </div>
 
+      {/* Honeypot — hidden from real visitors, invisible to screen readers,
+          left unfilled by anyone using the form as intended. A filled value
+          is treated server-side as a bot signal (ABUSE-PUB-001); mirrors the
+          booking form's own field (apps/web/src/app/[slug]/booking-form.tsx). */}
+      <input
+        name={HONEYPOT_FIELD}
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="sr-only"
+      />
+
       <button
         type="submit"
         disabled={pending || !!imageError}
@@ -414,6 +433,18 @@ export default function ProjectForm({
       >
         {pending ? <Spinner className="w-4 h-4 mx-auto" /> : "Send enquiry"}
       </button>
+
+      <p className="text-center text-xs text-muted-foreground">
+        By submitting, you agree to our{" "}
+        <Link href={termsHref} className="underline underline-offset-4">
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link href={privacyHref} className="underline underline-offset-4">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </form>
   );
 }
