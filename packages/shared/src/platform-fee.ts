@@ -48,6 +48,9 @@
  * under Custom Connect, Stripe's processing fee is billed to Inklee's platform
  * balance separately, so the full 3% is the application fee.
  */
+// Safe: fee-schedule.ts imports nothing, so this cannot form a cycle.
+import { appointmentFeeDisplay } from "./fee-schedule";
+
 export const PLATFORM_FEE_BPS = 300;
 
 /** Human percentage for copy, e.g. `3`. */
@@ -210,4 +213,66 @@ export function noSeparateCardProcessingFeesClaimVisible(input: {
     feeRateCoversProcessingCost(input.feeBps) ||
     input.founderApprovedSubsidyClaim
   );
+}
+
+/**
+ * The PUBLIC pricing page's deposit-fee answer, derived rather than written.
+ *
+ * WHY THIS EXISTS. `apps/web/src/app/pricing/page.tsx` hard-coded "Card
+ * deposits collected through Inklee carry a flat 3% fee with card processing
+ * included." bound to nothing: not to the fee schedule, not to the A7 claim
+ * predicate. It happens to be true under v1 and becomes wrong on BOTH counts
+ * the moment v2 activates, for the tier most visitors are being sold:
+ *
+ *   rate      Plus goes to 0.5% (fee-schedule.ts FEE_SCHEDULE_V2), so "flat 3%"
+ *             is simply false for them, and Free cannot collect card deposits
+ *             at all (`null`, not 0%);
+ *   claim     at 0.5% `feeRateCoversProcessingCost` is false for EVERY amount
+ *             (0.005A < 0.015A), so "with card processing included" stops being
+ *             unconditionally true and becomes a subsidy the founder has to
+ *             own per artist.
+ *
+ * A public page has no artist, so it cannot consult a per-artist approval row
+ * and MUST NOT try. The rule here is deliberately stricter than
+ * `noSeparateCardProcessingFeesClaimVisible`: the processing-included clause
+ * appears only when the rate covers cost on its own. A marketing page is read
+ * by people who are not yet customers, and a claim that is true only because
+ * someone ticked a box for one artist is not a claim you put in front of them.
+ *
+ * Deviation D6's lesson runs the other way and is respected too: where the
+ * claim IS unconditionally true, it is stated, not withdrawn out of caution.
+ */
+export function publicDepositFeeAnswer(version?: string): string {
+  const free = appointmentFeeDisplay("free", version);
+  const plus = appointmentFeeDisplay("plus", version);
+
+  // The processing-included clause, per rate. Space-prefixed so callers never
+  // assemble the separator themselves and drift on it.
+  const included = (bps: number) =>
+    CONNECT_FEE_PAYER_IS_APPLICATION && feeRateCoversProcessingCost(bps)
+      ? " with card processing included"
+      : "";
+
+  let rateSentence: string;
+  if (free && plus && free.bps === plus.bps) {
+    // One rate for everyone, which is v1 today.
+    rateSentence = `Card deposits collected through Inklee carry a flat ${free.percentLabel}% fee${included(free.bps)}.`;
+  } else if (!free && plus) {
+    // Free cannot transact the lane at all. PRESENCE, NOT MAGNITUDE: never
+    // render this as "0%", which would read as free-of-charge rather than
+    // not-available. That distinction is called out in fee-schedule.ts.
+    rateSentence = `Collecting card deposits is a Plus feature. On Plus, deposits carry a ${plus.percentLabel}% fee${included(plus.bps)}.`;
+  } else if (free && plus) {
+    rateSentence = `Card deposits carry a ${free.percentLabel}% fee on Free${included(free.bps)}, and ${plus.percentLabel}% on Plus${included(plus.bps)}.`;
+  } else {
+    // Neither tier can transact the lane. Reachable only from a malformed
+    // schedule, so it says nothing about a rate rather than inventing one.
+    rateSentence = "Card deposit collection is not available on your plan.";
+  }
+
+  const payerSentence = CONNECT_FEE_PAYER_IS_APPLICATION
+    ? " Your client always pays exactly the deposit amount."
+    : "";
+
+  return `${rateSentence}${payerSentence} Manual deposit tracking stays free.`;
 }

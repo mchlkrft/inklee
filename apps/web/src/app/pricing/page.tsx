@@ -8,6 +8,7 @@ import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PLUS_CONSUMER_LAUNCH_ENABLED } from "@/lib/plus-launch-config";
 import { PLUS_BENEFITS } from "@inklee/shared/plus-benefits";
+import { publicDepositFeeAnswer } from "@inklee/shared/platform-fee";
 import CheckBadge from "@/components/check-badge";
 import PlusPriceToggle from "./plus-price-toggle";
 
@@ -79,8 +80,12 @@ const PRICING_FAQ: Faq[] = [
   },
   {
     question: "What does collecting deposits cost?",
-    answer:
-      "Card deposits collected through Inklee carry a flat 3% fee with card processing included. Your client always pays exactly the deposit amount. Manual deposit tracking stays free.",
+    // DERIVED, not written. This sentence used to be a hard-coded "flat 3% fee
+    // with card processing included" bound to neither the fee schedule nor the
+    // A7 claim predicate, so it silently becomes wrong on both counts the day
+    // v2 activates: Plus drops to 0.5%, and at 0.5% the processing-included
+    // clause stops being unconditionally true. See publicDepositFeeAnswer.
+    answer: publicDepositFeeAnswer(),
   },
   {
     question: "When is the Studio plan coming?",
