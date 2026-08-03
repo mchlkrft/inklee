@@ -169,12 +169,14 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
 - [ ] **CL10/CL11/CL12** External image import; guest carts as a personal-data
       store; partial-refund disclosures.
 - [ ] **CL7** Terms coverage of the retained-processor-cost rule.
-- [ ] **LO-5 DPIA** — OWNER: Michel Kraeft (founder, controller), confirmed 2026-08-02.
-      **TARGET DATE: NOT SET.** Draft at `docs/legal/lo-5-dpia.md`; sections 1-5 written from
-      evidenced facts, sections 6-8 (necessity, risk acceptance, sign-off) require the controller
-      and are deliberately empty. Release-gating by prior decision: blocks the goods and gallery
-      activation gates. Counsel escalated its absence in three consecutive rounds and asked that
-      the next round's first line explain it if it arrives without a date.
+- [x] **LO-5 DPIA** — OWNER: Michel Kraeft (founder, controller), confirmed 2026-08-02.
+      **COMPLETE AND SIGNED 2026-08-03** at `docs/legal/lo-5-dpia.md`: sections 1-5 from
+      evidenced facts, sections 6-8 adopted and signed by the controller. Outcome: residual
+      risk not high, no Art. 36 prior consultation. Three mitigations (R3, R4, R6) are wired
+      as named gate keys in `dpia-gate-preconditions.ts` and stay unbuilt-blocking until the
+      founder records each key. This row previously read "TARGET DATE: NOT SET" after the
+      document had already moved; round-5 §0 reported that staleness to counsel, and this
+      update is its correction (2026-08-03).
 - [ ] **CL8** LO-10 round.
 - [ ] **CL1** The single consolidated approval, recorded against versioned
       artifacts. Everything above feeds it.
@@ -203,6 +205,13 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
       re-run the legacy grandfathering recompute IMMEDIATELY before cap
       enforcement.
 - [ ] **FA7** Insert the `founder_offer_policy` row.
+- [ ] **FA7b — the as-deployed condition (counsel §5.5(1), restated round-3
+      §6.6 and round-4 §6, encoded here per round-5 §4.6).** Before ANY
+      approval key below is recorded: the release candidate is pushed, the
+      migrations are applied, and the C2 price-adjacent-to-button screenshot
+      is taken from the DEPLOYED surface. Approval is recorded against
+      artifacts as deployed, never against a local build. FA8, FA10 and the
+      CL1 recording all inherit this precondition.
 - [ ] **FA8** Re-record the four engineering approval keys against the final
       release candidate.
 - [ ] **FA9** Stage-6 Terms edit through the versioned snapshot workflow
