@@ -16325,6 +16325,287 @@ findings:
           the fix rather than of the race. Correct call: burying it in the race entry would have
           hidden it from anyone reading about backstop behaviour."
 
+  - id: "GOODS-DISC-002"
+    title: "The model withdrawal form is built, gated and reachable, but no order receipt ever
+      links to it: buildOrderReceiptBody is called WITHOUT withdrawalFormHref at BOTH real send
+      sites, so counsel's C1.2 '[link/attached]' bracket is unfilled on the durable record"
+    summary: "returnRightNotice() appends counsel's 'you may use the model withdrawal form
+      ([link])' sentence only when the caller passes withdrawalFormHref, and omits the sentence
+      entirely otherwise (the parameter is optional, by design, so the paragraph never renders a
+      dangling reference). Exactly one caller in the codebase passes it: the standalone shop
+      CHECKOUT PAGE (apps/web/src/app/[slug]/shop/checkout/page.tsx:323-336). Both RECEIPT send
+      sites omit it. C1.3 makes the confirmation email the DURABLE record, and C1.2's form
+      reference is part of the return-right notice that record must carry, so the one surface the
+      buyer keeps after the checkout screen is gone is the one surface that never names the form.
+      A second, narrower half: even on the checkout page the href is the relative string
+      `/{slug}/shop/withdrawal-form` interpolated into a plain-text paragraph rendered inside a
+      <p> (shop-checkout.tsx DisclosurePanel), so it is displayed as text, not as an anchor, and
+      would be unusable verbatim in an email even if it were passed."
+    classification:
+      domain: "payment"
+      category: "disclosure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-02"
+      detected_by: "counsel-surface recon (read-only), acting on a security reviewer's earlier
+        report and asked to confirm or refute it at the call sites rather than assume it"
+      repository: "mchlkrft/inklee"
+      branch: "feat/p5d-collections"
+      commit: "feb191a4"
+      environment: "repository-only"
+      discovery_context: "Establishing the state of every consumer-facing legal surface in the
+        goods/Plus build ahead of the single consolidated counsel sign-off."
+    location:
+      files:
+        - "packages/shared/src/consumer-disclosures.ts"
+        - "apps/web/src/lib/server/goods-checkout.ts"
+        - "apps/web/src/lib/email/send-booking-email.ts"
+        - "apps/web/src/app/[slug]/shop/withdrawal-form/page.tsx"
+        - "apps/web/src/app/[slug]/shop/checkout/page.tsx"
+      symbols:
+        - "buildOrderReceiptBody"
+        - "returnRightNotice"
+        - "settleStandaloneGoodsOrder"
+        - "sendGoodsOrderConfirmation"
+      routes:
+        - "/[slug]/shop/withdrawal-form"
+    evidence:
+      observed_facts:
+        - "consumer-disclosures.ts:78-80 — `const formSentence = opts.withdrawalFormHref ? ' You
+          may use the model withdrawal form (...).' : ''`. Absent href, the sentence is dropped."
+        - "goods-checkout.ts:962-970 (standalone shop settlement receipt) passes artistName,
+          seller, supportEmail, items, totalLabel, disclosure, termsSection. No
+          withdrawalFormHref."
+        - "send-booking-email.ts:201-214 (sendGoodsOrderConfirmation, the appointment add-on
+          receipt) passes artistName, seller, supportEmail, items, totalLabel, disclosure,
+          fulfillmentNote. No withdrawalFormHref AND no termsSection."
+        - "Repo-wide grep for `withdrawalFormHref` returns the definition, the two consumers
+          inside consumer-disclosures.ts, one test, and exactly one production caller:
+          apps/web/src/app/[slug]/shop/checkout/page.tsx:323 and :335."
+        - "Repo-wide grep for the string `withdrawal-form` finds no <a>/<Link> element anywhere;
+          the only runtime occurrence outside the page itself is the interpolated path inside the
+          checkout page's returnNotice string."
+        - "apps/web/src/lib/__tests__/consumer-disclosures.test.ts:90-93 asserts the link IS
+          included when the href is passed, so the test suite proves the capability and not the
+          wiring — the gap is invisible to it."
+      references:
+        - "docs/legal/c1.9-terms-edit-inputs.md (C1.2: 'you may use the model withdrawal form
+          [link/attached]'; C1.3: the confirmation email is the durable record)"
+        - "apps/web/src/app/[slug]/shop/withdrawal-form/page.tsx (the page exists and renders the
+          EU Annex I(B) template, gated by isGoodsCommerceEnabled + shopCheckoutEnabled +
+          sellerDataComplete)"
+      contradictory_evidence: "The withdrawal right itself is NOT undisclosed: the full C1.2
+        return notice, including the 'tell the artist or Inklee in a clear statement' route,
+        renders on both receipts and both checkout screens. The model form is optional under the
+        CRD (the page's own copy says so), so this is a missing convenience reference on the
+        durable record, not a missing right. Whether an unlinked-but-published form satisfies
+        counsel's '[link/attached]' bracket is a legal question this finding does not answer."
+      inspected_comparables_without_issue:
+        - "The C1.1 seller block, the C1.2 return/custom-made notices, and the C1.3 durable
+          closing line ARE present on both receipts — only the form reference is missing."
+    assessment:
+      interpretation: "A capability was built and unit-tested in the pure module, then never
+        threaded at either integration point. The optional-parameter design that keeps the
+        sentence from dangling is exactly what makes the omission silent: no type error, no test
+        failure, no visible defect in the rendered email."
+      root_cause_hypothesis: "The withdrawal-form page and the href parameter were added in the
+        checkout-page slice; the receipt builders were written in the same commit but from the
+        settlement side, where no slug/base-URL was already in scope. An absolute URL is needed
+        for an email, and neither send site currently computes one."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None today. Every goods surface 404s while GOODS_COMMERCE_ENABLED is
+        unset (go-live worklist FA12 still open), and no live-mode charge has ever occurred."
+      remaining_uncertainty: "Not reproduced by sending a real receipt — this is call-site
+        reading plus grep, though the omission is a syntactic fact rather than an inference. Also
+        unresolved: whether counsel requires the form to be LINKED from the durable record or
+        merely available, and what absolute base URL an email should use (inkl.ee vs inklee.app,
+        which the mobile-API base has a documented history of getting wrong)."
+    relationships:
+      related_findings:
+        - "GOODS-DISC-001"
+      possible_duplicates: []
+      analogous_uninspected_areas:
+        - "The add-on receipt's MISSING termsSection (send-booking-email.ts:201) — C1.3 names 'the
+          applicable Terms text' as a required element of the durable record and the standalone
+          receipt supplies it via getLegalDoc('terms'); the add-on receipt supplies nothing. Noted
+          here rather than opened as its own finding because it belongs to the same call site and
+          the same counsel item, but it is a DIFFERENT omission and should be scoped separately if
+          it is not fixed in the same pass."
+        - "The appointment add-on checkout's pay button still reads 'Pay deposit and selected
+          items' (addons-checkout.tsx), not ORDER_WITH_OBLIGATION_LABEL — the Art. 8(2) relabel
+          named in GOODS-DISC-001's own observed facts was not applied there when the rest of that
+          finding was fixed."
+        - "The bio-page public shop teaser (apps/web/src/app/[slug]/shop-teaser.tsx, PublicProduct
+          in packages/shared/src/goods.ts) carries NO customMade field and renders no custom-made
+          badge, so counsel's 'claimed per product' requirement is met only on the two checkout
+          surfaces. GOODS-DISC-001's coverage row asserted PublicProduct.customMade 'was added to
+          the shared type'; grep shows it was not."
+    remediation:
+      status: "open"
+      proposed_action: "Pass an ABSOLUTE withdrawal-form URL to buildOrderReceiptBody at both send
+        sites (the standalone settlement already reads the artist profile and can resolve the
+        slug; the add-on path needs the slug threaded from the booking). Then make the checkout
+        page's own reference an actual anchor rather than a path rendered as text. Do not fix by
+        making withdrawalFormHref required: several tests and the add-on screen's
+        addonCheckoutDisclosureSections deliberately render without it."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Unfixed. Established by reading both call sites and grepping the whole
+        repository, not by sending a receipt."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Mechanism and file references only. No production data, no secrets."
+    history:
+      - date: "2026-08-02"
+        actor: "counsel-surface recon"
+        action: "opened"
+        note: "Opened to CONFIRM a prior security reviewer's report rather than restate it: both
+          call sites were read in full and the whole repository grepped for the parameter and the
+          route string. The reviewer's claim is correct as stated. Two adjacent omissions found at
+          the same call site (no Terms text on the add-on receipt, no Art. 8(2) button label on the
+          add-on pay button) are recorded under analogous_uninspected_areas rather than folded in,
+          because they are different requirements failing at the same place."
+
+  - id: "MIG-IDX-001"
+    title: "`create index if not exists` is an existence check, not a shape check: a wrong-shaped
+      index under the right name survives a successful re-run, proven by execution and fixed in
+      0148"
+    summary: "0148 created its Connect-teardown index with `create index if not exists`. That
+      guard tests the NAME. An index already present under that name with different columns or a
+      different partial predicate is left untouched and the migration exits 0, so the file cannot
+      repair the object it declares. Identical mechanism to the `create table if not exists`
+      footgun already recorded in AGENTS.md, one object type over, and it was sitting in a
+      migration nobody had run anywhere. Fixed to `drop index if exists` then unconditional
+      `create index`. The index DESIGN was never in question and was not changed."
+    classification:
+      domain: "migration"
+      category: "broken-invariant"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-03"
+      detected_by: "supervisor, closing the second half of a migration-convergence verifier's
+        report (task #90) which said only that 0148 had a one-line index defect without naming it"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "2204f077"
+      environment: "local"
+      discovery_context: "Found while reconciling 0147, not while looking for it. The verifier had
+        flagged an unnamed index defect in a sibling file; checking the index's DESIGN found it
+        correct, which left the guard as the only candidate. Worth recording that the design check
+        came first and cleared, because the tempting fix for an unnamed index defect is to change
+        the columns."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0148_tax_ledger_purge_and_connect_teardown.sql"
+        - "AGENTS.md"
+      database_objects:
+        - "deleted_account_records_connect_teardown_idx"
+    evidence:
+      observed_facts:
+        - "An index of the WRONG shape (deleted_at only, no partial predicate) was created by hand
+          under the name deleted_account_records_connect_teardown_idx, on the live local database."
+        - "The original guard was then run verbatim. Output: `NOTICE:  relation
+          \"deleted_account_records_connect_teardown_idx\" already exists, skipping` followed by
+          `CREATE INDEX`, exit code 0."
+        - "pg_indexes afterwards still showed the WRONG definition. The run reported success and
+          repaired nothing."
+        - "That NOTICE-then-success pair is byte-identical in form to the `create table if not
+          exists` transcript AGENTS.md already records for 0122's skipped inline constraints."
+        - "After the fix to drop-then-create: the same wrong-shaped index was planted again, the
+          whole 0148 file re-run under ON_ERROR_STOP=1 exited 0, and pg_indexes confirmed the
+          correct definition (btree (connect_teardown_state, deleted_at) WHERE stripe_account_id
+          IS NOT NULL) had returned."
+        - "The index design was verified correct BEFORE the guard was suspected: the partial
+          predicate matches the reader's .not(stripe_account_id, is, null), the leading column
+          matches its .in(connect_teardown_state, [pending, blocked]), and the second column
+          matches its .lt(deleted_at, cutoff), at
+          apps/web/src/lib/server/connect-account-teardown.ts:71-76."
+      reproduction: "Against a LOCAL supabase database only, never production. 1) Plant the wrong
+        shape: `drop index if exists deleted_account_records_connect_teardown_idx; create index
+        deleted_account_records_connect_teardown_idx on deleted_account_records (deleted_at);`
+        2) Run the ORIGINAL guard verbatim (the pre-2204f077 form of the statement at
+        0148:304). Observe the NOTICE-then-CREATE-INDEX output and exit 0. 3) `select indexdef
+        from pg_indexes where indexname='deleted_account_records_connect_teardown_idx';` still
+        shows the wrong definition. 4) Repeat steps 1 and 3 with the CURRENT file re-run whole
+        under ON_ERROR_STOP=1; the correct definition returns. Not an exploit: this is a
+        migration-repair property, and reproducing it requires local database access."
+      inspected_comparables_without_issue:
+        - "0148's own convergence apart from the index: the whole file re-runs under
+          ON_ERROR_STOP=1 against an already-migrated database and exits 0, twice."
+        - "0147, exercised in the same session by the same route (constraints dropped by hand,
+          file re-run, pg_constraint read back). Converges correctly and uses no
+          `if not exists` index guard."
+    assessment:
+      interpretation: "Not a live defect and never was. 0148 has not been applied anywhere, so no
+        wrong-shaped index exists in any environment. The value is in the generalisation, not the
+        instance: this is the second object type to exhibit the same guard weakness, which makes
+        it a property of `if not exists` rather than a quirk of `create table`."
+      root_cause_hypothesis: "`... if not exists` is uniformly an existence predicate in
+        PostgreSQL. Any object whose DEFINITION can change over the migration file's lifetime is
+        therefore unrepairable by its own file if guarded that way."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      affected_users_or_systems: "None. Release-path only."
+      production_exposure: "None. Migrations 0125 and later are not applied to production; this
+        file has never run outside a local database."
+      remaining_uncertainty: "Whether this is the defect the original verifier meant. Its report
+        said only 'a one-line index defect' without naming it, and that agent was not available to
+        confirm. The index design was checked first and found correct, which leaves the guard as
+        the only one-line candidate, but this is an inference. If the verifier meant something
+        else, that something else is still open. NOT swept under the fix: recorded here so a later
+        reader can reopen it cheaply. Also unquantified: how many OTHER migrations in the tree use
+        `create index if not exists` for an index whose definition might later change. That sweep
+        was not run."
+    relationships:
+      related_findings:
+        - "MIG-DROP-001"
+      structural_patterns:
+        - "PAT-001"
+      analogous_uninspected_areas:
+        - "Every other `create index if not exists` across apps/web/supabase/migrations. Not
+          counted, not inspected. The generalisation was written into AGENTS.md rather than a
+          sweep being run, so the rule is documented and the tree is unaudited against it."
+        - "Enum types guarded by existence (`create type ... if not exists`, or a `do $$ ...
+          exception when duplicate_object` block). A type guarded this way never gains a
+          LATER-added value, which is the exact analogue and arguably likelier in practice than a
+          reshaped index. This is the highest-value place to look next."
+        - "`create policy` guarded by existence rather than drop-then-create. The repo's stated
+          convention is already drop-then-create for policies, so this is expected to be clean,
+          but expected-clean is not inspected."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "2204f077"
+      proposed_action: "Done in 2204f077: guard changed from `create index if not exists` to
+        `drop index if exists` followed by an unconditional `create index`. AGENTS.md gained the
+        index case with its own dated transcript, and the rule was generalised to all `... if not
+        exists` guards rather than listed as a second instance. What REMAINS is the sweep, which
+        this finding did not do: audit the migration tree against the rule now written down."
+    verification:
+      status: "pending"
+      independent: false
+      verification_method: "The fix was exercised by the same person who wrote it: wrong shape
+        planted, whole file re-run, pg_indexes read back. That is execution rather than reading,
+        but it is not independent, and the author choosing the mutation is the weakest part of it."
+      residual_risk: "The convergence claim rests on one mutation (wrong columns, no predicate). A
+        second shape worth trying that nobody has: an index correct in columns but MISSING the
+        partial predicate, which is the likelier real-world drift and which drop-then-create should
+        also repair but which was not tested."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Mechanism, object name and psql transcript only. No data."
+    history:
+      - date: "2026-08-03"
+        actor: "supervisor"
+        action: "opened"
+        note: "Opened and fixed in the same pass, which is recorded rather than hidden: the
+          finding, the fix and the exercise all have the same author, so verification is left
+          pending for someone else. The AGENTS.md generalisation is the durable half; the 0148
+          instance is just what made it visible."
+
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -19407,3 +19688,151 @@ coverage:
     evidence: "ALL FOUR of the reading-based predictions were confirmed by execution and NONE was falsified, which is worth stating precisely because they were recorded as falsifiable rather than as fact. 0142, 0144 and 0145 converge; 0143 did not, and the probe reproduced the exact predicted failure - the two-clause ALTER aborts on its first clause and pg_constraint comes back empty. THE 0144+0145 COMBINED PASS, never run by anyone before, is CLEAN: migrations moved out, reset to a 0000-0141 baseline, objects confirmed absent, then only 0144 and 0145 applied. A full clean 0000-0145 single-pass replay including the fixed 0143 was also clean, which is the closest available simulation of the production push. A SECOND FOOTGUN surfaced that generalises beyond this finding: psql exits 0 on a failed ALTER without ON_ERROR_STOP, so a migration-s shell exit code is not evidence it worked. Three db tests written for the three surfaces that had none, each with its stated mutation, and the gallery-archive test documents TWO vacuous-pass traps its author hit and avoided - list returns empty-not-error for a hidden bucket, and downloading a path that never existed 404s for everyone - so it uploads a real object as a positive control first. Full db suite 27 files, 324 passing."
     recommended_next_inspection: "0129-s five remaining bare-drop sites. It is editable, so this is scheduling, not a constraint. Then Task 5, which is HONESTLY UNRESOLVED: the `select distinct status from tax_thresholds` pre-flight could not be answered from local data because the seeder requires TLS the local stack does not offer. The code-level argument that no out-of-vocabulary value can exist is sound but was not re-derived from data."
     known_exclusions: "Task 5 unresolved on the data side, as above, and reported as such rather than papered over with the code-level reasoning. The 0144+0145 isolated pass ran against an empty tax_thresholds, so 0145-s data-UPDATE half was a no-op in THAT harness; it was exercised separately against hand-inserted rows matching the real seed values. 0129 was read but not probed. Production was never touched: every probe ran against local Docker, which was left restored to a clean seeded 0000-0145 state."
+
+  - area: "Consumer-facing legal surfaces of the goods/Plus build, inventory pass ahead of the single consolidated counsel sign-off: checkout disclosures and their call sites, the model withdrawal form page, the order receipt / durable confirmation and both its send sites, refund and partial-refund buyer messaging, the custom-made disclosure, and the C1.9 Terms edit inputs"
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-02"
+    commit_inspected: "feb191a4"
+    reviewer: "counsel-surface recon, read-only, briefed to CONFIRM OR REFUTE one specific prior claim rather than accept it"
+    evidence: "Six surfaces read end to end at their real call sites, not sampled. WHAT EXISTS AND IS WIRED: packages/shared/src/consumer-disclosures.ts carries all counsel-VERBATIM wording (C1.1 seller block, C1.2 return notice, CUSTOM_MADE_NOTICE, C1.3 durable closing line, ORDER_WITH_OBLIGATION_LABEL) as one pure module read by all four consuming surfaces, so the standalone-shop and appointment-add-on lanes cannot drift on WHICH notice applies. Standalone checkout renders the seller block, the correct notice for the cart's mixed/all-custom/all-returnable state, per-product and per-cart-line 'custom-made, no returns' badges, the Art. 8(2) pay-button label and the C1.4 privacy notice with a real /privacy anchor. The add-on checkout renders addonCheckoutDisclosureSections scoped to whether goods lines are actually selected, and its money path refuses goods lines on incomplete seller data via addonGoodsSellerGate. Both refund lanes (appointment-payment-delivery.ts:273, goods-order-refund.ts:627) branch on isPartialRefundForBuyer and emit counsel's verbatim C1.8 paragraph, and both callers pass real lineNames (appointment-payment-refund.ts:777, goods-order-refund.ts:564) so the 'part of your order' fallback is a genuine fallback and not the only reachable branch. THE CLAIM UNDER TEST WAS CONFIRMED, not refuted: buildOrderReceiptBody is called without withdrawalFormHref at BOTH real send sites (goods-checkout.ts:962, send-booking-email.ts:201); the only production caller passing the href is the checkout PAGE. Opened as GOODS-DISC-002. Two further omissions found at the same add-on call site: no termsSection (C1.3 names the applicable Terms text) and the pay button still reads 'Pay deposit and selected items' rather than ORDER_WITH_OBLIGATION_LABEL, which was named in GOODS-DISC-001's own observed facts and not applied when the rest of that finding was fixed in b036075e. REACHABILITY: every goods surface, including the withdrawal-form page, 404s today because isGoodsCommerceEnabled() reads GOODS_COMMERCE_ENABLED which is set in no env file and is FA12 on the go-live worklist. Terms is at version 2026-07-24 with no goods section at all; the C1.9 edit is FA9, unstarted."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "GOODS-DISC-002"
+    known_exclusions: "READING ONLY. No page was rendered, no email was sent, no checkout was run, and production was never queried. Nothing here verifies GOODS-DISC-001's fix (b036075e, still fixed-unverified) beyond observing that the disclosure wiring it describes is now present. The rendered HTML of either receipt was not inspected, only the plain-text body builder and its inputs. terms.md itself was read only at its frontmatter and section list, not clause by clause, and the C1.7 fee-retention clause was confirmed absent from the document only via the c1.9 input doc's own claim, not by reading all twenty sections. The artist-facing seller-data settings form and the goods product editor's custom-made toggle were not inspected: this pass covers what a BUYER sees. Mobile/native goods surfaces were not checked at all."
+    recommended_next_inspection: "Fix and then independently verify GOODS-DISC-002's three call-site omissions together, since they are one edit at two files. Then verify GOODS-DISC-001 independently, which no one has done. Then answer the per-product question the register currently has backwards: PublicProduct (packages/shared/src/goods.ts:190) has no customMade field, so the bio-page shop teaser shows no custom-made badge, and counsel's 'claimed per product, never in the Terms alone' is satisfied only on the two checkout surfaces."
+
+  - area: "G-5, the first live-money test: real Connect onboarding, one EUR 1.00 card deposit and
+      its refund, exercised end to end against PRODUCTION with a real card. Covers the deposit
+      PaymentIntent's routing (on_behalf_of, transfer_data.destination), the live
+      payment_intent.succeeded webhook's write to booking_requests, the fee-sponsorship settlement
+      increment, and the charge.refunded release path."
+    subsystem: "money"
+    coverage: "substantial"
+    review_type: "production-catalog-read"
+    last_inspected: "2026-08-03"
+    commit_inspected: "2204f077"
+    reviewer: "supervisor, reading the Stripe API and the production database directly. The
+      founder performed the payment; the verification is independent of whoever wrote the code,
+      but it is a single observed transaction, not a suite."
+    evidence: "Booking a9823746-60e3-4a2b-bc24-c1e7ad0bbba0, PaymentIntent
+      pi_3U0GhxHkG0exykzF0OZO6pXj, artist account acct_1U0FdrH3gYinii8E, all livemode true. FIVE
+      CRITERIA OBSERVED TRUE. (1) Charge created and paid, amount_received 100, status succeeded.
+      (2) Destination charge routed to the artist, not the platform: on_behalf_of and
+      transfer_data.destination both name the connected account, and a transfer object was
+      created. (3) The booking flipped to approved with deposit_paid_at equal to updated_at at the
+      payment instant, written by the LIVE webhook and not by any local process, which is the
+      criterion that could not be assumed because account.updated had failed to write its cache
+      the same morning. (4) Settlement booked the sponsorship against
+      deposit_fee_sponsorship_booked_cents (3) and moved the artist-global
+      fee_sponsored_used_cents by exactly that, i.e. against what settlement booked rather than
+      against the intent metadata's sponsored_fee_cents, which is the money-path rule this
+      codebase has a documented incident about. (5) The refund converged: Stripe amount_refunded
+      100, deposit_fee_sponsorship_released_cents 0 to 3, and the artist-global counter returned 3
+      to 0. Separately measured, and it settles an open accounting question rather than raising
+      one: Stripe's fee on the EUR 1.00 charge was EUR 0.27 against a 3% fee of EUR 0.03, which
+      fits the EUR 16.67 break-even counsel already ruled on in CR4-1 and changes nothing."
+    changed_since_inspection: "no"
+    known_exclusions: "THE 3% APPLICATION FEE WAS NEVER EXERCISED and this is the important
+      exclusion. Fee sponsorship was enabled on the test artist, so application_fee_amount was 0
+      on every live charge and no live code path has yet produced a non-zero application fee. That
+      is the one money mechanic still unproven outside sandbox, and it is de-gated from launch by
+      founder ruling FD14 rather than closed. Also NOT covered: emails were not verified to have
+      arrived, only the code path that sends them; no partial refund, no dispute, no failed or
+      declined card, no 3DS challenge, no multi-currency; exactly ONE transaction was observed, so
+      nothing here speaks to idempotency under Stripe redelivery, which is asserted only by unit
+      tests; the artist's payout was not followed through to a bank settlement."
+    recommended_next_inspection: "On the first real UNSPONSORED deposit, read
+      application_fee_amount on the charge and compare it to 3% of the amount. That single call
+      closes the one open criterion and is task #91. Separately, two production defects surfaced
+      during onboarding and are NOT fixed: Refresh status on /settings/payouts never writes, and
+      account.updated never synced the cached profiles.stripe_* columns, while
+      payment_intent.succeeded demonstrably did write in the same window. Task #92."
+
+  - area: "Migrations 0147 and 0148 reconciled against what is actually committed, and the master
+      branch reunited with the production hotfix. Convergence of both files proven by
+      drop-and-re-run rather than asserted."
+    subsystem: "database"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-03"
+    commit_inspected: "171e5221"
+    reviewer: "supervisor, verifying another worker's staged rewrite by execution. Independent of
+      the author for 0147; NOT independent for the 0148 fix, which the same person wrote and
+      exercised."
+    evidence: "0147: HEAD held a DIFFERENT and less-verified file than the working tree the
+      original convergence verifier had checked, so the release sequencer would have applied
+      something nobody verified. Reconciled at 0a4eb8d1 after: 13/13 green with the local database
+      in the state the file produces; 12/13 RED after hand-reverting both line-reference foreign
+      keys to NO ACTION, which proves the ON DELETE SET NULL is load-bearing AND that the suite
+      can fail at all; exit 0 re-running the file against the already-migrated database under
+      ON_ERROR_STOP=1, with that same re-run restoring both hand-dropped constraints; 13/13 green
+      afterwards. 0148: an index of the wrong shape was planted under the right name, the original
+      create-index-if-not-exists guard skipped it and exited 0, and the fixed drop-then-create
+      guard repaired it on re-run. Opened as MIG-IDX-001. MASTER MERGE: origin/master is now an
+      ancestor of master (verified with git merge-base --is-ancestor); three add/add conflicts,
+      all test files, all resolved to local master after diffing both sides, each a superset
+      rather than a preference; 77 tests across the 9 merge-affected files pass and tsc --noEmit
+      exits 0 afterwards."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "MIG-IDX-001"
+    known_exclusions: "Only 0147 and 0148 were exercised. 0146, 0149, 0150, 0151 and 0152 were NOT
+      re-verified in this pass, and 0150/0151 live in worktrees rather than the main tree. No
+      migration between 0125 and 0145 was re-checked for the index-guard defect MIG-IDX-001
+      describes, so the tree is unaudited against the rule that was just written into AGENTS.md.
+      The 0147 verification exercised ONE mutation (both line FKs to NO ACTION); the composite-FK
+      pair whose deferred setting was retracted was not independently re-tested, only trusted from
+      the author's isolation account. The merge resolution was validated by running the
+      merge-affected tests, not the full suite, because the working tree carries another worker's
+      uncommitted edits that would confound a full run."
+    recommended_next_inspection: "Sweep apps/web/supabase/migrations for every if-not-exists guard
+      on an object whose definition could later change, which MIG-IDX-001 explicitly did not do.
+      Priority order: enum types (a type guarded by existence never gains a later-added value, the
+      closest analogue and arguably likelier than a reshaped index), then remaining indexes, then
+      policies. Separately, someone other than the author should re-run 0148's convergence with a
+      second mutation shape: an index correct in columns but MISSING the partial predicate."
+
+  - area: "Counsel Q5's per-product custom-made marker on the PUBLIC bio-page shop (ShopTeaser),
+      closing the gap the previous counsel-surface coverage row named as its own recommended next
+      inspection."
+    subsystem: "goods"
+    coverage: "partial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-03"
+    commit_inspected: "3d28483a"
+    reviewer: "supervisor, who also wrote the change. NOT independent."
+    evidence: "The prior counsel-surface row (2026-08-02) ended by pointing at exactly this:
+      PublicProduct had no customMade field, so the bio-page shop teaser could not render a
+      custom-made badge even though both checkout surfaces did. Now fixed: custom_made added to
+      the bio-page read path, customMade added to PublicProduct, and the marker rendered from the
+      same shared customMadeRowSuffix the standalone shop and the add-on lane already use. The
+      column list was extracted to PUBLIC_SHOP_PRODUCT_SELECT beside the type it populates,
+      mirroring PRODUCT_SELECT_COLUMNS in the add-on lane, because the failure mode is silent: a
+      column missing from a PostgREST select does not crash and does not fail to compile, the
+      field arrives undefined, the suffix helper returns empty string, and the surface renders a
+      clean card for a non-returnable item. MUTATION-VERIFIED: removing custom_made from the
+      select turns the new suite red at 2 failed / 8 passed, where the 8 that stay green are
+      structural distinction controls that exist so the guard cannot pass against a select string
+      gutted down to the single column it checks for. The suite also pins that custom_made sits at
+      the TOP LEVEL rather than inside product_variants(...), where PostgREST would return it per
+      variant and leave the top-level field undefined, which a naive toContain check would miss."
+    changed_since_inspection: "no"
+    known_exclusions: "ONE surface of four. Still unable to mark a custom-made item, because their
+      queries do not select the column: the cross-artist wishlist (shop-wishlist.ts selects id,
+      artist_id, title, price_amount, currency, variants only), the link-hub goods block
+      (hub-feature-data.ts selects image columns only, though it renders no per-product rows so
+      there is arguably nothing to mark), and the MOBILE artist app, where
+      /api/mobile/goods/[id] does not select custom_made at all and the native editor contains no
+      occurrence of custom, so an artist working from the app can neither see nor set the flag
+      that drives every consumer disclosure. Tracked as task #93. Also NOT covered: the .tsx
+      render itself is untested, because vitest's include is src/**/*.test.ts and not .tsx, so
+      what is pinned is the column list and the type, not that the badge visually appears."
+    recommended_next_inspection: "Task #93, in that order of consequence: the mobile flag
+      visibility first, since it is the only one with a product consequence rather than a
+      disclosure gap. Separately and NOT fixed, raised to counsel as C5: the standalone shop's
+      browse step prints the full 14-day return notice on an EMPTY basket, which is the normal
+      landing state, so an all-custom-made artist's shop headline-promises a return right that
+      applies to nothing on sale. Left deliberately to counsel because the approved C1.1 seller
+      block above it says 'see below', and suppressing the notice would strand approved copy."

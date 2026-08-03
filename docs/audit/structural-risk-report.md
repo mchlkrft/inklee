@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `982563f0afe7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `324253405a53`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-150 recorded finding(s), 4 structural pattern(s), across 99 mapped area(s).
-126 remain open by remediation status. 121 are reachable (directly or conditionally) rather than latent.
-123 have not passed independent verification.
-187 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+152 recorded finding(s), 4 structural pattern(s), across 103 mapped area(s).
+128 remain open by remediation status. 121 are reachable (directly or conditionally) rather than latent.
+125 have not passed independent verification.
+193 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -25,8 +27,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 37 |
-| medium | 67 |
-| low | 40 |
+| medium | 68 |
+| low | 41 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 64 |
+| fixed-unverified | 65 |
 | in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 52 |
+| open | 53 |
 | risk-accepted | 2 |
 | verified | 21 |
 
@@ -47,10 +49,10 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 120 |
+| not-started | 121 |
 | partially-verified | 2 |
 | passed | 27 |
-| pending | 1 |
+| pending | 2 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
 
@@ -160,7 +162,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 
 | Domain | Findings |
 | --- | --- |
-| payment | 34 |
+| payment | 35 |
 | billing | 14 |
 | jobs | 14 |
 | webhook | 14 |
@@ -168,8 +170,8 @@ The single most productive defect shape in this repository. A Supabase call is d
 | database | 12 |
 | testing | 8 |
 | data-retention | 6 |
+| migration | 6 |
 | authorization | 5 |
-| migration | 5 |
 | public-surface | 5 |
 | governance | 4 |
 | production-config | 3 |
@@ -372,6 +374,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | HUB-DST-001 | low | fixed-unverified | not-started | b2da53c7 |
 | HUB-GAL-005 | low | fixed-unverified | not-started | 6bac9914 |
 | HUB-GAL-006 | low | fixed-unverified | not-started | 6bac9914 |
+| MIG-IDX-001 | low | fixed-unverified | pending | 2204f077 |
 | OPS-LINT-001 | low | fixed-unverified | not-started | 45a44bee |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 | SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |
@@ -403,8 +406,10 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Any other token-gated public read (booking_requests, waitlist, pay tokens) should be re-checked for a real hash-equality predicate vs a not-null predicate.
 - Bundles: 0132_product_bundles.sql:61-62 gives product_bundles its own is_public_visible mirroring product_collections. Slice C4 (payable bundles) is not yet written; the same omission would land there. NOT inspected.
 - Commit edb99fb (2026-07-21) records that 0095-0098 ALSO had to be repaired into the ledger because 'they had been applied by another session via direct SQL and were unrecorded' — a second, later ledger/reality divergence, in the safe direction. Whether other silent divergences exist was NOT checked against a live catalog.
+- Enum types guarded by existence (`create type ... if not exists`, or a `do $$ ... exception when duplicate_object` block). A type guarded this way never gains a LATER-added value, which is the exact analogue and arguably likelier in practice than a reshaped index. This is the highest-value place to look next.
 - Every /api/mobile/* route relies on requireMobileUser and none of the routes I read carries a rate limit except events/route.ts and settings/connect-link/route.ts. The authenticated-but-unthrottled write routes (goods, travel, booking-form fields) were not assessed for abuse volume.
 - Every other RLS policy whose WITH CHECK contains an `exists` subquery over a table that shares a column name with the policy's own table. Not swept. This is the highest value follow-up from this finding, because the defect class is invisible to reading.
+- Every other `create index if not exists` across apps/web/supabase/migrations. Not counted, not inspected. The generalisation was written into AGENTS.md rather than a sweep being run, so the rule is documented and the tree is unaudited against it.
 - Every other `revoke execute ... from public` in the migration set was NOT enumerated. Any function whose only caller is the service role and which revokes from PUBLIC without an explicit service_role grant has the live version of this defect.
 - Every other caller of a deliberately-throwing helper placed after a once-only conditional update was NOT enumerated.
 - Every other fixture divergence between the local stack and production: seed.sql also runs ALTER DEFAULT PRIVILEGES (lines 27-30), so future objects created locally differ too, and pg_default_acl was not diffed.
@@ -458,10 +463,13 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The accepted residual — 'a refund that is itself later reversed does not re-debit, since the ledger only converges upward' (bcb45d5) — is recorded as known and handled by hand. No tooling for it was inspected.
 - The account-deletion path uses the same ORDER_MONEY_STATES carve-out (account-deletion-logic.ts:44) and was not re-checked for the same discarded-error shape in this pass.
 - The add-on order path (request/[token]/actions.ts:541-560) creates pending orders too; its rows DO carry booking_id, so the cleanup sweep can see the booking, but whether a pending add-on order is ever cancelled was NOT inspected here.
+- The add-on receipt's MISSING termsSection (send-booking-email.ts:201) — C1.3 names 'the applicable Terms text' as a required element of the durable record and the standalone receipt supplies it via getLegalDoc('terms'); the add-on receipt supplies nothing. Noted here rather than opened as its own finding because it belongs to the same call site and the same counsel item, but it is a DIFFERENT omission and should be scoped separately if it is not fixed in the same pass.
 - The allocations read at ~line 135 in the same file, same discard shape, feeds collectedMinor.
 - The appointment add-on / deposit checkout settlement + receipt path (file not identified in this task).
+- The appointment add-on checkout's pay button still reads 'Pay deposit and selected items' (addons-checkout.tsx), not ORDER_WITH_OBLIGATION_LABEL — the Art. 8(2) relabel named in GOODS-DISC-001's own observed facts was not applied there when the rest of that finding was fixed.
 - The artist cancel path's forfeiture branch
 - The billing-webhook endpoint's subscription set
+- The bio-page public shop teaser (apps/web/src/app/[slug]/shop-teaser.tsx, PublicProduct in packages/shared/src/goods.ts) carries NO customMade field and renders no custom-made badge, so counsel's 'claimed per product' requirement is met only on the two checkout surfaces. GOODS-DISC-001's coverage row asserted PublicProduct.customMade 'was added to the shared type'; grep shows it was not.
 - The bio-page shop teaser / public shop showcase's own custom-made rendering.
 - The booking add-on refund branch of the same webhook was NOT inspected for the same consumed-flip-then-throw shape.
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
@@ -525,6 +533,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Whether the public artist page and the booking-request intake independently filter on anything equivalent was not traced.
 - Whether vitest coverage includes packages/shared — commit 805358d notes the unit run 'globs src/** only', which suggests it may not. NOT verified.
 - Which OTHER migrations were authored retroactively to describe already-applied production state is not established. Commit-message search for that pattern was not performed across all 127 migrations; only 0056 surfaced, and only because the diff pointed at it.
+- `create policy` guarded by existence rather than drop-then-create. The repo's stated convention is already drop-then-create for policies, so this is expected to be clean, but expected-clean is not inspected.
 - `expired` and `cancelled`, which are also reachable while a claimed intent is still live and are likewise absent from the settle from-set; I did not construct those.
 - `resolveOrderFee` (apps/web/src/lib/server/order-fee-sync.ts) prices a re-prepared deposit-plus-goods intent from `depositMinor` and a caller-composed `goodsBaseMinor`. Whether those can diverge from the amount that intent will actually take was NOT examined in this pass.
 - apps/web/src/app/(artist)/bookings/settings/actions.ts contains saveAvailabilityAction, which writes the SAME books_settings keys minus books_open. Whether it should also audit was not assessed.
