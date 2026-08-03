@@ -129,6 +129,14 @@ async function releaseSponsoredFeeForRefund(args: {
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  // The connected-account (connect=true) webhook endpoint carries its OWN
+  // signing secret, distinct from the platform deposit endpoint's. It points at
+  // THIS route so the account.updated / account.application.deauthorized
+  // handlers below are shared (one source of truth) rather than duplicated, so
+  // the route must accept EITHER secret. Absent until that endpoint is
+  // provisioned, in which case verification is byte-for-byte the single-secret
+  // behaviour this replaced.
+  const connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 
   if (!secret || !webhookSecret) {
     return NextResponse.json(
@@ -144,12 +152,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing signature" }, { status: 400 });
   }
 
-  let event: Stripe.Event;
   const stripe = new Stripe(secret);
 
-  try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch {
+  // Verify against every signing secret Inklee owns. Each attempt is a FULL
+  // Stripe verification (HMAC signature AND timestamp tolerance), so this does
+  // not weaken anything: the event must still be signed by one of our own
+  // endpoint secrets, and a secret we do not hold is still rejected. The loop
+  // only answers "which of our endpoints sent this" — Stripe's documented
+  // pattern for a service behind more than one endpoint.
+  const candidateSecrets = [webhookSecret, connectWebhookSecret].filter(
+    (s): s is string => Boolean(s),
+  );
+  let event: Stripe.Event | null = null;
+  for (const candidate of candidateSecrets) {
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, candidate);
+      break;
+    } catch {
+      // A failure against ONE secret is expected (the event was signed by the
+      // other endpoint); only a failure against ALL of them is a reject.
+    }
+  }
+
+  if (!event) {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
 
