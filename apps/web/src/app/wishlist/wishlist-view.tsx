@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { formatPrice } from "@/lib/goods";
+import { customMadeRowSuffix } from "@inklee/shared/consumer-disclosures";
 import {
   removeFromWishlistAction,
   moveWishlistItemToCartAction,
@@ -96,9 +97,15 @@ export function WishlistView({
                     {item.title}
                     {item.variantName ? ` · ${item.variantName}` : ""}
                   </p>
+                  {/* Counsel Q5: the per-item custom-made marker, from the
+                      same shared helper the shop, the add-on lane and the
+                      bio-page teaser use, so the four browse surfaces cannot
+                      drift on the wording. The suffix carries its own
+                      separator and is "" for a returnable item. */}
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatPrice(item.unitAmount, item.currency)}
                     {item.available ? "" : " · unavailable right now"}
+                    {customMadeRowSuffix(item.customMade)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

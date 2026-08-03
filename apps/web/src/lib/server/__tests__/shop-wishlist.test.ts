@@ -37,6 +37,7 @@ import {
   removeFromWishlistByProduct,
   listWishlist,
   moveWishlistItemToCart,
+  WISHLIST_PRODUCT_SELECT,
 } from "@/lib/server/shop-wishlist";
 
 type Reply = { data?: unknown; error?: unknown };
@@ -272,6 +273,91 @@ describe("listWishlist", () => {
     queue("shop_wishlist_items:select", { data: [] });
     const result = await listWishlist("hash1");
     expect(result).toEqual([]);
+  });
+
+  // Counsel Q5. The wishlist is the fourth browse surface to carry the
+  // custom-made marker, and the failure mode is silent: drop custom_made from
+  // the select and the field arrives undefined, customMadeRowSuffix(false)
+  // returns "", and the row renders clean for a non-returnable item. Nothing
+  // crashes and tsc is happy, so it needs a test rather than a comment.
+  it("carries custom_made through to the display item", async () => {
+    queue("shop_wishlist_items:select", {
+      data: [{ id: "w1", artist_id: "a1", product_id: "p1", variant_id: null }],
+    });
+    queue("profiles:select", {
+      data: [{ id: "a1", display_name: "Artist One", slug: "artist-one" }],
+    });
+    queue("products:select", {
+      data: [
+        {
+          id: "p1",
+          artist_id: "a1",
+          title: "Commissioned piece",
+          price_amount: 30,
+          currency: "eur",
+          custom_made: true,
+          product_variants: [],
+        },
+      ],
+    });
+    mockFetchSellableCatalogRows.mockResolvedValue([{ ...PRODUCT, id: "p1" }]);
+
+    const [item] = await listWishlist("hash1");
+    expect(item.customMade).toBe(true);
+  });
+
+  // THE QUERY, which the two tests around it cannot see. Every test in this
+  // file supplies the products row itself, so they verify the MAPPING and stay
+  // green even if custom_made were dropped from the select entirely. That is
+  // the exact regression worth catching, so the column list is asserted by
+  // name against the real constant the query uses.
+  it("the SELECT actually asks for custom_made (mocks cannot catch this)", () => {
+    expect(WISHLIST_PRODUCT_SELECT).toContain("custom_made");
+    // Distinction control: pin the pre-existing columns too, so this cannot
+    // pass against a select string gutted down to the one column it checks.
+    for (const col of [
+      "id",
+      "artist_id",
+      "title",
+      "price_amount",
+      "currency",
+    ]) {
+      expect(WISHLIST_PRODUCT_SELECT).toContain(col);
+    }
+    // Top level, not nested inside product_variants(...), where PostgREST
+    // would return it per variant and leave the top-level field undefined.
+    expect(WISHLIST_PRODUCT_SELECT.indexOf("custom_made")).toBeLessThan(
+      WISHLIST_PRODUCT_SELECT.indexOf("product_variants("),
+    );
+  });
+
+  // DISTINCTION. Without this, a mapping hard-coded to `true` would pass the
+  // test above, and every wishlist row would claim to be non-returnable.
+  // A null column must read as false, never as undefined.
+  it("DISTINCTION: a returnable product reports customMade false, not undefined", async () => {
+    queue("shop_wishlist_items:select", {
+      data: [{ id: "w1", artist_id: "a1", product_id: "p1", variant_id: null }],
+    });
+    queue("profiles:select", {
+      data: [{ id: "a1", display_name: "Artist One", slug: "artist-one" }],
+    });
+    queue("products:select", {
+      data: [
+        {
+          id: "p1",
+          artist_id: "a1",
+          title: "Print",
+          price_amount: 30,
+          currency: "eur",
+          custom_made: null,
+          product_variants: [],
+        },
+      ],
+    });
+    mockFetchSellableCatalogRows.mockResolvedValue([{ ...PRODUCT, id: "p1" }]);
+
+    const [item] = await listWishlist("hash1");
+    expect(item.customMade).toBe(false);
   });
 });
 

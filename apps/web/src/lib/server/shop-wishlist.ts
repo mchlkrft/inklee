@@ -138,6 +138,18 @@ export async function removeFromWishlist(input: {
   return { ok: true };
 }
 
+/**
+ * Columns the wishlist reads to build a `WishlistDisplayItem`.
+ *
+ * Named rather than inline because the pair is a contract and the failure mode
+ * is silent: drop a column and the field arrives `undefined`, the row renders
+ * clean, and neither tsc nor the runtime complains. Asserted by name in the
+ * tests, which the mocked-client tests alone cannot do - they supply the row
+ * shape themselves, so they verify the MAPPING and are blind to the QUERY.
+ */
+export const WISHLIST_PRODUCT_SELECT =
+  "id, artist_id, title, price_amount, currency, custom_made, product_variants(id, name, price_amount_override, status)";
+
 export type WishlistDisplayItem = {
   wishlistItemId: string;
   artistId: string;
@@ -150,6 +162,12 @@ export type WishlistDisplayItem = {
   unitAmount: number;
   currency: string;
   available: boolean;
+  /** Art. 16(c) custom-made (counsel C1.2/Q5). The wishlist is a pre-checkout
+   *  BROWSE surface, so this is not the legal minimum (checkout plus
+   *  confirmation satisfies that) - it is the fast-follow counsel asked for, so
+   *  a buyer saving an item learns it is non-returnable when they save it
+   *  rather than at the pay button. */
+  customMade: boolean;
 };
 
 /** Cross-artist by design — grouped by artist for display, per the ruling. */
@@ -174,9 +192,7 @@ export async function listWishlist(
       .in("id", artistIds),
     serviceClient
       .from("products")
-      .select(
-        "id, artist_id, title, price_amount, currency, product_variants(id, name, price_amount_override, status)",
-      )
+      .select(WISHLIST_PRODUCT_SELECT)
       .in("id", productIds),
   ]);
   const artistById = new Map((artists ?? []).map((a) => [a.id as string, a]));
@@ -255,6 +271,9 @@ export async function listWishlist(
       unitAmount,
       currency: (raw.currency as string) ?? "eur",
       available,
+      // Normalised here so the render site never has to decide what a null
+      // column means (counsel C1.2/Q5).
+      customMade: raw.custom_made === true,
     });
   }
   return results;
