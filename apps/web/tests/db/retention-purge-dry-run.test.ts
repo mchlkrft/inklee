@@ -58,6 +58,15 @@ const REQUIRED_BLOCKS = [
   "purged_deleted_account_billing_contract_confirmations",
   "purged_deleted_account_billing_consent_records",
   "purged_deleted_account_billing_subscriptions",
+  // The tax ledger was missing from this list while it was the one billing
+  // block whose predicate lived in an RPC rather than in PostgREST filters —
+  // i.e. the one whose disappearance this file was least able to notice.
+  // Added with counsel round 4 §7.4 (migration 0150).
+  "purged_expired_transaction_tax_snapshots",
+  // Counsel §7.4 requires the Art. 17(3)(e) carve-out be "flagged rather than
+  // silently skipped", so the held count is a BLOCK, not a detail inside one.
+  // Listing it here is what makes its disappearance a test failure.
+  "transaction_tax_snapshots_held_by_legal_hold",
 ];
 
 let admin: SupabaseClient;

@@ -1592,3 +1592,139 @@ summary, Checkout cart, on the SAME page "Buy now" already lives on);
 `tests/db/shop-carts-rls.test.ts` (new) + `tests/db/shop-carts-seller-boundary.test.ts`
 (new). `docs/web-native-parity.md` updated in the same change (founder
 rule).
+
+### 2026-08-03 — Tax-snapshot horizon extended to live accounts (counsel round 4 §7.4, migration 0150)
+
+Counsel's ruling is not provisional and is not reinterpreted here: "the
+retention basis for a tax snapshot is the accounting obligation, which is
+time-bound (seven years from financial-year end) and indifferent to whether
+the account still exists... Extend the purge to all snapshots past the horizon
+regardless of account status, with one carve-out: rows subject to an open
+dispute, audit, or litigation hold are excluded case-by-case (Art. 17(3)(e)),
+flagged rather than silently skipped." Everything below is an implementation
+call made underneath that ruling.
+
+**TX1 [COUNSEL, ruled] — `artist_id IS NULL` removed from both the purge
+predicate and the append-only trigger's DELETE exemption.**
+
+- Decision: migration 0150 drops account status as a condition in both places.
+  0148 had taken the narrow reading and explicitly recorded it as an open
+  question ("whether a LIVE artist's own 8-year-old tax snapshot must also
+  purge is a larger question... counsel was not asked"). §7.4 is the answer, so
+  the ambiguity is closed rather than carried forward.
+- Reversible? Costly in one direction only. Widening was one `alter`;
+  un-deleting is not. Nothing is deletable until roughly 2033, so the practical
+  risk today is zero, which is why counsel said "build it now while the trigger
+  is already being corrected."
+
+**TX2 [ENG] — the carve-out is a separate `retention_legal_holds` table, not a
+column on the snapshot.**
+
+- Why: the ledger is append-only. `tts_block_mutation()` refuses every UPDATE
+  except the FK's `artist_id -> NULL` action, so placing or releasing a hold
+  through a column would require weakening the exact control counsel kept
+  ("immutable against edits and corrections"). A hold is also not a property of
+  the transaction; it belongs to a dispute with its own lifecycle, and more
+  than one can apply at once.
+- Alternatives: a boolean/timestamp column on `transaction_tax_snapshots`
+  (rejected: needs the update guard weakened, cannot express two concurrent
+  holds, loses who/why/when); enforcement in the purge caller only (rejected: a
+  hold the next tool bypasses is not a hold, the same reasoning 0148 gave for
+  putting the horizon in the trigger).
+- Reversible? Cheap while unused. No rows exist and no UI depends on it.
+
+**TX3 [ENG] — `record_table` is CHECK-restricted to
+`transaction_tax_snapshots`.**
+
+- Why: the table is shaped generically so other retention blocks could adopt
+  it, but only the tax purge consults it today. A hold recorded against
+  `billing_subscriptions` would silently do nothing while looking like
+  protection, which is precisely the failure counsel ruled against. Widening
+  the CHECK is the deliberate act of wiring another block up.
+- Reversible? Cheap (one constraint).
+
+**TX4 [ENG] — run-log key renamed to `purged_expired_transaction_tax_snapshots`,
+plus a new `transaction_tax_snapshots_held_by_legal_hold` block.**
+
+- Why: the old key (`purged_deleted_account_transaction_tax_snapshots`) names a
+  scope the block no longer has, and it lands in a compliance evidence ledger a
+  later auditor reads. Renaming a run-log key normally costs continuity, but
+  0148/0149 have never been applied to production, so there is no history to
+  break.
+- The held count is a BLOCK rather than a field inside the purge result because
+  "flagged rather than silently skipped" is not satisfied by a number that only
+  shows up as one-fewer-than-expected in a count nobody diffs. A non-zero count
+  in a real purge also raises its own Sentry warning naming the ids.
+- Reversible? Cheap.
+
+**TX5 [ENG] — the other four billing tables are deliberately NOT widened.**
+
+- `billing_subscriptions`, `withdrawal_cases`, `billing_consent_records` and
+  `billing_contract_confirmations` stay scoped to `artist_id IS NULL`. Counsel
+  ruled on the tax snapshot, whose basis is the accounting obligation
+  specifically; a live customer's own subscription and consent history is
+  ongoing contract data and was not asked about. Recorded so the asymmetry
+  reads as a decision rather than as four tables somebody forgot, and flagged
+  as a candidate question for a later counsel round.
+- Reversible? Cheap to widen if counsel later says so.
+
+**TX6 [ENG] — a defect in 0148 found while rewriting the predicate, fixed
+here.**
+
+- 0148's self-reference exclusion looks ONE link ahead: it asks whether a
+  correction of `s` is purgeable by testing that correction's own age, never
+  whether the correction is itself pinned by one of its own. For a chain
+  A corrects B corrects C with A young and B, C past the horizon, C is selected
+  for deletion while B still references it, the NO ACTION foreign key raises
+  23503, and the whole tax step aborts every cycle. Reproduced against the
+  local stack: `violates foreign key constraint
+  "transaction_tax_snapshots_corrects_snapshot_id_fkey"`.
+- Reachable on 0148 as shipped, and made materially more reachable by this
+  change, since a hold on a mid-chain correction newly triggers it. Fixed with
+  a recursive CTE that propagates "this row stays" up the whole chain.
+- Reported to the supervisor as a finding against 0148 rather than folded in
+  silently. Not written to `docs/audit/findings.yaml` by this worker.
+
+**Verification.** Counsel §7.4 also makes mutation-style verification the
+standard: "a compliance guard is tested only when its REMOVAL fails the suite."
+The gap counsel named was measured first, against 0148, before anything
+changed: removing the marker condition from `tts_block_mutation` redded the
+suite, removing the `artist_id` condition left it GREEN (12 passed), and
+removing the horizon condition left it GREEN (12 passed). Both gaps had the
+same cause: every "must be refused" test went through
+`purge_expired_tax_snapshots()`, whose own predicate already filtered those
+rows out, so the trigger was never asked and deleting its condition changed
+nothing observable.
+
+`tests/db/tax-ledger-purge.test.ts` now reaches the trigger through a
+privileged raw SQL session that forges the marker and issues the DELETE
+directly. Seven mutations were executed against the local stack, each redding
+exactly the predicted tests: trigger condition 1 (2 red), condition 2 (1 red),
+condition 3 (1 red), the RPC's hold exclusion (14 red), the held-count
+reporting (6 red), the §7.4 widening reverted (1 red), and the chain fix
+reverted to 0148's one-level test (16 red, the three-link case failing with the
+predicted 23503). All three function bodies were restored and confirmed
+byte-identical by sha256 over `pg_proc.prosrc`. Every refusal test is paired
+with a distinction test proving the legitimate case still works, including
+`TRIGGER DISTINCTION`, which deletes through the same privileged path once all
+three conditions are satisfied.
+
+Migration convergence proven by execution, not by reading: 0150 run three times
+under `ON_ERROR_STOP=1` against the already-migrated local database, then every
+object it creates broken by hand (constraint dropped, a second constraint
+recreated with the WRONG shape, index dropped, a second index recreated with
+the wrong shape, both functions dropped, trigger dropped, `tts_block_mutation`
+replaced with a body that permits everything) and the file re-run. All objects
+returned to the intended shape, including the wrong-shaped constraint and index
+that an `if not exists` guard would have skipped, and the EXECUTE grants that a
+bare drop-and-create would have handed back to `anon`/`authenticated`.
+
+Files: `apps/web/supabase/migrations/0150_tax_snapshot_horizon_all_accounts.sql`
+(new); `apps/web/src/lib/server/billing-record-retention.ts`
+(`purgeDeletedAccountTransactionTaxSnapshots` renamed to
+`purgeExpiredTransactionTaxSnapshots`, held reporting + alert, step key
+renamed); `apps/web/src/app/api/cron/retention-purge/route.ts` (comment only);
+`apps/web/tests/db/tax-ledger-purge.test.ts` (rewritten, 12 -> 30 tests);
+`apps/web/tests/db/retention-purge-dry-run.test.ts` (both new blocks added to
+`REQUIRED_BLOCKS`, where the tax block had been missing entirely);
+`docs/retention-purge-operations.md` (legal-hold procedure for operators).
