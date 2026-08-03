@@ -1592,3 +1592,99 @@ summary, Checkout cart, on the SAME page "Buy now" already lives on);
 `tests/db/shop-carts-rls.test.ts` (new) + `tests/db/shop-carts-seller-boundary.test.ts`
 (new). `docs/web-native-parity.md` updated in the same change (founder
 rule).
+
+### 2026-08-03 — COUNSEL ROUND-4 RULINGS (FINAL, not provisional)
+
+Counsel processed the round-4 handoff
+(`docs/legal/counsel-handoff-round-4-2026-08-02.md`; the rulings are its §7).
+Two of them are decisions rather than build instructions, so they belong here.
+These are DECIDED. Do not re-ask, and do not re-derive the arithmetic below to
+"improve" the implementation.
+
+**CR4-1 [COUNSEL, FINAL] — a sub-EUR-16.67 deposit at 3% is incidental
+rounding, not a subsidy. No founder approval at 3%. The cohort-level
+implementation STANDS. The EUR 16.67 threshold is DELIBERATELY ABSENT FROM THE
+CODE and must stay absent.**
+
+- Ruling (counsel round 4 §7.3, verbatim): "The claim 'no separate
+  card-processing fees' states who bears the cost, and it is true at any amount
+  in both cohorts. The founder-approval condition exists to record **subsidy by
+  design** — a rate that cannot cover cost at any amount, which is the 0.5%
+  cohort and only that cohort. A sub-EUR-16.67 deposit at 3% is incidental
+  rounding inside a rate that covers cost in the ordinary case: **no founder
+  approval required, cohort-level implementation stands.** The decision not to
+  encode EUR 16.67 is expressly endorsed — record this ruling in the decision
+  log instead, so the constant never appears and the reasoning survives."
+- What this ratifies, unchanged: `feeRateCoversProcessingCost(feeBps)`
+  (`packages/shared/src/platform-fee.ts`) compares the fee RATE against
+  `STRIPE_PROCESSING_RATE_REFERENCE_BPS` (150) and nothing else. It takes no
+  amount, because the surface it serves (the payouts settings page) describes a
+  rate, not a deposit, and has no amount to give it.
+  `noSeparateCardProcessingFeesClaimVisible` keeps its one AND over an OR:
+  `payerIsApplication AND (rate covers cost OR founder approved the subsidy)`.
+  `resolveNoSeparateCardProcessingFeesClaim`
+  (`apps/web/src/lib/server/billing/activation.ts`) keeps reading the
+  `fee_processing_subsidy_claim_approved` row ONLY when the rate does not cover
+  cost, so under the active v1 schedule (every tier 300 bps) it reads that
+  table zero times.
+- **THE POINT OF THIS ENTRY. Do not add the threshold.** The arithmetic is
+  real: at 3% the break-even is a EUR 16.67 deposit (0.03A = 0.015A + 0.25), so
+  below it the predicate returns true while the charge is fractionally
+  subsidised, worst case about EUR 0.25 and under EUR 0.10 at a EUR 10 deposit.
+  A future reader who works that out will be tempted to make the predicate
+  amount-aware and gate small deposits on the founder approval. That is now a
+  RULED-AGAINST change, not an improvement. The founder-approval condition
+  records subsidy BY DESIGN, and a rate that covers cost in the ordinary case
+  is not that. If you are about to write `16.67`, `1667`, or a per-charge
+  profitability test into the fee code, stop and read this entry.
+- What is NOT ruled: the 0.5% cohort. There the rate never covers cost at any
+  amount (0.005A < 0.015A for all A > 0, so the fixed EUR 0.25 term is not even
+  what breaks it) and the founder-approval row remains genuinely required.
+  Counsel did not touch that half and neither does this entry.
+- Residual, reported not fixed: EUR 16.67 does not appear as a code CONSTANT,
+  which is what counsel's "so the constant never appears" is about, but the
+  number does appear in the explanatory comment on `feeRateCoversProcessingCost`
+  (`platform-fee.ts`, the bounded-imprecision paragraph). That comment is now
+  wrong by one clause: it calls the question "escalated, deliberately NOT
+  pre-decided here", and it has since been decided. Whoever next touches that
+  file should point it at this entry. Left alone here because this task is
+  docs-only and that is a code edit.
+- Alternatives considered by counsel and rejected: encoding the threshold and
+  gating small 3% deposits on the founder approval (rejected: the approval
+  exists for subsidy by design, and rounding inside a covering rate is not
+  that); withdrawing the claim from small deposits (never proposed by anyone,
+  and it is the same over-correction shape as deviation D6).
+- Confirm: nothing outstanding. This IS the confirmation.
+- Reversible? The ruling is counsel's to change. The code needs no change at
+  all, which is the whole outcome.
+
+**CR4-2 [COUNSEL, FINAL] — procedural: a clause a permission is conditioned on
+enters the C1.9 input package IN THE SAME WORK ITEM as the code.**
+
+- Ruling (counsel round 4 §7.1, verbatim): "The Q7 lapse is the instructive
+  one: a conditional permission was implemented without its condition. Since
+  the surface is dark there is no live gap, but the pattern to fix is
+  procedural — when an answer says 'conditional on a Terms clause,' the clause
+  enters the C1.9 input package **in the same work item** as the code, so the
+  two cannot separate again."
+- What went wrong, concretely: counsel's Q7 permitted naming Inklee as an
+  alternative recipient for withdrawal notices ON CONDITION that the page and
+  the Terms carry the forwarding-without-delay rule. The naming shipped, the
+  page half shipped (`withdrawalForwardingNotice`,
+  `packages/shared/src/consumer-disclosures.ts`), and the Terms half was never
+  written or queued. Q12's Terms clause separated from its code the same way.
+  Both are now in `docs/legal/c1.9-terms-edit-inputs.md` under "Round 4
+  additions", and counsel requires them in THAT single version, not a later
+  one.
+- The rule, as an instruction: if an answer grants a permission "conditional on
+  a Terms clause", the work item that implements the permission is not complete
+  until the clause is in `docs/legal/c1.9-terms-edit-inputs.md`. Not the next
+  work item. Not a follow-up ticket. The same one. A code-only completion
+  report for a conditional permission is an incomplete work item, and a
+  reviewer should send it back the way a fix with no test gets sent back.
+- Why it is recorded here and not only in the C1.9 file: the C1.9 file is read
+  by whoever executes the Terms edit, once. This log is read by whoever is
+  about to implement the next conditional permission, which is when the rule
+  actually has to fire.
+- Confirm: nothing outstanding.
+- Reversible? N/A (process).
