@@ -7,6 +7,7 @@ import { liveCollections } from "@inklee/shared/collections";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { goodsDestinationAvailability } from "@/lib/goods-visibility";
+import { signGalleryImageUrls } from "@/lib/server/gallery-signed-urls";
 import BioPageForm from "./bio-page-form";
 
 export default async function BioPageSettingsPage() {
@@ -44,6 +45,30 @@ export default async function BioPageSettingsPage() {
   // selection instead of silently offering a dead end.
   const goodsAvailability = goodsDestinationAvailability(settings, bioPage);
 
+  // Signed thumbnails for the editor (LO-5 DPIA R4, migration 0151). Gallery
+  // objects are private, so the stored URL cannot be rendered even by the
+  // artist who owns it: the editor reads through the SAME signing path as the
+  // public page rather than being granted direct bucket access, which is why
+  // the bucket needs no owner-select policy at all. A plain object, not a Map,
+  // because this crosses into a client component. Fails closed: on a signing
+  // error the artist sees blank thumbnails, never a public URL, and the rest
+  // of the editor still works.
+  let gallerySignedUrls: Record<string, string> = {};
+  if (richBlocksAllowed) {
+    const urls = bioPage.blocks.flatMap((b) =>
+      b.type === "image_gallery" ? b.images.map((i) => i.url) : [],
+    );
+    if (urls.length > 0) {
+      try {
+        gallerySignedUrls = Object.fromEntries(
+          await signGalleryImageUrls(urls),
+        );
+      } catch {
+        gallerySignedUrls = {};
+      }
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -74,6 +99,7 @@ export default async function BioPageSettingsPage() {
         collections={collections}
         richBlocksAllowed={richBlocksAllowed}
         goodsAvailability={goodsAvailability}
+        gallerySignedUrls={gallerySignedUrls}
       />
     </div>
   );

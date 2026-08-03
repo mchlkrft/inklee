@@ -71,7 +71,9 @@ export function GalleryBlockEditor({
   const [pickError, setPickError] = useState<string | null>(null);
 
   const patchImage = (index: number, patch: Partial<BioGalleryImage>) =>
-    onImagesChange(images.map((img, i) => (i === index ? { ...img, ...patch } : img)));
+    onImagesChange(
+      images.map((img, i) => (i === index ? { ...img, ...patch } : img)),
+    );
   const removeImage = (index: number) =>
     onImagesChange(images.filter((_, i) => i !== index));
   const moveImage = (index: number, dir: -1 | 1) => {
@@ -85,13 +87,16 @@ export function GalleryBlockEditor({
   async function doUpload(file: PendingUpload["file"]) {
     setPending({ file, status: "uploading" });
     try {
-      const { url } = await apiUpload<MobileImageUpload>(
+      const { url, signedUrl } = await apiUpload<MobileImageUpload>(
         "/settings/hub/gallery-image",
         file,
       );
       setPending(null);
       if (images.length < MAX_GALLERY_IMAGES) {
-        onImagesChange([...images, { url }]);
+        // Carry the upload-time signature so the thumbnail appears now (0151:
+        // `url` is a private-bucket URL and renders nothing on its own). The
+        // parser drops `signedUrl` on save, so this never reaches storage.
+        onImagesChange([...images, { url, signedUrl }]);
       }
     } catch (e) {
       captureError(e, { op: "hubGalleryUpload" });
@@ -152,8 +157,8 @@ export function GalleryBlockEditor({
         <Text className="text-xs text-shell-dim">
           {images.length} image{images.length === 1 ? "" : "s"} saved. Editing
           image galleries is a Plus feature. Your images are kept and show on
-          your page while you are on Plus. You can still remove this block,
-          and everything is in your data export.
+          your page while you are on Plus. You can still remove this block, and
+          everything is in your data export.
         </Text>
         {images.length > 0 ? (
           <View className="mt-2">
@@ -199,11 +204,25 @@ export function GalleryBlockEditor({
           key={`${img.url}-${i}`}
           className="mb-2 flex-row items-start gap-2 rounded-xl border-brand border-shell-border p-2"
         >
-          <Image
-            source={{ uri: img.url }}
-            style={{ width: 56, height: 56, borderRadius: 10 }}
-            contentFit="cover"
-          />
+          {/* 0151 (LO-5 DPIA R4): gallery objects are private, so only the
+              short-lived `signedUrl` the route attaches is renderable. NO
+              fallback to `img.url`: it would render nothing anyway, and a
+              fallback here is how the web side would quietly regain one too.
+              An older app build that never reads `signedUrl` shows an empty
+              frame, which is acceptable because the gallery capability has
+              never been granted to any artist. */}
+          {img.signedUrl ? (
+            <Image
+              source={{ uri: img.signedUrl }}
+              style={{ width: 56, height: 56, borderRadius: 10 }}
+              contentFit="cover"
+            />
+          ) : (
+            <View
+              style={{ width: 56, height: 56, borderRadius: 10 }}
+              className="bg-shell-border"
+            />
+          )}
           <View className="flex-1">
             <TextField
               value={img.caption ?? ""}
@@ -298,9 +317,7 @@ export function GalleryBlockEditor({
           style={{ borderStyle: "dashed" }}
         >
           <Ionicons name="camera-outline" size={16} color={colors.shell.mute} />
-          <Text className="text-xs font-medium text-foreground">
-            Add image
-          </Text>
+          <Text className="text-xs font-medium text-foreground">Add image</Text>
         </Pressable>
       ) : null}
     </View>

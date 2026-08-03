@@ -8,7 +8,7 @@ import {
   type SurfaceContent,
   type SurfaceContentSurface,
 } from "@inklee/shared/surface-content";
-import { sanitizeHostedGalleryImageUrl } from "@inklee/shared/bio-page";
+import { sanitizeHostedPublicImageUrl } from "@inklee/shared/bio-page";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "./entitlement-gates";
 
@@ -50,7 +50,7 @@ export type SurfaceContentWriteResult =
 function normalize(input: SurfaceContentInput): Partial<SurfaceContent> {
   const patch: Partial<SurfaceContent> = {};
   if ("heroMediaUrl" in input) {
-    patch.heroMediaUrl = sanitizeHostedGalleryImageUrl(input.heroMediaUrl);
+    patch.heroMediaUrl = sanitizeHostedPublicImageUrl(input.heroMediaUrl);
   }
   if ("introText" in input) {
     const t =

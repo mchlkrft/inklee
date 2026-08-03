@@ -44,7 +44,7 @@ vi.mock("@/lib/server/hub-images", () => ({
 import { POST } from "../route";
 
 const USER_ID = "artist1";
-const BASE = "https://x.supabase.co/storage/v1/object/public/logos";
+const BASE = "https://x.supabase.co/storage/v1/object/gallery";
 const imgA = `${BASE}/${USER_ID}/hub/a.webp`;
 const imgB = `${BASE}/${USER_ID}/hub/b.webp`;
 const imgC = `${BASE}/${USER_ID}/hub/c.webp`;

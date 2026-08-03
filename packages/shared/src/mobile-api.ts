@@ -615,7 +615,17 @@ export type MobileTrip = {
 export type MobileTripsResponse = { items: MobileTrip[] };
 
 /** POST /api/mobile/.../image — the public URL of a freshly uploaded image. */
-export type MobileImageUpload = { url: string };
+export type MobileImageUpload = {
+  /** The stored identity. For a GALLERY upload this is the inert
+   *  private-bucket URL (migration 0151, LO-5 DPIA R4) and is NOT renderable;
+   *  for every other image upload it stays a public URL. */
+  url: string;
+  /** Gallery uploads only: a short-lived signed URL so the native editor can
+   *  show the image it just uploaded without waiting for a reload. Display
+   *  only, never saved back. Absent if signing failed, in which case the
+   *  upload still succeeded and the thumbnail fills in on reload. */
+  signedUrl?: string;
+};
 
 /** One product row in the goods showcase list (GET /api/mobile/goods). */
 export type MobileProduct = {

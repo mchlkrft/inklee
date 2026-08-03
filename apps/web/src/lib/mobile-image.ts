@@ -57,10 +57,15 @@ type UploadResult =
   | { ok: false; status: number; error: string };
 
 /**
- * Resize + re-encode to webp and upload to `logos/<path>`, returning a public,
- * cache-busted URL. `fit:"inside"` keeps aspect (flash designs); `cover` crops to
- * a square (logo / product hero). A file sharp can't decode yields a friendly
- * 400, never an unhandled 500.
+ * Resize + re-encode to webp and upload to `<bucket>/<path>` (default bucket
+ * `logos`), returning a URL for the stored object. `fit:"inside"` keeps aspect
+ * (flash designs); `cover` crops to a square (logo / product hero). A file
+ * sharp can't decode yields a friendly 400, never an unhandled 500.
+ *
+ * 0151 (LO-5 DPIA R4) added `bucket` / `urlForm` so gallery uploads can land in
+ * the PRIVATE `gallery` bucket. Both default to the previous behaviour
+ * (`logos`, public URL) so every other caller — covers, logos, flash, goods,
+ * Instagram previews — is untouched.
  */
 export async function processAndUpload(
   file: File,
@@ -76,8 +81,19 @@ export async function processAndUpload(
      *  otherwise be stored into settings JSON where deep-equality comparisons
      *  (gateMediaBlocksForSave) have to carry it. */
     cacheBust?: boolean;
+    /** Storage bucket. Defaults to the PUBLIC `logos` bucket. */
+    bucket?: string;
+    /** Which URL shape to return. `public` (default) is the world-readable
+     *  `/object/public/{bucket}/` form and is only correct for a public
+     *  bucket. `authenticated` is the inert `/object/{bucket}/` form, which is
+     *  refused without a signature: pass it for a PRIVATE bucket. Calling
+     *  `getPublicUrl` on a private bucket would happily return a
+     *  well-formed-looking URL that 400s forever, so this is an explicit
+     *  choice rather than something inferred. */
+    urlForm?: "public" | "authenticated";
   },
 ): Promise<UploadResult> {
+  const bucket = opts.bucket ?? "logos";
   const fit = opts.fit ?? "cover";
   let processed: Buffer;
   try {
@@ -105,7 +121,7 @@ export async function processAndUpload(
   }
 
   const { error } = await serviceClient.storage
-    .from("logos")
+    .from(bucket)
     .upload(opts.path, processed, {
       contentType: "image/webp",
       upsert: opts.upsert ?? true,
@@ -114,7 +130,20 @@ export async function processAndUpload(
     return { ok: false, status: 500, error: "Upload failed. Try again." };
   }
 
-  const { data } = serviceClient.storage.from("logos").getPublicUrl(opts.path);
+  if ((opts.urlForm ?? "public") === "authenticated") {
+    // No cache-bust: an authenticated-object URL is never fetched directly, it
+    // is only the stable key a signed URL is minted from, and a query string
+    // would pollute the settings JSON the save gate deep-compares.
+    const base = (
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"
+    ).replace(/\/+$/, "");
+    return {
+      ok: true,
+      url: `${base}/storage/v1/object/${bucket}/${opts.path}`,
+    };
+  }
+
+  const { data } = serviceClient.storage.from(bucket).getPublicUrl(opts.path);
   return {
     ok: true,
     url:

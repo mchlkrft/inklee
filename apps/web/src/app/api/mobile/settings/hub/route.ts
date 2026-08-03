@@ -15,6 +15,7 @@ import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { goodsDestinationAvailability } from "@/lib/goods-visibility";
 import { removeDroppedHubImages } from "@/lib/server/hub-images";
+import { signGalleryImageUrls } from "@/lib/server/gallery-signed-urls";
 
 export const runtime = "nodejs";
 
@@ -63,12 +64,65 @@ export async function GET(req: Request) {
   const bioPage = parseBioPageSettings(settings.bio_page);
   const goodsAvailability = goodsDestinationAvailability(settings, bioPage);
 
+  // ADDITIVE (LO-5 DPIA R4, migration 0151): gallery objects are private and
+  // `image.url` is the INERT authenticated-object URL, which the app cannot
+  // fetch. Each gallery image therefore carries a sibling `signedUrl` for
+  // DISPLAY only. Additive on purpose: `url` keeps its meaning as the stored
+  // identity, which is what the POST below round-trips, so an older build that
+  // ignores `signedUrl` degrades to a broken thumbnail rather than to a client
+  // that saves a signed URL back into the settings JSON.
+  //
+  // A signed URL must NEVER be persisted (it is a bearer token and it
+  // expires). Two independent things stop that: this key is not `url`, and
+  // `sanitizeHostedGalleryImageUrl` refuses a `/object/sign/` URL outright if
+  // a client ever posts one back.
+  //
+  // Signed only for an entitled artist, matching the public page: an
+  // unentitled artist's editor shows the gallery as paused, read from the DB
+  // row, and no signature is minted.
+  const blocksForClient = richBlocksAllowed
+    ? await withSignedGalleryUrls(bioPage.blocks)
+    : bioPage.blocks;
+
   return mobileOk({
     ...bioPage,
+    blocks: blocksForClient,
     collections,
     richBlocksAllowed,
     goodsAvailability,
   });
+}
+
+/** Attach a display-only `signedUrl` to every gallery image. One batched
+ *  storage call for the whole payload. Fails CLOSED and quietly: on a signing
+ *  error the blocks come back unchanged (no `signedUrl`), so the editor shows
+ *  no thumbnail. It never substitutes an unsigned or public URL, and it never
+ *  fails the request: the artist must still be able to edit their links when
+ *  storage is having a bad minute. */
+async function withSignedGalleryUrls(
+  blocks: ReturnType<typeof parseBioPageSettings>["blocks"],
+): Promise<ReturnType<typeof parseBioPageSettings>["blocks"]> {
+  const urls = blocks.flatMap((b) =>
+    b.type === "image_gallery" ? b.images.map((i) => i.url) : [],
+  );
+  if (urls.length === 0) return blocks;
+  let signed: Map<string, string>;
+  try {
+    signed = await signGalleryImageUrls(urls);
+  } catch {
+    return blocks;
+  }
+  return blocks.map((b) =>
+    b.type === "image_gallery"
+      ? {
+          ...b,
+          images: b.images.map((img) => {
+            const s = signed.get(img.url);
+            return s ? { ...img, signedUrl: s } : img;
+          }),
+        }
+      : b,
+  );
 }
 
 // POST /api/mobile/settings/hub — save the Hub config. Ports the web

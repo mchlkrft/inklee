@@ -5,6 +5,7 @@ import type {
   BioGalleryImage,
 } from "@/lib/bio-page-settings";
 import type { TemplateStyles } from "@inklee/shared/page-template-styles";
+import { renderableGalleryImages } from "@/lib/server/gallery-signed-urls";
 
 // Hub feature blocks (Plus build P2b). Each renders data the artist already
 // maintains elsewhere, and each returns NULL when that data is empty, so an
@@ -106,26 +107,51 @@ export function HubFeaturedCollectionBlock({
 
 /** A Plus rich block: the artist's own images (Stage 3). Self-contained (the
  *  images live on the block, unlike the reference/feature blocks), so it takes
- *  no HubFeatureData. The caller renders it only for an entitled artist. Images
- *  are artist-provided absolute URLs on arbitrary domains, so they use
- *  `unoptimized` (the Next image optimizer's domain allowlist does not apply). */
+ *  no HubFeatureData. The caller renders it only for an entitled artist.
+ *
+ *  `unoptimized` is now load-bearing rather than incidental (it predates 0151,
+ *  when images could sit on arbitrary domains). Gallery sources are SIGNED,
+ *  short-lived URLs: routing them through the Next image optimizer would cache
+ *  the decoded bytes at a stable /_next/image URL keyed on the signed source,
+ *  which would outlive the signature and hand back a permanently fetchable
+ *  copy of a private object. Do not remove it. */
 export function HubImageGalleryBlock({
   images,
   layout,
   tpl,
+  signedUrls,
 }: {
   images: BioGalleryImage[];
   layout: "grid" | "carousel";
   tpl: TemplateStyles;
+  /** Canonical gallery URL -> a short-lived SIGNED URL (LO-5 DPIA R4,
+   *  migration 0151). Gallery objects are private and `img.url` is the inert
+   *  authenticated-object URL, which no browser can fetch. An image with no
+   *  entry here is NOT rendered: there is deliberately no fallback to
+   *  `img.url`, because a fallback is how a control like this quietly becomes
+   *  decorative. Missing means the signing call failed or the object is gone,
+   *  and in both cases the honest render is nothing. */
+  signedUrls: ReadonlyMap<string, string>;
 }) {
   // Defensive: the parser drops an empty gallery, so this is belt-and-braces.
   if (images.length === 0) return null;
 
-  const figure = (img: BioGalleryImage, key: string, extra: string) => (
+  // Drop unsignable images BEFORE the empty check below, so a gallery whose
+  // images could none of them be signed renders as nothing at all rather than
+  // as an empty framed box. The rule lives in `renderableGalleryImages` so it
+  // is covered by a test; this project's vitest does not run .tsx.
+  const renderable = renderableGalleryImages(images, signedUrls);
+  if (renderable.length === 0) return null;
+
+  const figure = (
+    { image: img, src }: { image: BioGalleryImage; src: string },
+    key: string,
+    extra: string,
+  ) => (
     <figure key={key} className={extra}>
       <span className="relative block aspect-square overflow-hidden rounded-lg bg-brand-bone/10">
         <Image
-          src={img.url}
+          src={src}
           alt={img.alt ?? img.caption ?? ""}
           fill
           unoptimized
@@ -147,8 +173,8 @@ export function HubImageGalleryBlock({
         aria-label="Image gallery"
         className={`flex snap-x gap-2 overflow-x-auto pb-1 ${tpl.socials ?? ""}`}
       >
-        {images.map((img, i) =>
-          figure(img, `${img.url}-${i}`, "w-36 shrink-0 snap-start"),
+        {renderable.map((entry, i) =>
+          figure(entry, `${entry.image.url}-${i}`, "w-36 shrink-0 snap-start"),
         )}
       </section>
     );
@@ -156,7 +182,9 @@ export function HubImageGalleryBlock({
 
   return (
     <section aria-label="Image gallery" className="grid grid-cols-3 gap-2">
-      {images.map((img, i) => figure(img, `${img.url}-${i}`, ""))}
+      {renderable.map((entry, i) =>
+        figure(entry, `${entry.image.url}-${i}`, ""),
+      )}
     </section>
   );
 }

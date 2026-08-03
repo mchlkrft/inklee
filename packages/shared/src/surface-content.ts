@@ -45,7 +45,7 @@
 // shop, not an independent content surface, so one artist-authored record
 // covers both places it renders — an artist should not have to enter the
 // same intro line twice for what is, to them, one shop.
-import { sanitizeHostedGalleryImageUrl } from "./bio-page";
+import { sanitizeHostedPublicImageUrl } from "./bio-page";
 
 export const SURFACE_CONTENT_SURFACES = ["shop"] as const;
 export type SurfaceContentSurface = (typeof SURFACE_CONTENT_SURFACES)[number];
@@ -67,11 +67,18 @@ export const MAX_FEATURED_COLLECTIONS = 6;
 
 export type SurfaceContent = {
   /** Inklee-hosted hero image for this surface, or null for none. Same trust
-   *  boundary as a Hub gallery image (founder ruling FD4, 2026-08-01): never
-   *  an arbitrary external URL. Validated with the SAME parser gallery
-   *  images use (bio-page.ts's sanitizeHostedGalleryImageUrl) rather than a
-   *  second copy of the supabase.co / logos-bucket check, so the two gates
-   *  cannot quietly drift (the HUB-GAL-006 lesson). */
+   *  boundary as a Hub gallery image had before 0151 (founder ruling FD4,
+   *  2026-08-01): never an arbitrary external URL, always the public `logos`
+   *  bucket on a supabase.co host. Validated by
+   *  bio-page.ts's `sanitizeHostedPublicImageUrl` rather than a second copy of
+   *  that check, so the gates cannot quietly drift (the HUB-GAL-006 lesson).
+   *
+   *  NO LONGER the same gate as a gallery image. Migration 0151 moved gallery
+   *  objects into a private bucket behind signed URLs for LO-5 DPIA R4; hero
+   *  media did NOT move, because it is shop branding rather than one of the
+   *  DPIA's enumerated processing activities, and no signing path exists for
+   *  it. Whether it SHOULD move is an open question recorded against R4, not
+   *  something this field decides. */
   heroMediaUrl: string | null;
   /** A short intro line shown above this surface's content. */
   introText: string | null;
@@ -133,11 +140,18 @@ function parseSurfaceContentEntry(raw: unknown): SurfaceContent {
   if (!raw || typeof raw !== "object") return freshDefault();
   const o = raw as Record<string, unknown>;
   return {
-    // Delegates to bio-page.ts's sanitizeHostedGalleryImageUrl rather than
+    // Delegates to bio-page.ts's sanitizeHostedPublicImageUrl rather than
     // re-implementing the supabase.co / logos-bucket check, per the FD4
     // posture this module's header documents: one gate, reused, cannot
     // drift into a second, looser copy (the HUB-GAL-006 lesson).
-    heroMediaUrl: sanitizeHostedGalleryImageUrl(o.heroMediaUrl),
+    //
+    // 0151 RENAMED the function this calls WITHOUT changing its behaviour.
+    // Hero media stays in the PUBLIC logos bucket: it is shop branding, not
+    // one of the LO-5 DPIA's processing activities, and it has no signing
+    // path. Gallery images moved to a private bucket and took the old name
+    // with them, so continuing to call the gallery gate here would have
+    // rejected every existing hero image. See sanitizeHostedPublicImageUrl.
+    heroMediaUrl: sanitizeHostedPublicImageUrl(o.heroMediaUrl),
     introText:
       typeof o.introText === "string" && o.introText.trim()
         ? o.introText.trim().slice(0, MAX_INTRO_TEXT)

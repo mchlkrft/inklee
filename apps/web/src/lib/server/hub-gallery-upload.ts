@@ -8,6 +8,10 @@ import {
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { processAndUpload } from "@/lib/mobile-image";
+import {
+  GALLERY_LIVE_BUCKET,
+  signGalleryImageUrls,
+} from "@/lib/server/gallery-signed-urls";
 
 // Gallery-upload gates shared by BOTH surfaces that store a gallery image
 // (Track B slice B2 web direct upload; FD2, 2026-08-01, native direct upload).
@@ -17,7 +21,19 @@ import { processAndUpload } from "@/lib/mobile-image";
 // trust boundary, so this is where the boundary actually lives.
 
 export type GalleryUploadResult =
-  | { ok: true; url: string }
+  | {
+      ok: true;
+      /** The canonical, INERT authenticated-object URL. This is what gets
+       *  stored in the block, and it is deliberately not fetchable. */
+      url: string;
+      /** A short-lived SIGNED URL for showing the image the artist just
+       *  uploaded, before any reload has had a chance to sign it. Display
+       *  only, never stored. Absent if signing failed, in which case the
+       *  thumbnail is blank until the editor reloads: an upload that
+       *  physically succeeded must not be reported as a failure, and there is
+       *  no unsigned URL to fall back to by design. */
+      signedUrl?: string;
+    }
   | { ok: false; error: string; status?: number };
 
 /** The hosted-image ceiling: every gallery block full (H6). Derived from the
@@ -70,7 +86,14 @@ export async function galleryAtCapacity(
  *  path never repeats and a query string would pollute the settings JSON the
  *  save-gate deep-compares). `status` on failure carries processAndUpload's
  *  own status (400 bad file, 500 storage failure) so an HTTP caller (the
- *  mobile route) can use it directly; the web Server Action ignores it. */
+ *  mobile route) can use it directly; the web Server Action ignores it.
+ *
+ *  0151 (LO-5 DPIA R4, counsel Q18): the destination is the PRIVATE `gallery`
+ *  bucket and the returned URL is the inert authenticated-object form, which
+ *  is refused by Storage without a signature. This is the single choke point
+ *  every gallery image passes through (web upload, web URL import, native
+ *  upload), so there is no second path by which an image could still land in a
+ *  public bucket. */
 export async function uploadProcessedGalleryFile(
   userId: string,
   file: File,
@@ -84,8 +107,22 @@ export async function uploadProcessedGalleryFile(
     fit: "inside",
     upsert: false,
     cacheBust: false,
+    bucket: GALLERY_LIVE_BUCKET,
+    urlForm: "authenticated",
   });
   if (!result.ok)
     return { ok: false, error: result.error, status: result.status };
-  return { ok: true, url: result.url };
+
+  let signedUrl: string | undefined;
+  try {
+    signedUrl = (await signGalleryImageUrls([result.url])).get(result.url);
+  } catch {
+    // Swallowed on purpose, and this is the ONE place in this feature where
+    // that is right: the bytes are already stored and the canonical URL below
+    // is correct, so failing the action would tell the artist their upload
+    // failed when it did not. The cost is a blank thumbnail until reload. No
+    // unsigned URL is substituted.
+    signedUrl = undefined;
+  }
+  return { ok: true, url: result.url, signedUrl };
 }

@@ -100,7 +100,7 @@ function formWithImage(): FormData {
 // `cdn.example` stand-in would silently parse to ZERO stored images and
 // falsely pass the H6 ceiling test regardless of the count below.
 const HOSTED =
-  "https://x.supabase.co/storage/v1/object/public/logos/artist1/hub";
+  "https://x.supabase.co/storage/v1/object/gallery/artist1/hub";
 
 /** N stored gallery images across blocks, as saved settings would hold them. */
 function settingsWithImages(count: number): Record<string, unknown> {

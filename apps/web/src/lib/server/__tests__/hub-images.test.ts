@@ -4,8 +4,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // (a block's url is artist-supplied and may be external) and the save-diff
 // orphan cleanup (row-first, object-second; losing writers never delete).
 
-const { mockRemove, captureException } = vi.hoisted(() => ({
+const { mockRemove, mockFrom, captureException } = vi.hoisted(() => ({
   mockRemove: vi.fn(),
+  mockFrom: vi.fn(),
   captureException: vi.fn(),
 }));
 
@@ -16,7 +17,15 @@ vi.mock("@sentry/nextjs", () => ({
 vi.mock("@/lib/supabase/service", () => ({
   serviceClient: {
     storage: {
-      from: () => ({ remove: (...a: unknown[]) => mockRemove(...a) }),
+      // Records WHICH bucket the removal targets. Before 0151 this mock
+      // ignored the bucket entirely, which meant the suite would have stayed
+      // green if the cleanup had kept deleting from the public `logos` bucket
+      // after gallery objects moved to the private one — a silent no-op that
+      // orphans every dropped object forever.
+      from: (bucket: string) => {
+        mockFrom(bucket);
+        return { remove: (...a: unknown[]) => mockRemove(...a) };
+      },
     },
   },
 }));
@@ -27,7 +36,12 @@ import {
 } from "@/lib/server/hub-images";
 import type { BioBlock } from "@inklee/shared/bio-page";
 
-const BASE = "https://x.supabase.co/storage/v1/object/public/logos";
+// 0151 (LO-5 DPIA R4): gallery objects live in the PRIVATE `gallery` bucket at
+// the authenticated-object path, not the public `logos` one.
+const BASE = "https://x.supabase.co/storage/v1/object/gallery";
+/** The pre-0151 shape, kept as a named negative fixture below. */
+const LEGACY_PUBLIC_BASE =
+  "https://x.supabase.co/storage/v1/object/public/logos";
 
 function gallery(id: string, urls: string[]): BioBlock {
   return {
@@ -67,6 +81,19 @@ describe("ownedHubImagePath", () => {
     // Empty tail.
     expect(ownedHubImagePath(`${BASE}/u1/hub/`, "u1")).toBeNull();
   });
+
+  it("rejects the pre-0151 PUBLIC logos URL, so no public object is ever a gallery storage candidate", () => {
+    // Deliberate, and the residual is documented rather than hidden: after
+    // 0151 a legacy public-bucket URL is not a gallery object at all. It
+    // cannot be signed, it is not cleaned up by the save diff, and
+    // `sanitizeHostedGalleryImageUrl` refuses to persist one. This assertion
+    // exists so that stays a decision rather than an accident: accepting the
+    // public form here would let a hand-crafted block address a world-readable
+    // object, which is exactly the R4 risk 0151 removes.
+    expect(
+      ownedHubImagePath(`${LEGACY_PUBLIC_BASE}/u1/hub/a.webp`, "u1"),
+    ).toBeNull();
+  });
 });
 
 describe("removeDroppedHubImages", () => {
@@ -84,6 +111,10 @@ describe("removeDroppedHubImages", () => {
     const removed = await removeDroppedHubImages("u1", prior, saved);
     expect(removed).toBe(1);
     expect(mockRemove).toHaveBeenCalledWith(["u1/hub/dropped.webp"]);
+    // ...from the PRIVATE bucket. Deleting the right path out of the wrong
+    // bucket succeeds silently and removes nothing.
+    expect(mockFrom).toHaveBeenCalledWith("gallery");
+    expect(mockFrom).not.toHaveBeenCalledWith("logos");
   });
 
   it("counts a URL kept in ANOTHER block as kept (no cross-block deletion)", async () => {

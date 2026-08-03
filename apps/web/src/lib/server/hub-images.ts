@@ -2,16 +2,17 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import {
-  HOSTED_LOGOS_PUBLIC_MARKER,
+  HOSTED_GALLERY_PRIVATE_MARKER,
   type BioBlock,
 } from "@inklee/shared/bio-page";
+import { GALLERY_LIVE_BUCKET } from "@/lib/server/gallery-signed-urls";
 
 // Hosted gallery-image lifecycle (Track B slice B2).
 //
-// Gallery uploads live at `logos/{uid}/hub/{uuid}.webp` with unique paths, so
+// Gallery uploads live at `gallery/{uid}/hub/{uuid}.webp` with unique paths, so
 // unlike the cover (fixed path + upsert = replacement overwrites) an image
 // REMOVED from a block would orphan its storage object forever: nothing sweeps
-// the `logos` bucket. The save path closes that: after a settings write WINS,
+// the bucket. The save path closes that: after a settings write WINS,
 // it diffs the prior gallery URLs against the saved ones and removes the
 // dropped objects — row-first, object-second (a failed removal leaves a
 // sweepable orphan, never a ghost reference; the losing writer in a race never
@@ -28,10 +29,17 @@ import {
 // row written before that change and as defense in depth. Mirrors
 // `ownedGoodsStoragePath` (mobile-goods-server.ts) verbatim in spirit.
 
+// 0151 (LO-5 DPIA R4): gallery objects moved from the PUBLIC `logos` bucket to
+// the PRIVATE `gallery` bucket, so both the marker this derives paths from and
+// the bucket the removal below targets changed together. They must change
+// together: deriving a path with one marker and removing it from the other
+// bucket would silently no-op every cleanup. `HOSTED_LOGOS_PUBLIC_MARKER` still
+// exists and is still correct for GOODS images (mobile-goods-server.ts), which
+// are public by design and out of the DPIA's scope.
 function hubImagePathFromUrl(url: string): string | null {
-  const idx = url.indexOf(HOSTED_LOGOS_PUBLIC_MARKER);
+  const idx = url.indexOf(HOSTED_GALLERY_PRIVATE_MARKER);
   if (idx < 0) return null;
-  const tail = url.slice(idx + HOSTED_LOGOS_PUBLIC_MARKER.length);
+  const tail = url.slice(idx + HOSTED_GALLERY_PRIVATE_MARKER.length);
   return tail.split("?")[0] || null;
 }
 
@@ -86,7 +94,7 @@ export async function removeDroppedHubImages(
 
   try {
     const { error } = await serviceClient.storage
-      .from("logos")
+      .from(GALLERY_LIVE_BUCKET)
       .remove(droppedPaths);
     if (error) {
       Sentry.captureException(error, {

@@ -67,6 +67,12 @@ export async function POST(req: Request) {
   const result = await uploadProcessedGalleryFile(userId, read.file);
   if (!result.ok) return mobileError(result.status ?? 500, result.error);
 
-  const body: MobileImageUpload = { url: result.url };
+  // 0151 (LO-5 DPIA R4): `url` is the inert private-bucket URL that gets
+  // STORED; `signedUrl` is the short-lived signature the editor renders and
+  // never saves back. Additive, so an older app build ignores it.
+  const body: MobileImageUpload = {
+    url: result.url,
+    signedUrl: result.signedUrl,
+  };
   return mobileOk(body);
 }
