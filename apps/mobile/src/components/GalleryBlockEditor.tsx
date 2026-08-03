@@ -18,6 +18,11 @@ import {
   type BioImageGalleryBlock,
 } from "@inklee/shared/bio-page";
 import type { MobileImageUpload } from "@inklee/shared/mobile-api";
+import {
+  GALLERY_RIGHTS_ATTESTATION_FIELD,
+  GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+  GALLERY_RIGHTS_ATTESTATION_TEXT,
+} from "@inklee/shared/gallery-rights-attestation";
 
 // Native Link Hub image-gallery editor (founder ruling FD2, 2026-08-01,
 // SUPERSEDES D4's web-only-editing-v1 deferral): the app gets FULL gallery
@@ -69,6 +74,10 @@ export function GalleryBlockEditor({
   const images = Array.isArray(block.images) ? block.images : [];
   const [pending, setPending] = useState<PendingUpload | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
+  // LO-5 DPIA §7 R3: the rights attestation, at parity with the web editor.
+  // UI affordance only. The route re-checks it and refuses regardless of what
+  // this renders, which is what makes a native client not a trust boundary.
+  const [attested, setAttested] = useState(false);
 
   const patchImage = (index: number, patch: Partial<BioGalleryImage>) =>
     onImagesChange(
@@ -90,6 +99,12 @@ export function GalleryBlockEditor({
       const { url, signedUrl } = await apiUpload<MobileImageUpload>(
         "/settings/hub/gallery-image",
         file,
+        // LO-5 DPIA §7 R3. Sent in the SAME multipart body as the file
+        // because the route reads the request body once. The route refuses
+        // the upload if this is absent or anything other than "true", so an
+        // older installed build gets a clear refusal rather than an
+        // unattested hosted image.
+        { [GALLERY_RIGHTS_ATTESTATION_FIELD]: attested ? "true" : "false" },
       );
       setPending(null);
       if (images.length < MAX_GALLERY_IMAGES) {
@@ -98,6 +113,9 @@ export function GalleryBlockEditor({
         // parser drops `signedUrl` on save, so this never reaches storage.
         onImagesChange([...images, { url, signedUrl }]);
       }
+      // Per image, never a remembered setting: the next photo starts
+      // unconfirmed, matching the web editor.
+      setAttested(false);
     } catch (e) {
       captureError(e, { op: "hubGalleryUpload" });
       // Route entitlement/ceiling errors through the IAP-safe helper (D17):
@@ -115,6 +133,12 @@ export function GalleryBlockEditor({
   async function pick() {
     setPickError(null);
     if (images.length >= MAX_GALLERY_IMAGES || pending) return;
+    // Do not even open the picker unattested. The server is the boundary; this
+    // just avoids making the artist choose a photo only to be refused.
+    if (!attested) {
+      setPickError(GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR);
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       setPickError("Allow photo access to upload an image.");
@@ -309,16 +333,49 @@ export function GalleryBlockEditor({
       ) : null}
 
       {images.length < MAX_GALLERY_IMAGES && !pending ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add a gallery image"
-          onPress={() => void pick()}
-          className="flex-row items-center justify-center gap-1.5 rounded-xl border-brand border-shell-border bg-glass py-2.5 active:opacity-80"
-          style={{ borderStyle: "dashed" }}
-        >
-          <Ionicons name="camera-outline" size={16} color={colors.shell.mute} />
-          <Text className="text-xs font-medium text-foreground">Add image</Text>
-        </Pressable>
+        <>
+          {/* LO-5 DPIA §7 R3: the same confirmation the web editor requires,
+              rendered from the SAME shared constant so the two surfaces can
+              never assert different things under one version. */}
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: attested }}
+            accessibilityLabel={GALLERY_RIGHTS_ATTESTATION_TEXT}
+            onPress={() => {
+              setPickError(null);
+              setAttested((v) => !v);
+            }}
+            className="mb-2 flex-row items-start gap-2 active:opacity-80"
+          >
+            <Ionicons
+              name={attested ? "checkbox" : "square-outline"}
+              size={18}
+              color={attested ? colors.accent : colors.shell.mute}
+            />
+            <Text className="flex-1 text-xs text-shell-dim">
+              {GALLERY_RIGHTS_ATTESTATION_TEXT}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add a gallery image"
+            accessibilityState={{ disabled: !attested }}
+            onPress={() => void pick()}
+            className={`flex-row items-center justify-center gap-1.5 rounded-xl border-brand border-shell-border bg-glass py-2.5 active:opacity-80 ${
+              attested ? "" : "opacity-50"
+            }`}
+            style={{ borderStyle: "dashed" }}
+          >
+            <Ionicons
+              name="camera-outline"
+              size={16}
+              color={colors.shell.mute}
+            />
+            <Text className="text-xs font-medium text-foreground">
+              Add image
+            </Text>
+          </Pressable>
+        </>
       ) : null}
     </View>
   );

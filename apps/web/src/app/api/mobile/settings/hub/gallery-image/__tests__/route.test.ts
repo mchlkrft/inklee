@@ -15,11 +15,15 @@ const {
   getAccountOverrides,
   richContentBlocksAllowed,
   processUpload,
+  consentInsert,
+  captureException,
 } = vi.hoisted(() => ({
   requireMobileUser: vi.fn(),
   getAccountOverrides: vi.fn(),
   richContentBlocksAllowed: vi.fn(),
   processUpload: vi.fn(),
+  consentInsert: vi.fn(),
+  captureException: vi.fn(),
 }));
 
 vi.mock("@/lib/server/mobile-auth", () => ({
@@ -47,8 +51,26 @@ vi.mock("@/lib/mobile-image", async () => {
   };
 });
 
+vi.mock("@/lib/supabase/service", () => ({
+  serviceClient: {
+    from: (table: string) => {
+      if (table !== "billing_consent_records") {
+        throw new Error(`unexpected table: ${table}`);
+      }
+      return { insert: (...a: unknown[]) => consentInsert(...a) };
+    },
+  },
+}));
+vi.mock("@sentry/nextjs", () => ({
+  captureException: (...a: unknown[]) => captureException(...a),
+}));
+
 import { POST } from "../route";
 import { sanitizeHostedGalleryImageUrl } from "@inklee/shared/bio-page";
+import {
+  GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+  GALLERY_RIGHTS_ATTESTATION_VERSION,
+} from "@inklee/shared/gallery-rights-attestation";
 
 const USER_ID = "artist1";
 // A realistic Inklee-hosted shape (not a `cdn.example` stand-in): FD4 made the
@@ -94,16 +116,27 @@ function bioPageWithImages(count: number): Record<string, unknown> {
   return { blocks, socials: [] };
 }
 
-function requestWithImage(): Request {
+function post(form: FormData): Request {
+  return new Request("http://test/api/mobile/settings/hub/gallery-image", {
+    method: "POST",
+    body: form,
+  });
+}
+
+// `attested` defaults to true so every EXISTING test keeps exercising the
+// behaviour it names; the LO-5 DPIA §7 R3 gate has its own block below.
+// `attested: null` omits the field entirely, which is what an installed build
+// predating the gate sends.
+function requestWithImage(attested: boolean | null = true): Request {
   const form = new FormData();
   form.set(
     "image",
     new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
   );
-  return new Request("http://test/api/mobile/settings/hub/gallery-image", {
-    method: "POST",
-    body: form,
-  });
+  if (attested !== null) {
+    form.set("rightsAttestation", attested ? "true" : "false");
+  }
+  return post(form);
 }
 
 function requestWithBadFile(): Request {
@@ -112,10 +145,9 @@ function requestWithBadFile(): Request {
     "image",
     new File([new Uint8Array(8)], "a.gif", { type: "image/gif" }),
   );
-  return new Request("http://test/api/mobile/settings/hub/gallery-image", {
-    method: "POST",
-    body: form,
-  });
+  // Attested, so this test still fails on the FILE and not on the R3 gate.
+  form.set("rightsAttestation", "true");
+  return post(form);
 }
 
 beforeEach(() => {
@@ -131,6 +163,7 @@ beforeEach(() => {
     ok: true,
     url: `${HOSTED_BASE}/${USER_ID}/hub/uuid.webp`,
   });
+  consentInsert.mockResolvedValue({ error: null });
 });
 
 describe("POST /api/mobile/settings/hub/gallery-image", () => {
@@ -230,5 +263,108 @@ describe("POST /api/mobile/settings/hub/gallery-image", () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error.message).toBe("Upload failed. Try again.");
+  });
+});
+
+// LO-5 DPIA §7 R3 on the NATIVE path (activation key
+// `dpia_r3_direct_upload_attestation_built`). This block is the reason the
+// key can be earned at all: an attestation on web with an unattested native
+// route to the same hosted object would look complete while leaving R3 open.
+//
+// The omitted-field case doubles as the wire-compatibility pin. An installed
+// build predating this gate sends no `rightsAttestation`, and the route
+// REFUSES it rather than grandfathering it. That is safe only because the
+// gallery capability has never been granted to anyone (LO-5 DPIA §10), and
+// it must stay a refusal: failing open for old clients is the defect class
+// the gate exists to close.
+describe("POST gallery-image — DPIA R3 rights attestation", () => {
+  it("refuses an upload with no rightsAttestation field at all", async () => {
+    const res = await POST(requestWithImage(null));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe("attestation_required");
+    expect(json.error.message).toBe(GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR);
+    expect(consentInsert).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it('refuses an upload with rightsAttestation explicitly "false"', async () => {
+    const res = await POST(requestWithImage(false));
+    expect(res.status).toBe(400);
+    expect(consentInsert).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  // Mutation-proves `=== "true"` rather than truthiness: a `Boolean(...)`
+  // implementation passes every other case in this block but not this one.
+  it('refuses a truthy-but-not-"true" value (the raw checkbox "on")', async () => {
+    const form = new FormData();
+    form.set(
+      "image",
+      new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
+    );
+    form.set("rightsAttestation", "on");
+    const res = await POST(post(form));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe("attestation_required");
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  // BEFORE the expensive work. A full gallery AND a file the real validator
+  // rejects AND no attestation must return the ATTESTATION error: if the gate
+  // sat after either check this returns `cap_reached` or the file message.
+  it("checks attestation BEFORE the capacity read and the file validation", async () => {
+    requireMobileUser.mockResolvedValue({
+      ok: true,
+      userId: USER_ID,
+      supabase: fakeSupabase(bioPageWithImages(120)),
+    });
+    const form = new FormData();
+    form.set(
+      "image",
+      new File([new Uint8Array(8)], "a.gif", { type: "image/gif" }),
+    );
+    const res = await POST(post(form));
+    const json = await res.json();
+    expect(json.error.code).toBe("attestation_required");
+  });
+
+  it("refuses the upload (fails closed) when the attestation cannot be durably logged", async () => {
+    consentInsert.mockResolvedValue({ error: { message: "db down" } });
+    const res = await POST(requestWithImage());
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error.code).toBe("attestation_log_failed");
+    expect(captureException).toHaveBeenCalled();
+    // No hosted object without evidence behind it.
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it("writes the evidence BEFORE the upload, versioned, tied to this artist", async () => {
+    const res = await POST(requestWithImage());
+    expect(res.status).toBe(200);
+    expect(consentInsert).toHaveBeenCalledTimes(1);
+    expect(consentInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artist_id: USER_ID,
+        consent_type: "gallery_image_rights_attestation",
+        consent_version: GALLERY_RIGHTS_ATTESTATION_VERSION,
+        context: expect.objectContaining({ surface: "native_upload" }),
+      }),
+    );
+    expect(consentInsert.mock.invocationCallOrder[0]).toBeLessThan(
+      processUpload.mock.invocationCallOrder[0],
+    );
+  });
+
+  // DISTINCTION TEST. Every refusal above would also pass if the route simply
+  // rejected all uploads. This pins the legitimate native case end to end.
+  it("still uploads normally when the artist DOES attest", async () => {
+    const res = await POST(requestWithImage(true));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.url).toBe(`${HOSTED_BASE}/${USER_ID}/hub/uuid.webp`);
+    expect(processUpload).toHaveBeenCalledTimes(1);
   });
 });

@@ -37,7 +37,10 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function apiGet<T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     headers: { ...VERSION_HEADERS, ...(await authHeader()) },
     signal,
@@ -122,6 +125,10 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 export async function apiUpload<T>(
   path: string,
   file: { uri: string; name: string; type: string },
+  /** Extra multipart fields sent alongside the file. Added for the gallery
+   *  rights attestation (LO-5 DPIA §7 R3), which the server requires in the
+   *  SAME body as the image because a Request body is read only once. */
+  fields?: Record<string, string>,
 ): Promise<T> {
   const form = new FormData();
   form.append("image", {
@@ -129,6 +136,9 @@ export async function apiUpload<T>(
     name: file.name,
     type: file.type,
   } as unknown as Blob);
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    form.append(key, value);
+  }
   const res = await fetch(`${BASE}/api/mobile${path}`, {
     method: "POST",
     headers: { ...VERSION_HEADERS, ...(await authHeader()) },
@@ -295,7 +305,12 @@ export function invalidateBookingViews(client: QueryClient): Promise<void> {
 // Every view that reflects the books open/closed state. A toggle (quick sheet
 // or settings form) invalidates the top-bar pill (/me), the Home aggregate, the
 // settings form, and the booking-form preview together.
-const BOOKS_VIEW_PREFIXES = ["/settings/books", "/home", "/me", "/booking-form"];
+const BOOKS_VIEW_PREFIXES = [
+  "/settings/books",
+  "/home",
+  "/me",
+  "/booking-form",
+];
 
 export function invalidateBooksViews(client: QueryClient): Promise<void> {
   return invalidateByPathPrefix(client, BOOKS_VIEW_PREFIXES);
