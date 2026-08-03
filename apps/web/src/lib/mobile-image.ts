@@ -41,15 +41,28 @@ export function readImageFromForm(form: FormData): FileResult {
   return { ok: true, file };
 }
 
-/** Pull the `image` file out of a multipart request body + validate it. */
-export async function readImageFile(req: Request): Promise<FileResult> {
-  let form: FormData;
+/** Parse a multipart body ONCE. Split out because a `Request` body can only be
+ *  consumed a single time, so a route that needs a sibling field as well as
+ *  the file (the gallery upload's rights attestation) cannot call
+ *  `readImageFile` and then re-read the form. Callers that only want the file
+ *  should keep using `readImageFile`. */
+export async function readMultipartForm(
+  req: Request,
+): Promise<
+  { ok: true; form: FormData } | { ok: false; status: number; error: string }
+> {
   try {
-    form = await req.formData();
+    return { ok: true, form: await req.formData() };
   } catch {
     return { ok: false, status: 400, error: "Expected an image upload." };
   }
-  return readImageFromForm(form);
+}
+
+/** Pull the `image` file out of a multipart request body + validate it. */
+export async function readImageFile(req: Request): Promise<FileResult> {
+  const parsed = await readMultipartForm(req);
+  if (!parsed.ok) return parsed;
+  return readImageFromForm(parsed.form);
 }
 
 type UploadResult =

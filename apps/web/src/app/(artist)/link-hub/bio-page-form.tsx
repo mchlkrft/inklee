@@ -9,6 +9,10 @@ import {
 } from "./actions";
 import { prepareImageUpload } from "@/lib/image-compress";
 import {
+  GALLERY_RIGHTS_ATTESTATION_FIELD,
+  GALLERY_RIGHTS_ATTESTATION_TEXT,
+} from "@inklee/shared/gallery-rights-attestation";
+import {
   MAX_HEADLINE,
   MAX_TEXT,
   MAX_LINK_LABEL,
@@ -229,10 +233,19 @@ export default function BioPageForm({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [, startUploadTransition] = useTransition();
 
+  // LO-5 DPIA §7 R3: the same rights confirmation the import path has always
+  // required, now required per upload attempt too, and held per block so it
+  // never carries silently from one image to the next. UI affordance only:
+  // the server action re-checks and refuses regardless of what this renders.
+  const [uploadAttestedByBlock, setUploadAttestedByBlock] = useState<
+    Record<string, boolean>
+  >({});
+
   const uploadImage = (
     blockId: string,
     current: BioGalleryImage[],
     file: File,
+    attested: boolean,
   ) => {
     setUploadError(null);
     setUploadingBlockId(blockId);
@@ -245,6 +258,7 @@ export default function BioPageForm({
         }
         const form = new FormData();
         form.set("image", prepared.file);
+        form.set(GALLERY_RIGHTS_ATTESTATION_FIELD, attested ? "true" : "false");
         const result = await uploadGalleryImageAction(form);
         if (!result.ok) {
           setUploadError(result.error);
@@ -253,6 +267,9 @@ export default function BioPageForm({
         if (current.length < MAX_GALLERY_IMAGES) {
           setGalleryImages(blockId, [...current, { url: result.url }]);
         }
+        // Cleared on success so the NEXT image starts unconfirmed: the
+        // attestation is per image, not a setting the artist turns on once.
+        setUploadAttestedByBlock((prev) => ({ ...prev, [blockId]: false }));
       } finally {
         setUploadingBlockId(null);
       }
@@ -296,7 +313,7 @@ export default function BioPageForm({
       try {
         const form = new FormData();
         form.set("url", url);
-        form.set("rightsAttestation", attested ? "true" : "false");
+        form.set(GALLERY_RIGHTS_ATTESTATION_FIELD, attested ? "true" : "false");
         const result = await importGalleryImageFromUrlAction(form);
         if (!result.ok) {
           setImportError(result.error);
@@ -716,10 +733,36 @@ export default function BioPageForm({
                     )}
                     {galleryImages(block).length < MAX_GALLERY_IMAGES && (
                       <div className="flex flex-wrap items-center gap-2">
+                        {/* LO-5 DPIA §7 R3: the upload path's rights
+                            confirmation, at parity with the import path's.
+                            Shown up front rather than after a file is chosen
+                            because the file input IS the trigger, so there is
+                            no later moment to ask. UI affordance only: the
+                            server action refuses an unattested upload
+                            whatever this renders. */}
+                        <label className="flex basis-full items-start gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={uploadAttestedByBlock[block.id] ?? false}
+                            onChange={(e) =>
+                              setUploadAttestedByBlock((prev) => ({
+                                ...prev,
+                                [block.id]: e.target.checked,
+                              }))
+                            }
+                            disabled={
+                              uploadingBlockId !== null ||
+                              importingBlockId !== null
+                            }
+                            className="mt-0.5"
+                          />
+                          {GALLERY_RIGHTS_ATTESTATION_TEXT}
+                        </label>
                         <label
                           className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-brand-mustard px-3 py-1.5 text-xs font-semibold text-brand-charcoal transition-opacity hover:opacity-90 ${
                             uploadingBlockId !== null ||
-                            importingBlockId !== null
+                            importingBlockId !== null ||
+                            !(uploadAttestedByBlock[block.id] ?? false)
                               ? "pointer-events-none opacity-60"
                               : ""
                           }`}
@@ -734,7 +777,8 @@ export default function BioPageForm({
                             className="hidden"
                             disabled={
                               uploadingBlockId !== null ||
-                              importingBlockId !== null
+                              importingBlockId !== null ||
+                              !(uploadAttestedByBlock[block.id] ?? false)
                             }
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -744,6 +788,7 @@ export default function BioPageForm({
                                   block.id,
                                   galleryImages(block),
                                   file,
+                                  uploadAttestedByBlock[block.id] ?? false,
                                 );
                               }
                             }}
@@ -787,8 +832,7 @@ export default function BioPageForm({
                               }
                               className="mt-0.5"
                             />
-                            I confirm I have the right to use this image on my
-                            page.
+                            {GALLERY_RIGHTS_ATTESTATION_TEXT}
                           </label>
                         )}
                         <button

@@ -1,9 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
-import { serviceClient } from "@/lib/supabase/service";
 import {
   parseBioPageSettings,
   type BioPageSettings,
@@ -26,6 +24,12 @@ import {
   type GalleryUploadResult,
 } from "@/lib/server/hub-gallery-upload";
 import { updateProfileSettings } from "@/lib/server/profile-settings";
+import { recordGalleryRightsAttestation } from "@/lib/server/gallery-rights-attestation";
+import {
+  GALLERY_RIGHTS_ATTESTATION_FIELD,
+  GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+  isGalleryRightsAttested,
+} from "@inklee/shared/gallery-rights-attestation";
 
 export type { GalleryUploadResult };
 
@@ -180,6 +184,14 @@ export async function saveBioPageAction(
  * from the settings save on purpose: the editor submits blocks as JSON, so
  * files cannot ride that submit; this action stores the image and returns the
  * URL the client writes into the block, which the normal save then persists.
+ *
+ * GATED BY THE RIGHTS ATTESTATION since LO-5 DPIA §7 R3 (controller sign-off
+ * 2026-08-03, activation key `dpia_r3_direct_upload_attestation_built`). §4 R3
+ * recorded the gap in these terms: "The URL-import path requires a rights
+ * attestation. Direct file upload, which is the NORMAL case, requires
+ * nothing." The four properties are mirrored from the import path below,
+ * deliberately and in the same order: refused SERVER-SIDE, checked BEFORE the
+ * expensive work, evidence written BEFORE the operation, and versioned.
  */
 export async function uploadGalleryImageAction(
   formData: FormData,
@@ -194,6 +206,15 @@ export async function uploadGalleryImageAction(
     return { ok: false, error: "Image galleries are a Plus feature." };
   }
 
+  // SERVER-SIDE enforcement: the checkbox is a UI affordance, not the
+  // boundary. Checked BEFORE the file is validated and before the capacity
+  // read, so an unattested upload costs nothing and reaches no storage.
+  if (
+    !isGalleryRightsAttested(formData.get(GALLERY_RIGHTS_ATTESTATION_FIELD))
+  ) {
+    return { ok: false, error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR };
+  }
+
   const read = readImageFromForm(formData);
   if (!read.ok) return { ok: false, error: read.error };
 
@@ -204,6 +225,18 @@ export async function uploadGalleryImageAction(
     };
   }
 
+  // Evidence BEFORE the operation, failing closed. The import path records the
+  // source URL; a device upload has none, so the file's own name and size are
+  // what tie the record to the specific image the artist attested for. The
+  // stored object path cannot be used: it does not exist until the upload the
+  // record has to precede.
+  const logged = await recordGalleryRightsAttestation({
+    artistId: user.id,
+    surface: "web_upload",
+    detail: { file_name: read.file.name, byte_size: read.file.size },
+  });
+  if (!logged.ok) return { ok: false, error: logged.error };
+
   return uploadProcessedGalleryFile(user.id, read.file);
 }
 
@@ -211,11 +244,16 @@ export async function uploadGalleryImageAction(
 // storing our own copy of an artist-supplied URL is a reproduction, which
 // makes Inklee a host rather than a mere link — the correct engineering
 // choice, but it needs a rights attestation from the artist to keep the
-// standard UGC-hosting position. "No attestation = no import." Versioned like
-// every other discrete consent (WITHDRAWAL_ACK_VERSION in withdrawal.ts) so a
-// future change to the attestation copy is a new, distinguishable version
-// rather than silently reinterpreting old evidence.
-const GALLERY_RIGHTS_ATTESTATION_VERSION = "gallery-rights-attestation-v1";
+// standard UGC-hosting position. "No attestation = no import."
+//
+// The version constant that used to live here moved to
+// @inklee/shared/gallery-rights-attestation when LO-5 DPIA §7 R3 extended the
+// same gate to the two direct-upload paths, and it moved with a v1 -> v2 bump.
+// Both changes are deliberate; see that file's header for the reasoning, in
+// short: §7 R2 records this attestation as one of three things carrying the
+// accepted residual that Inklee cannot verify artist-client consent, and the
+// v1 wording asserted copyright only, saying nothing about the person in the
+// photograph. Existing v1 rows are untouched and still mean what they said.
 
 /**
  * Import ONE gallery image from a URL (founder ruling FD4, 2026-08-01,
@@ -258,13 +296,10 @@ export async function importGalleryImageFromUrlAction(
   // build, a hand-crafted request) is refused here regardless of what the
   // form rendered. Only the literal "true" the checked checkbox sends counts;
   // anything else (absent, "false", "on") is treated as not attested.
-  const attested = formData.get("rightsAttestation") === "true";
-  if (!attested) {
-    return {
-      ok: false,
-      error:
-        "Confirm you have the right to use this image before importing it.",
-    };
+  if (
+    !isGalleryRightsAttested(formData.get(GALLERY_RIGHTS_ATTESTATION_FIELD))
+  ) {
+    return { ok: false, error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR };
   }
 
   // Rate limit BEFORE the ceiling read and the outbound fetch: unlike a
@@ -288,32 +323,13 @@ export async function importGalleryImageFromUrlAction(
   // Log the attestation BEFORE spending Inklee's own egress fetching the
   // artist's chosen URL: the record documents what the artist confirmed and
   // when, for THIS specific source URL, independent of whether the fetch
-  // that follows succeeds. Append-only, service-role write (RLS on
-  // billing_consent_records grants no authenticated policy — every consent
-  // write in this codebase goes through serviceClient, see withdrawal.ts).
-  // Fails CLOSED: if the evidence cannot be durably written, the import does
-  // not proceed — an unattested hosted copy is exactly what this gate exists
-  // to prevent, so "we hosted it but couldn't prove they attested" is not an
-  // acceptable outcome to fall through to.
-  const { error: attestError } = await serviceClient
-    .from("billing_consent_records")
-    .insert({
-      artist_id: user.id,
-      consent_type: "gallery_image_rights_attestation",
-      consent_version: GALLERY_RIGHTS_ATTESTATION_VERSION,
-      consented_at: new Date().toISOString(),
-      context: { source_url: trimmedUrl },
-    });
-  if (attestError) {
-    Sentry.captureException(attestError, {
-      tags: { action: "gallery_rights_attestation_log" },
-      extra: { artistId: user.id },
-    });
-    return {
-      ok: false,
-      error: "Could not record your confirmation. Please try again.",
-    };
-  }
+  // that follows succeeds. Fails CLOSED (see the shared recorder).
+  const logged = await recordGalleryRightsAttestation({
+    artistId: user.id,
+    surface: "web_url_import",
+    detail: { source_url: trimmedUrl },
+  });
+  if (!logged.ok) return { ok: false, error: logged.error };
 
   const fetched = await fetchImageForImport(trimmedUrl);
   if (!fetched.ok) return fetched;

@@ -535,6 +535,55 @@ Two things follow, both done here:
   build: the server route does not exist in production yet, and reaching
   devices additionally needs the fresh EAS build noted above once it does.
 
+  **LO-5 DPIA §7 R3 (2026-08-03, controller sign-off): the rights attestation
+  now gates BOTH direct-upload paths, web and native, not just URL import.**
+  §4 R3 recorded the gap in these terms: "The URL-import path requires a
+  rights attestation. Direct file upload, which is the NORMAL case, requires
+  nothing." The §7 disposition is "Direct-upload attestation at parity with
+  URL import (Q15). Precondition of the gallery gate", tracked as the
+  activation key `dpia_r3_direct_upload_attestation_built`
+  (`lib/server/billing/dpia-gate-preconditions.ts`), which a human records
+  only after independent verification.
+
+  Parity here is FULL and deliberate, because a web-only fix would have been
+  worse than none: an attested web editor beside an unattested native device
+  picker writing to the same hosted object would LOOK complete. All three
+  ingest paths (`uploadGalleryImageAction`,
+  `importGalleryImageFromUrlAction`, `POST /api/mobile/settings/hub/
+  gallery-image`) now refuse server-side on a missing or non-`"true"` flag,
+  check it BEFORE any expensive work, and write the consent evidence to
+  `billing_consent_records` BEFORE the operation, failing closed. One shared
+  module (`packages/shared/src/gallery-rights-attestation.ts`) owns the field
+  name, the strict comparison, the refusal copy and the artist-facing text, so
+  web and native cannot assert different things under one version.
+
+  ⚠️ **WIRE BREAK, and a deliberate one.** The native route now REQUIRES a
+  `rightsAttestation` multipart field that installed builds do not send, and
+  refuses the upload when it is absent rather than grandfathering it. This is
+  safe today only because the gallery capability has never been granted to
+  anyone (LO-5 DPIA §10, verified rather than assumed), so no build in the
+  field reaches this route past its entitlement check. It does mean **a fresh
+  EAS build is a hard prerequisite before the gallery capability is granted to
+  a first artist**, which is the same gate already recorded above, now load-
+  bearing for a second reason. Failing open for old clients was the
+  alternative and it is precisely the defect class the gate exists to close.
+
+  Attestation TEXT bumped `gallery-rights-attestation-v1` -> `-v2` and applied
+  to the URL-import path too. v1 asserted copyright only ("I confirm I have
+  the right to use this image on my page"), which says nothing about the
+  person in the photograph; §7 R2 records this attestation as one of three
+  things carrying the ACCEPTED residual that Inklee cannot verify
+  artist-client consent, so a rights-only wording left that residual carried
+  by nothing. Existing v1 rows are untouched and still mean exactly what they
+  meant. Files: `packages/shared/src/gallery-rights-attestation.ts` (new),
+  `apps/web/src/lib/server/gallery-rights-attestation.ts` (new, the
+  fail-closed recorder), `link-hub/actions.ts`, `link-hub/bio-page-form.tsx`,
+  `api/mobile/settings/hub/gallery-image/route.ts`, `lib/mobile-image.ts`
+  (new `readMultipartForm`, since a `Request` body is readable once and the
+  route needs the flag from the SAME body as the file),
+  `apps/mobile/src/components/GalleryBlockEditor.tsx`,
+  `apps/mobile/src/lib/api.ts` (`apiUpload` gained an optional `fields`).
+
 - **2026-08-01 — FD12: native REVISE screen closes the parity gap the P9
   slice-2b entry below named ("mobile already had the revise ROUTE from A7,
   but no native SCREEN yet").** `apps/mobile/app/bookings/payments/[id]/

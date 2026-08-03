@@ -85,13 +85,22 @@ import {
   uploadGalleryImageAction,
   importGalleryImageFromUrlAction,
 } from "../actions";
+import {
+  GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+  GALLERY_RIGHTS_ATTESTATION_VERSION,
+} from "@inklee/shared/gallery-rights-attestation";
 
-function formWithImage(): FormData {
+// `attested` defaults to true so every EXISTING test (ceiling, entitlement,
+// bad-file, upload shape) keeps exercising the behaviour it names without
+// also having to opt into the LO-5 DPIA §7 R3 gate; the gate itself is
+// covered by its own dedicated tests below with `attested: false` / omitted.
+function formWithImage(attested = true): FormData {
   const form = new FormData();
   form.set(
     "image",
     new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
   );
+  form.set("rightsAttestation", attested ? "true" : "false");
   return form;
 }
 
@@ -208,6 +217,9 @@ describe("uploadGalleryImageAction", () => {
       "image",
       new File([new Uint8Array(8)], "a.gif", { type: "image/gif" }),
     );
+    // Attested, so this test still fails on the FILE and not on the R3 gate
+    // that now precedes it.
+    form.set("rightsAttestation", "true");
     const r = await uploadGalleryImageAction(form);
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toContain("PNG, JPG, or WebP");
@@ -256,8 +268,11 @@ describe("importGalleryImageFromUrlAction", () => {
       expect.objectContaining({
         artist_id: "artist1",
         consent_type: "gallery_image_rights_attestation",
-        consent_version: expect.any(String),
-        context: { source_url: "https://example.com/a.jpg" },
+        consent_version: GALLERY_RIGHTS_ATTESTATION_VERSION,
+        context: {
+          surface: "web_url_import",
+          source_url: "https://example.com/a.jpg",
+        },
       }),
     );
     const consentCallOrder = consentInsert.mock.invocationCallOrder[0];
@@ -345,8 +360,7 @@ describe("importGalleryImageFromUrlAction — C1.6 rights attestation", () => {
     const r = await importGalleryImageFromUrlAction(form);
     expect(r).toEqual({
       ok: false,
-      error:
-        "Confirm you have the right to use this image before importing it.",
+      error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
     });
     expect(consentInsert).not.toHaveBeenCalled();
     expect(checkGalleryImportRateLimit).not.toHaveBeenCalled();
@@ -381,8 +395,7 @@ describe("importGalleryImageFromUrlAction — C1.6 rights attestation", () => {
     const r = await importGalleryImageFromUrlAction(form);
     expect(r).toEqual({
       ok: false,
-      error:
-        "Confirm you have the right to use this image before importing it.",
+      error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
     });
     expect(checkGalleryImportRateLimit).not.toHaveBeenCalled();
   });
@@ -399,5 +412,150 @@ describe("importGalleryImageFromUrlAction — C1.6 rights attestation", () => {
     expect(captureException).toHaveBeenCalled();
     expect(fetchImageForImport).not.toHaveBeenCalled();
     expect(processUpload).not.toHaveBeenCalled();
+  });
+});
+
+// LO-5 DPIA §7 R3 (controller sign-off 2026-08-03, activation key
+// `dpia_r3_direct_upload_attestation_built`). §4 R3: "The URL-import path
+// requires a rights attestation. Direct file upload, which is the NORMAL
+// case, requires nothing."
+//
+// These pin the four properties the §7 disposition takes from the import
+// path: refused SERVER-SIDE, checked BEFORE the expensive work, evidence
+// written BEFORE the operation and failing closed, and versioned. The last
+// test in the block is the DISTINCTION test: a gate that refused everything
+// would pass every refusal case above it.
+describe("uploadGalleryImageAction — DPIA R3 rights attestation", () => {
+  it("refuses an upload with no rightsAttestation field at all", async () => {
+    const form = new FormData();
+    form.set(
+      "image",
+      new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
+    );
+    const r = await uploadGalleryImageAction(form);
+    expect(r).toEqual({
+      ok: false,
+      error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+    });
+    expect(consentInsert).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it('refuses an upload with rightsAttestation explicitly "false"', async () => {
+    const r = await uploadGalleryImageAction(formWithImage(false));
+    expect(r).toEqual({
+      ok: false,
+      error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+    });
+    expect(consentInsert).not.toHaveBeenCalled();
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  // Mutation-proves the exact comparison rather than "some check exists":
+  // every other case here would still pass if the field were read with
+  // `Boolean(...)` instead of `=== "true"`. This one would not.
+  it('refuses a truthy-but-not-"true" value (the raw checkbox "on")', async () => {
+    const form = new FormData();
+    form.set(
+      "image",
+      new File([new Uint8Array(16)], "a.jpg", { type: "image/jpeg" }),
+    );
+    form.set("rightsAttestation", "on");
+    const r = await uploadGalleryImageAction(form);
+    expect(r).toEqual({
+      ok: false,
+      error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+    });
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  // BEFORE the expensive work: a full gallery AND an invalid file AND no
+  // attestation must return the ATTESTATION error. If the gate sat after the
+  // capacity read this returns "limit of 120"; after the file validation it
+  // returns the PNG/JPG/WebP message. Either placement reds this test.
+  it("checks attestation BEFORE the capacity read and the file validation", async () => {
+    profileSettings.value = settingsWithImages(120);
+    const form = new FormData();
+    form.set(
+      "image",
+      new File([new Uint8Array(8)], "a.gif", { type: "image/gif" }),
+    );
+    const r = await uploadGalleryImageAction(form);
+    expect(r).toEqual({
+      ok: false,
+      error: GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR,
+    });
+  });
+
+  it("refuses the upload (fails closed) when the attestation cannot be durably logged", async () => {
+    consentInsert.mockResolvedValue({ error: { message: "db down" } });
+    const r = await uploadGalleryImageAction(formWithImage());
+    expect(r).toEqual({
+      ok: false,
+      error: "Could not record your confirmation. Please try again.",
+    });
+    expect(captureException).toHaveBeenCalled();
+    // The whole point: no hosted object without evidence behind it.
+    expect(processUpload).not.toHaveBeenCalled();
+  });
+
+  it("writes the evidence BEFORE the upload, versioned, tied to this artist", async () => {
+    const r = await uploadGalleryImageAction(formWithImage());
+    expect(r.ok).toBe(true);
+    expect(consentInsert).toHaveBeenCalledTimes(1);
+    expect(consentInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artist_id: "artist1",
+        consent_type: "gallery_image_rights_attestation",
+        consent_version: GALLERY_RIGHTS_ATTESTATION_VERSION,
+        context: expect.objectContaining({ surface: "web_upload" }),
+      }),
+    );
+    expect(consentInsert.mock.invocationCallOrder[0]).toBeLessThan(
+      processUpload.mock.invocationCallOrder[0],
+    );
+  });
+
+  // DISTINCTION TEST. A gate that refused every upload would satisfy every
+  // refusal test above. This pins that the legitimate case still works end to
+  // end: attested, entitled, under the ceiling, valid file, hosted URL back.
+  it("still uploads normally when the artist DOES attest", async () => {
+    const r = await uploadGalleryImageAction(formWithImage(true));
+    expect(r).toEqual({
+      ok: true,
+      url: "https://cdn.example/logos/artist1/hub/uuid.webp",
+    });
+    expect(processUpload).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Parity IS the specification (§7 R3: "at parity with URL import"), so it is
+// asserted directly rather than left implicit in two lookalike suites. A
+// future change to one surface alone reds this.
+describe("gallery attestation parity between upload and import", () => {
+  it("refuses both paths with the identical message", async () => {
+    const upload = await uploadGalleryImageAction(formWithImage(false));
+    const imported = await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg", false),
+    );
+    expect(upload.ok).toBe(false);
+    expect(imported.ok).toBe(false);
+    const uploadError = upload.ok ? null : upload.error;
+    const importError = imported.ok ? null : imported.error;
+    expect(uploadError).toBe(importError);
+    expect(uploadError).toBe(GALLERY_RIGHTS_ATTESTATION_REQUIRED_ERROR);
+  });
+
+  it("records both paths under the same consent type and version", async () => {
+    await uploadGalleryImageAction(formWithImage());
+    await importGalleryImageFromUrlAction(
+      formWithUrl("https://example.com/a.jpg"),
+    );
+    expect(consentInsert).toHaveBeenCalledTimes(2);
+    const uploadRow = consentInsert.mock.calls[0][0] as Record<string, unknown>;
+    const importRow = consentInsert.mock.calls[1][0] as Record<string, unknown>;
+    expect(uploadRow.consent_type).toBe(importRow.consent_type);
+    expect(uploadRow.consent_version).toBe(importRow.consent_version);
+    expect(uploadRow.consent_version).toBe(GALLERY_RIGHTS_ATTESTATION_VERSION);
   });
 });
