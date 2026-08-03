@@ -301,7 +301,16 @@ update deleted_account_records
  where stripe_account_id is null
    and connect_teardown_state = 'pending';
 
-create index if not exists deleted_account_records_connect_teardown_idx
+-- CONVERGENCE. `create index if not exists` checks the NAME, not the shape, so
+-- an index already present under this name with different columns or a
+-- different predicate is silently left alone and the re-run reports success
+-- having changed nothing. Same family as the `create table if not exists`
+-- footgun recorded in AGENTS.md, where inline constraints were skipped once the
+-- table existed. Drop-then-create is the convergent form, and the strongest of
+-- the three, because it repairs a present-but-WRONG-shaped object instead of
+-- skipping over it. Cheap here: the table holds one row per deleted account.
+drop index if exists deleted_account_records_connect_teardown_idx;
+create index deleted_account_records_connect_teardown_idx
   on deleted_account_records (connect_teardown_state, deleted_at)
   where stripe_account_id is not null;
 

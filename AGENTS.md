@@ -49,6 +49,17 @@ Found empirically on 2026-07-29: re-running `0122_collection_items.sql` after tw
 
 **Non-convergent pattern:** objects declared inline inside `create table if not exists`.
 
+**Also non-convergent, and the same mechanism one object type over: `create index if not exists`.** Confirmed empirically on 2026-08-03 against `0148`'s `deleted_account_records_connect_teardown_idx`. An index of the WRONG shape was planted under the right name, and the guard skipped it and exited 0:
+
+```
+NOTICE:  relation "deleted_account_records_connect_teardown_idx" already exists, skipping
+CREATE INDEX
+```
+
+The wrong-shaped index survived the "successful" run, verbatim the signature the `create table` entry above records. `if not exists` tests the NAME; a partial index whose predicate or column list has since changed is therefore never corrected, and the query it was built for silently loses its plan. `0148` was changed to `drop index if exists` then unconditional `create index`, and re-verified by the same route: wrong shape planted, migration re-run, `pg_indexes` confirms the correct definition returns.
+
+Generalise it rather than collecting instances: **any `... if not exists` guard is an existence check, never a shape check.** That covers tables, indexes, constraints added by name, and types. If the object's DEFINITION can change over the file's lifetime, the existence guard cannot converge and you want drop-then-create. Verify with `select indexdef from pg_indexes where indexname='X';` for indexes, alongside the `pg_constraint` / `pg_policies` / `pg_proc` checks above.
+
 Note both properties can hold at once and are not in tension: a file can re-run cleanly under `ON_ERROR_STOP` (idempotent) **and** fail to restore a manually dropped constraint (non-convergent). Idempotent is not convergent. That is the whole point of this entry.
 
 **Status of `0122` itself, corrected 2026-07-29 (same day, later).** This paragraph previously read: "`0122` re-runs cleanly under `ON_ERROR_STOP` (idempotent) **and** fails to restore a manually dropped constraint (non-convergent)." That was true when written and is **no longer true**: commit `201fbfc` moved both composite foreign keys out of the inline `create table if not exists` into guarded `do $$ ... if not exists ... then alter table ... add constraint ... end if; end $$;` blocks, matching the pattern the file already used for its two parent unique keys. Convergence was proven by the route that disproved it: both FKs dropped by hand, `0122` re-run against the live already-migrated table, `pg_constraint` confirms both return. The same drop-then-rerun previously exited 0 having restored nothing.
