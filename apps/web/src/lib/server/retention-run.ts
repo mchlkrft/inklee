@@ -70,8 +70,12 @@ export function withFilters<T>(query: T, apply: RetentionFilter): T {
  * of them record WHY. Caught by the route test asserting the message text,
  * after the first version of this module replaced the route's original
  * `throw new Error(error.message)` with a bare `throw error`.
+ *
+ * Exported because `intake-retention.ts` (LO-5 DPIA R6) issues its own reads
+ * outside the `deleteMatchingRows` helpers and must render a PostgrestError
+ * the same way. A second local copy would be a second thing to get wrong.
  */
-function asError(error: { message?: string; code?: string }): Error {
+export function asError(error: { message?: string; code?: string }): Error {
   const message = error?.message ?? String(error);
   return new Error(error?.code ? `${message} (${error.code})` : message);
 }

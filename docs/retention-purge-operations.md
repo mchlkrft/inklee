@@ -15,11 +15,11 @@ Part 5), which asked for a proving path rather than patience:
 
 ## What exists now
 
-| Counsel's element                                           | Status                                                                                                                                           | Where                                                                                                                                                                                                               |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Counsel's element                                           | Status                                                                                                                                           | Where                                                                                                                                                                                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | (1) real-schema run over expiring data, every block         | Partial. Every block backed by a purge module has a real-Postgres boundary test; the run has never been executed against a deployed environment. | `apps/web/tests/db/shop-retention-purge.test.ts`, `apps/web/tests/db/retention-purge-dry-run.test.ts`, `apps/web/tests/db/billing-record-retention-purge.test.ts`, `apps/web/tests/db/account-deletion-retention.test.ts` |
-| (2) dry-run / report mode, counts per block, durably logged | Built. `?mode=dry-run` counts and writes nothing; every run of either mode writes one `retention_purge_runs` row.                                | `apps/web/src/lib/server/retention-run.ts`, migration `0149`                                                                                                                                                        |
-| (3) blocks continue on error, every failure alerts          | Built. Per-block `captureException` plus one aggregated `captureMessage` naming the whole failed set.                                            | `apps/web/src/app/api/cron/retention-purge/route.ts`                                                                                                                                                                |
+| (2) dry-run / report mode, counts per block, durably logged | Built. `?mode=dry-run` counts and writes nothing; every run of either mode writes one `retention_purge_runs` row.                                | `apps/web/src/lib/server/retention-run.ts`, migration `0149`                                                                                                                                                              |
+| (3) blocks continue on error, every failure alerts          | Built. Per-block `captureException` plus one aggregated `captureMessage` naming the whole failed set.                                            | `apps/web/src/app/api/cron/retention-purge/route.ts`                                                                                                                                                                      |
 
 **The remaining gap is deliberate and is the founder's to close: nobody has run
 this against a deployed database.** Until step 2 below has been executed and
@@ -91,7 +91,7 @@ evidenced result, and NO ROW AT ALL is the thing that means the control did
 not run. Reachable only by the service role (RLS on, no policy, client-role
 grants revoked).
 
-Three entries deserve attention when reading a run:
+Several entries deserve attention when reading a run:
 
 - **`transaction_tax_snapshots_held_by_legal_hold`** is not a purge count
   either. It is the number of tax snapshots the 7-year horizon has come due on
@@ -107,6 +107,13 @@ Three entries deserve attention when reading a run:
   writer reached `status='cancelled'` without `orders_stamp_cancelled_at_trg`
   and those rows are being retained indefinitely without erroring. It raises
   its own Sentry error when non-zero.
+- **`unstamped_closed_projects`** is the same idea for the LO-5 R6 intake
+  clock: closed projects with a NULL `closed_at`, which can never expire. It
+  should always be 0, and raises its own Sentry error when it is not.
+- **`stale_open_projects_retaining_intake_media`** is neither a purge nor a
+  fault. It is how many intake photographs the R6 exemption is currently
+  holding for projects open longer than a year, reported so an unbounded
+  exemption cannot look like a bounded one. See the R6 section below.
 - **`run_log_error`** in the response body means the purge ran but its evidence
   row could not be written. The status stays 200 in that case, on purpose: the
   deletions already happened and flipping to 500 would invite a re-run of work
@@ -169,6 +176,72 @@ correction still references it. Those pinned ancestors are reported as held
 too, so the count reflects the carve-out's real reach rather than only its
 direct targets.
 
+## LO-5 DPIA R6: the 90-day intake retention purge
+
+The only block in this cron that deletes STORAGE OBJECTS as well as rows, and
+the only one whose trigger is a judgement rather than a counsel-stated number.
+
+**Four blocks**, all in `apps/web/src/lib/server/intake-retention.ts`:
+
+| Block                                        | What it does                                                  |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| `purged_unconverted_intake_media`            | Media of intakes still `submitted` 90 days after `created_at` |
+| `purged_closed_project_intake_media`         | Media of projects 90 days past `closed_at` (migration `0152`) |
+| `unstamped_closed_projects`                  | Health check, alerts, never writes                            |
+| `stale_open_projects_retaining_intake_media` | Size of the deliberate exemption, no alert, never writes      |
+
+**The trigger is not "90 days from creation", and that is the design.** The
+intake sells sleeves, back pieces and bodysuits, and offers "many sessions over
+months" and "open-ended, however long it takes" as answers. A blanket
+90-day-from-creation purge would delete an artist's working reference and body
+photographs mid-project. So `under_review`, `consultation` and `active` are
+exempt, and the two clocks run from events that mean the images are no longer
+working material: never picked up, or finished/refused/filed.
+
+**Both clocks are event-anchored (counsel D4), neither uses `updated_at`.**
+`created_at` is the submission event and no writer ever updates it.
+`closed_at` is stamped by `0152`'s trigger on entry to a closed status, left
+alone by later touches, and CLEARED if the project re-opens. It is deliberately
+not `decided_at`, which already exists: `decided_at` is never stamped for
+`archived` and never cleared on re-open, so it would leave archived intakes
+unpurgeable forever and hand a re-closed project an already-expired clock.
+`0152`'s header documents both against the call-site code.
+
+**Objects are deleted before rows, and a storage failure throws.**
+`storage_path` is the only thing that can find an object again, and Postgres
+cascade does not reach storage. Deleting rows first and then failing would
+strand the photographs in the private bucket with nothing left pointing at
+them. Failing the other way leaves rows pointing at objects already gone, which
+the next weekly run finishes. The block does not use `purgeStoragePrefix`,
+which swallows storage errors for its own callers' reasons.
+
+**The exemption is the honest residual.** A project parked in `under_review`
+holds its images indefinitely, because no event distinguishes "a bodysuit in
+progress" from "a queue nobody triaged" and D4 rules out the only other
+timestamp on the row. That is why the size of the exempt set is counted every
+run instead of being invisible.
+
+**Not decided, and left for the controller:** whether the `projects` ROW
+(customer email, handle, free-text description) also expires. R6 as written is
+about images.
+
+**Nothing has ever expired here and nothing can today.** Production has never
+had an intake submission, so every count is a true zero and every claim about
+this block's behaviour rests on synthetic fixtures:
+`apps/web/tests/db/intake-retention-purge.test.ts` (real Postgres, real storage
+objects) and `apps/web/src/lib/server/__tests__/intake-retention.test.ts`.
+
+**Engineering note on the DPIA document, recorded 2026-08-03.** The §7
+disposition that adopts R3/R4/R6 as gate preconditions is encoded in
+`apps/web/src/lib/server/billing/dpia-gate-preconditions.ts` and quoted in
+commit `a59dd0db`. At that same commit `docs/legal/lo-5-dpia.md` §§6-8 still
+read "NOT DRAFTED", so the adopted text is not in the document it belongs to.
+This is a bookkeeping gap in the legal record, not in the code, and closing it
+is the controller's act, not engineering's. RESOLVED the same day: the
+complete signed document (sections 1-8) was committed later on 2026-08-03
+(`49030be6`), so the gap described here existed only between those two
+commits.
+
 ## The production proof, step by step
 
 This is the sequence that closes counsel's Q14 for production. Steps 1 and 3
@@ -182,6 +255,7 @@ founder's to run.
    npx vitest run --config vitest.db.config.ts tests/db/shop-retention-purge.test.ts
    npx vitest run --config vitest.db.config.ts tests/db/retention-purge-dry-run.test.ts
    npx vitest run --config vitest.db.config.ts tests/db/billing-record-retention-purge.test.ts
+   npx vitest run --config vitest.db.config.ts tests/db/intake-retention-purge.test.ts
    ```
 
    These execute the real purge modules against a real Postgres with synthetic

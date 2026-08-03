@@ -22,6 +22,10 @@ import { processImage } from "@/lib/image-processing";
 import { createNotification } from "@/lib/notifications";
 import { appOrigin, projectPortalUrl } from "@/lib/public-url";
 import {
+  PROJECT_MEDIA_BUCKET,
+  projectMediaFolder,
+} from "./project-media-storage";
+import {
   sendProjectReceivedClient,
   sendProjectReceivedArtist,
   sendProjectStatusClient,
@@ -43,10 +47,16 @@ export type ProjectSubmitResult =
 
 /** Where project media lives. The existing private `bookings` bucket under a
  *  `projects/` prefix: same kind of object, same lifecycle, so no second
- *  bucket, policy set or cleanup job is introduced to hold it. */
-const MEDIA_BUCKET = "bookings";
+ *  bucket, policy set or cleanup job is introduced to hold it.
+ *
+ *  The bucket and prefix come from `project-media-storage.ts` rather than
+ *  being literals here, because the LO-5 DPIA R6 retention purge
+ *  (`intake-retention.ts`) has to delete exactly what this writes. A purge
+ *  pointed at a stale prefix reports a clean zero forever while the
+ *  photographs it exists to remove stay in the bucket. */
+const MEDIA_BUCKET = PROJECT_MEDIA_BUCKET;
 const mediaPath = (artistId: string, projectId: string) =>
-  `projects/${artistId}/${projectId}/${crypto.randomUUID()}.webp`;
+  `${projectMediaFolder(artistId, projectId)}${crypto.randomUUID()}.webp`;
 
 // MIME allowlist (ABUSE-PUB-001). The size caps below stop an oversized
 // upload but say nothing about *kind* — without this, an arbitrary file is

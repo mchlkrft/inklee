@@ -29,6 +29,7 @@ const {
   mockRunBillingRecordRetentionPurges,
   mockRunTaxThresholdRollup,
   mockRunConnectAccountTeardown,
+  mockRunIntakeRetentionPurges,
 } = vi.hoisted(() => ({
   mockCaptureException: vi.fn(),
   mockCaptureMessage: vi.fn(),
@@ -36,6 +37,7 @@ const {
   mockRunBillingRecordRetentionPurges: vi.fn(),
   mockRunTaxThresholdRollup: vi.fn(),
   mockRunConnectAccountTeardown: vi.fn(),
+  mockRunIntakeRetentionPurges: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -64,6 +66,15 @@ vi.mock("@/lib/server/tax-threshold-rollup", () => ({
 vi.mock("@/lib/server/connect-account-teardown", () => ({
   runConnectAccountTeardown: (...a: unknown[]) =>
     mockRunConnectAccountTeardown(...a),
+}));
+// LO-5 DPIA R6 intake retention: mocked wholesale. Its retention classes,
+// event clocks and storage-object ordering are proven in
+// lib/server/__tests__/intake-retention.test.ts and, against a real bucket,
+// in tests/db/intake-retention-purge.test.ts. What THIS file owns is that the
+// route merges its steps into the same response shape and isolates them.
+vi.mock("@/lib/server/intake-retention", () => ({
+  runIntakeRetentionPurges: (...a: unknown[]) =>
+    mockRunIntakeRetentionPurges(...a),
 }));
 
 type Reply = { data?: unknown; error?: unknown; count?: number };
@@ -174,6 +185,13 @@ const TAX_THRESHOLD_STEPS_ALL_OK = {
   tax_threshold_rollup: { ok: true as const, count: 1 },
 };
 
+const INTAKE_STEPS_ALL_OK = {
+  purged_unconverted_intake_media: { ok: true as const, count: 0 },
+  purged_closed_project_intake_media: { ok: true as const, count: 0 },
+  unstamped_closed_projects: { ok: true as const, count: 0 },
+  stale_open_projects_retaining_intake_media: { ok: true as const, count: 0 },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.CRON_SECRET = "test-secret";
@@ -190,6 +208,7 @@ beforeEach(() => {
     completed: 0,
     blocked: 0,
   });
+  mockRunIntakeRetentionPurges.mockResolvedValue(INTAKE_STEPS_ALL_OK);
 });
 
 describe("retention-purge sequencing: every step is independent", () => {
@@ -301,6 +320,37 @@ describe("retention-purge sequencing: every step is independent", () => {
     );
   });
 
+  it("merges an LO-5 R6 intake-retention step failure into the same error list without blocking the others", async () => {
+    // The R6 block is the one that can fail mid-way with objects deleted and
+    // rows not, so its failure must reach the response, the run log and the
+    // aggregated alert rather than being absorbed as a zero.
+    mockRunIntakeRetentionPurges.mockResolvedValue({
+      purged_unconverted_intake_media: {
+        ok: false,
+        error: "storage remove failed",
+      },
+      purged_closed_project_intake_media: { ok: true, count: 4 },
+      unstamped_closed_projects: { ok: true, count: 0 },
+      stale_open_projects_retaining_intake_media: { ok: true, count: 7 },
+    });
+
+    const res = await GET(req());
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(res.status).toBe(500);
+    expect(body.purged_closed_project_intake_media).toBe(4);
+    expect(body.stale_open_projects_retaining_intake_media).toBe(7);
+    expect(body.purged_unconverted_intake_media).toBeUndefined();
+    expect(body.errors).toEqual(
+      expect.arrayContaining([
+        {
+          step: "purged_unconverted_intake_media",
+          error: "storage remove failed",
+        },
+      ]),
+    );
+  });
+
   it("merges a BDEL-RET-002 billing-record-retention step failure into the same error list without blocking the others", async () => {
     mockRunBillingRecordRetentionPurges.mockResolvedValue({
       purged_deleted_account_withdrawal_cases: { ok: false, error: "boom" },
@@ -366,6 +416,12 @@ describe("Q14: ?mode=dry-run reports without deleting", () => {
       "dry-run",
     );
     expect(mockRunConnectAccountTeardown).toHaveBeenCalledWith(
+      expect.any(Date),
+      "dry-run",
+    );
+    // R6: a dry-run that reached the intake block in `purge` mode would
+    // delete storage objects, which no other block here can do.
+    expect(mockRunIntakeRetentionPurges).toHaveBeenCalledWith(
       expect.any(Date),
       "dry-run",
     );
