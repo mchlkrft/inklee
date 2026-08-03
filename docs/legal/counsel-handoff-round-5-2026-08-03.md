@@ -424,23 +424,33 @@ appears in no worklist entry. **So the gallery capability grant currently rests 
 undischarged condition with nothing to stop it.** We are adding the gate key and the worklist
 entry. Your answer is complete and we are not re-asking it.
 
-### 4.3 Round-4 §7.2's code-comment citation has not been applied
+### 4.3 Round-4 §7.2 was applied, and it was NOT a comment fix
 
-You ratified the model-form carve-out on the Art. 6(1)(h)/(k) pairing and instructed us to "cite
-this section in the code comment, so the determination rests here and not in engineering". The
-behaviour is correct and both of your conditions look satisfied (snapshot-frozen per line via
-`custom_made_snapshot`; the no-withdrawal statement per line and in the summary). But
-`packages/shared/src/consumer-disclosures.ts:454-458` still grounds the suppression in
-engineering's own Art. 16(c) reading, with no reference to Art. 6(1)(k) or to your §7.2. The code
-landed fourteen minutes after your rulings were committed and did not pick them up.
+**CORRECTED 2026-08-03, later the same day.** An earlier draft of this section told you "the
+behaviour is correct and both of your conditions look satisfied" and that what remained was a
+comment-only citation fix. Execution disproved that before this handoff was sent, and we are
+reporting the correction rather than smoothing it.
 
-That is precisely the state round-4 §2 objected to, surviving the ruling that was meant to cure
-it. Comment-only fix, ours, in flight.
+What execution showed (both versions of the module run against the same input: order-level
+disclosure "all_custom_made", a line item carrying NO per-line custom-made claim): the shipped
+code suppressed the withdrawal form on the order-level summary ALONE. That mis-flagged shape is
+verbatim the case your condition 1 warns about ("if a custom-made claim is ever invalid
+(mis-flagged, undisclosed), the suppressed form compounds the Art. 10 exposure"). Condition 2's
+per-line prominence was also short of the ruling: the receipt carried the short Q4 row marker per
+line, not the approved notice.
 
-*One thing we have not verified and are not claiming:* we confirmed the snapshot-frozen and
-per-line legs by reading the code. We did **not** independently verify that the custom-made claim
-was actually surfaced at point of sale for every line, which is the "validly disclosed" leg of
-your condition 1. Treat that leg as unverified.
+The fix landed 2026-08-03 and is behavioural: suppression is now earned by EVERY line carrying
+the claim, never by the order-level summary alone; a disagreement between the two inputs resolves
+toward disclosure (the mixed treatment, which shows the exemption AND the surviving return
+right); and a suppressed receipt renders the approved notice against each line and in the
+summary. The §7.2 basis (Art. 6(1)(h) conditional on the right, Art. 6(1)(k) statement in its
+place) is now cited in the code comment as you instructed, with the Q8 dependency recorded. A
+13-test suite (`withdrawal-form-suppression.test.ts`) pins the mis-flagged case by execution.
+
+*Still unverified and not claimed:* whether the custom-made claim was actually surfaced at point
+of sale for every line, the "validly disclosed" leg of condition 1. The code now refuses to
+suppress when the frozen per-line claim is absent, which narrows that leg but does not verify the
+point-of-sale surfacing itself.
 
 ### 4.4 Round-4 §7.4 (live-account tax horizon) is ruled and unbuilt
 

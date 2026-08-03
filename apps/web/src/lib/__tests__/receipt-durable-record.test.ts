@@ -42,6 +42,16 @@ const base = {
   totalLabel: "60.00 EUR",
 };
 
+// COUNSEL §7.2 condition 1 (2026-08-02): suppression is earned by the LINES,
+// not by the order-level summary. Fixtures that assert the exempt behaviour
+// must therefore carry the per-line claim; passing `disclosure:
+// "all_custom_made"` over an unflagged line is now the mis-flagged case, and
+// it deliberately gets the form.
+const exemptBase = {
+  ...base,
+  items: [{ title: "Commission", quantity: 1, customMade: true }],
+};
+
 describe("modelWithdrawalFormText (Q7: the reproduced form itself)", () => {
   it("renders the seller's real identity, never a placeholder", () => {
     const text = modelWithdrawalFormText(SELLER, {
@@ -150,7 +160,7 @@ describe("buildOrderReceiptBody — Q6(a): the form is reproduced, not reference
 
   it("DISTINCTION: omits the form when the whole order is Art. 16(c) exempt, so the receipt does not print a withdrawal template under 'no right of return'", () => {
     const body = buildOrderReceiptBody({
-      ...base,
+      ...exemptBase,
       disclosure: "all_custom_made",
       termsSection: TERMS,
     });
@@ -220,7 +230,7 @@ describe("buildOrderReceiptBody — readability of a receipt carrying two docume
 
     // Exempt order: no form, so the lead-in must not promise one.
     const termsOnly = buildOrderReceiptBody({
-      ...base,
+      ...exemptBase,
       disclosure: "all_custom_made",
       termsSection: TERMS,
     });
@@ -242,7 +252,7 @@ describe("buildOrderReceiptBody — readability of a receipt carrying two docume
 
   it("emits no stray rule when there is no appendix at all", () => {
     const body = buildOrderReceiptBody({
-      ...base,
+      ...exemptBase,
       disclosure: "all_custom_made",
       termsSection: null,
     });

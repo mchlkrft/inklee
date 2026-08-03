@@ -321,6 +321,11 @@ describe("buildOrderReceiptBody", () => {
   it("shows the custom-made claim instead of the return notice when every item is flagged", () => {
     const body = buildOrderReceiptBody({
       ...base,
+      // Counsel §7.2 condition 1: the per-line claim is what earns the
+      // exempt treatment, so the fixture has to carry it. It previously
+      // relied on the order-level summary alone, which is the mis-flagged
+      // shape the ruling now refuses.
+      items: [{ title: "Print", quantity: 2, customMade: true }],
       disclosure: "all_custom_made",
     });
     expect(body).toContain(CUSTOM_MADE_NOTICE);

@@ -410,6 +410,21 @@ function formatReceiptLine(item: ReceiptLineItem): string {
   return `- ${item.title}${item.variant ? ` (${item.variant})` : ""} x ${item.quantity}${customMadeRowSuffix(item.customMade === true)}`;
 }
 
+/**
+ * Counsel §7.2 condition 2, the "per line" half: the line, then the approved
+ * no-withdrawal notice against that line. Used only where the model form is
+ * suppressed, which is the only place the statement has to carry the
+ * prominence the form would otherwise have supplied.
+ *
+ * The notice goes on its OWN line rather than indented under the item, because
+ * the email renderer (booking-templates.renderBody) splits on "\n" and joins
+ * with <br/>: leading whitespace survives escaping but then collapses in HTML,
+ * so an indent would be invisible in the medium that actually matters.
+ */
+function formatReceiptLineWithExemption(item: ReceiptLineItem): string {
+  return `${formatReceiptLine(item)}\n${CUSTOM_MADE_NOTICE}`;
+}
+
 /** The rule between the transactional half of the receipt and the reproduced
  *  documents, and between the documents themselves. Same separator the
  *  approved Plus E2 confirmation already uses (billing/withdrawal.ts). */
@@ -451,11 +466,55 @@ function reproducedDocumentsLeadIn(names: string[]): string | null {
  * page is not the durable medium, so `returnRightNotice` keeps its href
  * parameter for that surface.
  *
- * The form is reproduced only when a right of withdrawal EXISTS for this
- * order. Art. 6(1)(h) is conditional on that right, and an all-custom-made
- * order is exempt under Art. 16(c); printing a withdrawal template directly
- * beneath "no right of return" would contradict the notice it follows. Mixed
- * orders keep the form, because some of their items do carry the right.
+ * WITHDRAWAL-FORM SUPPRESSION FOR ALL-CUSTOM-MADE ORDERS
+ *
+ * Ratified by counsel: §7.2 of
+ * docs/legal/counsel-handoff-round-4-2026-08-02.md (2026-08-02). The previous
+ * version of this carve-out rested on an Art. 6(1)(h) reading engineering made
+ * for itself and never put to counsel, which is what §2 of that same document
+ * reported against us. The determination now rests with counsel, on a
+ * different and cleaner basis, and this comment records it so nobody has to
+ * reconstruct the reasoning from the branch below.
+ *
+ * The basis, in counsel's terms: the model-form duty applies WHERE A RIGHT OF
+ * WITHDRAWAL EXISTS. Where it does not, what is owed instead is the Art.
+ * 6(1)(k) STATEMENT that the consumer will not benefit from a right of
+ * withdrawal. So for an order in which every line validly carries the
+ * custom-made claim, no withdrawal right exists: the form is not owed, and the
+ * 6(1)(k) statement is what must be there in its place. Mixed orders keep the
+ * form, because some of their lines do carry the right.
+ *
+ * Counsel attached two conditions. Both are enforced HERE rather than trusted
+ * to the caller:
+ *
+ * 1. Suppression triggers ONLY when EVERY line of the order carries a validly
+ *    disclosed, snapshot-frozen custom-made claim. "Any order with even one
+ *    standard line gets the form." That is tested against the ITEMS
+ *    themselves, not only against the caller's order-level `disclosure`,
+ *    because those are two separate inputs to this function and a caller that
+ *    disagrees with itself produces exactly the failure counsel names: "if a
+ *    custom-made claim is ever invalid (mis-flagged, undisclosed), the
+ *    suppressed form compounds the Art. 10 exposure." A disagreement is
+ *    therefore resolved toward disclosure, never toward suppression.
+ *
+ * 2. When suppressed, the receipt must carry the no-withdrawal statement
+ *    PROMINENTLY. Counsel: "the approved custom-made notice satisfies this if
+ *    rendered per line and in the summary." So CUSTOM_MADE_NOTICE is rendered
+ *    against each individual line AND once as the order-level notice. Note
+ *    condition 1 makes condition 2 unbreakable rather than merely also-true:
+ *    because suppression already requires every line to carry the claim, a
+ *    suppressed receipt with an unmarked line on it cannot be constructed.
+ *
+ * WHY THIS DEPENDS ON THE Q8 HARDENING, which counsel flags explicitly ("the
+ * two answers depend on each other"): suppression is only ever as trustworthy
+ * as the snapshot it reads. `custom_made_snapshot` is frozen onto order_items
+ * at sale time, and Q8 (PAY-AUTHZ-002) made `orders` and `order_items`
+ * service-role-write-only, so a seller can no longer rewrite a disclosure on a
+ * completed sale. Without that write restriction an artist could flip a line
+ * to custom-made after the fact and retroactively suppress a form the buyer
+ * was owed at the moment of sale. If Q8's restriction is ever relaxed, this
+ * carve-out loses its basis and must go back to counsel rather than be
+ * repaired here.
  *
  * Pure string assembly: every value is already resolved by the caller
  * (goods-checkout.ts reads the DB and the current Terms snapshot; this
@@ -483,10 +542,39 @@ export function buildOrderReceiptBody(input: {
    *  this option existed. */
   fulfillmentNote?: string | null;
 }): string {
+  // COUNSEL §7.2 CONDITION 1. The order-level `disclosure` and the per-line
+  // `items` are two independent inputs, so "all custom-made" is believed only
+  // when the lines themselves say so. `.every` is true for an empty array, so
+  // the length check is load-bearing rather than defensive: it stops a
+  // zero-line receipt from qualifying as "every line carries the claim".
+  const everyLineCarriesTheClaim =
+    input.items.length > 0 && input.items.every((i) => i.customMade === true);
+  const suppressWithdrawalForm =
+    input.disclosure === "all_custom_made" && everyLineCarriesTheClaim;
+
+  // A caller claiming "all_custom_made" over lines that do not all carry the
+  // claim is not a clean standard-line order, it is a DISAGREEMENT, and it is
+  // the exact shape counsel warns compounds Art. 10 exposure. Resolve it the
+  // disclosing way by falling back to the mixed treatment, which shows the
+  // exemption AND the surviving return right rather than picking one.
+  const effectiveDisclosure: ReturnDisclosureSummary =
+    input.disclosure === "all_custom_made" && !suppressWithdrawalForm
+      ? "mixed"
+      : input.disclosure;
+
   const sections: string[] = [
     `Thanks for your order from ${input.artistName}.`,
     sellerDisclosureBlock(input.seller, { supportEmail: input.supportEmail }),
-    input.items.map(formatReceiptLine).join("\n"),
+    // COUNSEL §7.2 CONDITION 2, the "per line" half. Only where the form is
+    // suppressed: elsewhere the form itself is present and the short Q4 row
+    // marker already identifies the exempt lines.
+    input.items
+      .map(
+        suppressWithdrawalForm
+          ? formatReceiptLineWithExemption
+          : formatReceiptLine,
+      )
+      .join("\n"),
     `Total paid: ${input.totalLabel}.`,
   ];
   if (input.fulfillmentNote) sections.push(input.fulfillmentNote);
@@ -495,7 +583,7 @@ export function buildOrderReceiptBody(input: {
   // withdrawal at all. It governs BOTH whether the form is reproduced below
   // and whether the return notice may tell the buyer to look for it, so the
   // notice can never point at a document this email does not contain.
-  const reproducesForm = input.disclosure !== "all_custom_made";
+  const reproducesForm = !suppressWithdrawalForm;
 
   const returnNotice = returnRightNotice({
     sellerContact: input.seller.contact,
@@ -512,9 +600,12 @@ export function buildOrderReceiptBody(input: {
     withdrawalFormRef: reproducesForm ? "reproduced below" : null,
   });
 
-  if (input.disclosure === "all_custom_made") {
+  if (effectiveDisclosure === "all_custom_made") {
+    // COUNSEL §7.2 CONDITION 2, the "in the summary" half. This is the Art.
+    // 6(1)(k) statement standing in for the form, not merely a repeat of the
+    // per-line notice.
     sections.push(CUSTOM_MADE_NOTICE);
-  } else if (input.disclosure === "mixed") {
+  } else if (effectiveDisclosure === "mixed") {
     sections.push(
       "Some items in your order are custom-made and cannot be returned:",
       CUSTOM_MADE_NOTICE,
