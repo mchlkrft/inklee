@@ -382,7 +382,14 @@ export async function uploadConnectVerificationDocument(args: {
       );
       return { id: uploaded.id };
     } catch (e) {
-      return { error: stripeMessage(e, "Could not upload that document.") };
+      // Name the CALL as well as the parameter: files.create here and
+      // accounts.update below surfaced indistinguishable text, so a failure
+      // could not be located to the upload or the attach without the source.
+      return {
+        error:
+          stripeMessage(e, "Could not upload that document.") +
+          " [stage: file upload to Stripe]",
+      };
     }
   };
 
@@ -413,7 +420,11 @@ export async function uploadConnectVerificationDocument(args: {
       },
     });
   } catch (e) {
-    return { error: stripeMessage(e, "Could not attach that document.") };
+    return {
+      error:
+        stripeMessage(e, "Could not attach that document.") +
+        " [stage: attaching the uploaded file to the account]",
+    };
   }
 
   const persisted = await persistConnectAccount({
@@ -683,14 +694,34 @@ export async function clearConnectAccountByExternalId(
   return { userId: artist.id };
 }
 
+/** Stripe's own message, PLUS the fields that say what it actually rejected.
+ *
+ *  Why this is not cosmetic: on 2026-08-03 a live Connect verification upload
+ *  failed with the bare string "Invalid request (check your POST parameters)".
+ *  That is Stripe's generic invalid_request_error text and it names neither
+ *  the failing parameter nor which of the two calls (files.create or
+ *  accounts.update) produced it, so it is undiagnosable from the UI, from a
+ *  Sentry event, or from a support thread. The founder was blocked on it
+ *  during the first live-money run with nothing to act on.
+ *
+ *  Stripe puts the useful part in `param`, `code` and `type`, and this wrapper
+ *  was discarding all three. An error message that cannot be acted on is the
+ *  same defect class as a swallowed one: the failure is visible and still
+ *  tells you nothing. */
 function stripeMessage(e: unknown, fallback: string): string {
-  if (
-    e &&
-    typeof e === "object" &&
-    "message" in e &&
-    typeof (e as { message: unknown }).message === "string"
-  ) {
-    return (e as { message: string }).message;
-  }
-  return fallback;
+  if (!e || typeof e !== "object") return fallback;
+  const err = e as {
+    message?: unknown;
+    param?: unknown;
+    code?: unknown;
+    type?: unknown;
+  };
+  const base =
+    typeof err.message === "string" && err.message ? err.message : fallback;
+  const detail = [
+    typeof err.param === "string" && err.param ? `parameter: ${err.param}` : "",
+    typeof err.code === "string" && err.code ? `code: ${err.code}` : "",
+    typeof err.type === "string" && err.type ? `type: ${err.type}` : "",
+  ].filter(Boolean);
+  return detail.length > 0 ? `${base} (${detail.join(", ")})` : base;
 }

@@ -5,12 +5,8 @@ import {
   type ConnectStatus,
 } from "@/lib/stripe-connect";
 import { getDepositCollection } from "@/lib/server/deposit-collection";
-import { isFeeProcessingSubsidyClaimApproved } from "@/lib/server/billing/activation";
-import {
-  CONNECT_FEE_PAYER_IS_APPLICATION,
-  NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM,
-  noSeparateCardProcessingFeesClaimVisible,
-} from "@inklee/shared/platform-fee";
+import { resolveNoSeparateCardProcessingFeesClaim } from "@/lib/server/billing/activation";
+import { NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM } from "@inklee/shared/platform-fee";
 import PayoutsControls from "./payouts-controls";
 import ConnectKycForm from "./connect-kyc-form";
 import VerificationDocumentForm from "./verification-document-form";
@@ -35,9 +31,11 @@ const STATUS_LABEL: Record<ConnectStatus, string> = {
 // bps, which reads as true only by coincidence of today's flat rate. Counsel's
 // answer binds it instead to WHO PAYS Stripe (`fees.payer: application`,
 // @inklee/shared/platform-fee) — true at any rate Inklee absorbs the cost at,
-// 3% or 0.5% alike — AND to a founder recording of intent, since absorbing the
-// cost at 0.5% is a subsidy rather than a margin. `showNoSeparateFeesClaim` is
-// resolved ONCE by the caller and threaded through, so this function never
+// 3% or 0.5% alike — AND, where the rate is BELOW processing cost, to a founder
+// recording of intent, since absorbing the cost at 0.5% is a subsidy rather
+// than a margin (D6, corrected 2026-08-03: requiring that recording at EVERY
+// rate withdrew a true, live claim from the 3% cohort). `showNoSeparateFeesClaim`
+// is resolved ONCE by the caller and threaded through, so this function never
 // re-derives it from the rate.
 function statusDescription(
   status: ConnectStatus,
@@ -96,17 +94,14 @@ export default async function PayoutsSettingsPage() {
   // rather than either being derived from the other.
   const depositCollection = await getDepositCollection(user!.id);
   const feePercentLabel = depositCollection.feeDisplay?.percentLabel ?? null;
+  const feeBps = depositCollection.feeDisplay?.bps ?? null;
 
-  // A7: both conditions resolved once, here — the structural fact (every
-  // connected account is Custom Connect with Inklee as the fee payer) and the
-  // founder's recorded intent (absent today, which is what keeps the claim
-  // suppressed).
-  const founderApprovedSubsidyClaim =
-    await isFeeProcessingSubsidyClaimApproved();
-  const showNoSeparateFeesClaim = noSeparateCardProcessingFeesClaimVisible({
-    payerIsApplication: CONNECT_FEE_PAYER_IS_APPLICATION,
-    founderApprovedSubsidyClaim,
-  });
+  // A7 + D6: resolved ONCE here, for THIS artist's rate, and threaded through
+  // (the fee sentence is built in three places and none of them may re-derive
+  // it). The resolver supplies the fee-payer constant and, only where the rate
+  // sits below processing cost, the founder's recorded intent.
+  const showNoSeparateFeesClaim =
+    await resolveNoSeparateCardProcessingFeesClaim(feeBps);
 
   // P0-3: fetch what Stripe still needs so the form can show it on load (the
   // artist can only self-resolve if we tell them). Fetched for every live
@@ -298,17 +293,17 @@ export default async function PayoutsSettingsPage() {
 function StatusBadge({ status }: { status: ConnectStatus }) {
   const tone =
     status === "active"
-      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+      ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
       : status === "pending"
-        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+        ? "bg-amber-500/20 text-amber-900 dark:text-amber-100"
         : status === "restricted"
-          ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
+          ? "bg-orange-500/25 text-orange-950 dark:text-orange-50"
           : status === "disabled"
             ? "bg-destructive/15 text-destructive"
             : "bg-muted text-muted-foreground";
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone}`}
+      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone}`}
     >
       {STATUS_LABEL[status]}
     </span>
