@@ -39,6 +39,13 @@ export const DPIA_PRECONDITION_KEYS = {
   /** R6 - the 90-day intake retention purge. The form is LIVE and the gap arms
    *  on first submission, which is why it gates both rather than one. */
   intakePurge: "dpia_r6_intake_retention_purge_built",
+  /** R1 - the Q16 notice-and-action route (four named elements; discharges
+   *  the C1.6 hosting grant's second condition). Added 2026-08-03 per round-5
+   *  §4.2: R1 was adopted as a §7 mitigation by the controller but, unlike
+   *  R3/R4/R6, was given NO key - so the gallery capability could have been
+   *  granted with R1 unbuilt and nothing to refuse it. Worklist entry Q16-R1;
+   *  build tracked as task #79. */
+  noticeAndAction: "dpia_r1_notice_and_action_built",
 } as const;
 
 export type DpiaGate = "gallery" | "goods";
@@ -56,6 +63,7 @@ export const DPIA_GATE_PRECONDITIONS: Record<DpiaGate, readonly string[]> = {
     DPIA_PRECONDITION_KEYS.uploadAttestation,
     DPIA_PRECONDITION_KEYS.signedGalleryUrls,
     DPIA_PRECONDITION_KEYS.intakePurge,
+    DPIA_PRECONDITION_KEYS.noticeAndAction,
   ],
   goods: [DPIA_PRECONDITION_KEYS.intakePurge],
 } as const;

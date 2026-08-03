@@ -43,12 +43,16 @@ describe("LO-5 DPIA gate preconditions", () => {
       uploadAttestation: "dpia_r3_direct_upload_attestation_built",
       signedGalleryUrls: "dpia_r4_signed_gallery_urls_built",
       intakePurge: "dpia_r6_intake_retention_purge_built",
+      // R1, added per round-5 §4.2: the one adopted mitigation that had no
+      // key, so the gallery grant rested on an undischarged condition with
+      // nothing to stop it.
+      noticeAndAction: "dpia_r1_notice_and_action_built",
     });
   });
 
   // FAILS IF the §7 table is transcribed wrongly. R6 gates BOTH gates, which
   // is the row most likely to be dropped since R3 and R4 are gallery-only.
-  it("maps §7 to the gates: R3+R4+R6 gallery, R6 goods", () => {
+  it("maps §7 to the gates: R1+R3+R4+R6 gallery, R6 goods", () => {
     expect([...DPIA_GATE_PRECONDITIONS.gallery].sort()).toEqual(
       [...ALL].sort(),
     );
@@ -72,6 +76,7 @@ describe("LO-5 DPIA gate preconditions", () => {
       rows([
         DPIA_PRECONDITION_KEYS.uploadAttestation,
         DPIA_PRECONDITION_KEYS.intakePurge,
+        DPIA_PRECONDITION_KEYS.noticeAndAction,
       ]),
     );
     const missing = await missingDpiaPreconditions("gallery");
@@ -102,7 +107,7 @@ describe("LO-5 DPIA gate preconditions", () => {
     expect(await missingDpiaPreconditions("goods")).toEqual([]);
   });
 
-  it("DISTINCTION: opens the gallery gate once all three are recorded", async () => {
+  it("DISTINCTION: opens the gallery gate once all four are recorded", async () => {
     selectMock.mockResolvedValue(rows(ALL));
     await expect(
       assertDpiaPreconditionsMet("gallery"),
