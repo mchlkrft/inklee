@@ -78,7 +78,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, available_from, preorder, low_stock_threshold",
+      "id, title, description, category, image_url, image_urls, price_amount, currency, status, pickup_note, quantity, is_public_visible, available_from, preorder, low_stock_threshold, custom_made",
     )
     .eq("id", id)
     .eq("artist_id", userId)
@@ -131,6 +131,9 @@ export async function GET(
     currency: data.currency,
     status: data.status,
     pickupNote: data.pickup_note,
+    // Counsel C1.2/Q5. Normalised to a real boolean so the app never has to
+    // decide what a null column means.
+    customMade: data.custom_made === true,
     quantity: data.quantity,
     // Drops, preorders and stock alerts (P5c).
     availableFrom: (data.available_from as string | null) ?? null,
@@ -195,6 +198,10 @@ export async function PUT(
       status: v.status,
       pickup_note: v.pickupNote,
       quantity: v.quantity,
+      // Tri-state: only written when the client actually sent the key. An
+      // installed build predating this field omits it, and spreading nothing
+      // leaves the column alone rather than clearing the exemption.
+      ...(v.customMade === undefined ? {} : { custom_made: v.customMade }),
       // Same gate the web action applies (P5c): an un-entitled artist's values
       // are DROPPED rather than rejected, because the rest of their save is
       // perfectly valid and failing the whole form over a field they cannot

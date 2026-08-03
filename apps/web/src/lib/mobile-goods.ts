@@ -42,6 +42,18 @@ export type ProductInput = {
   availableFrom?: string | null;
   preorder?: boolean;
   lowStockThreshold?: number | null;
+  /**
+   * Art. 16(c) custom-made (counsel C1.2/Q5). `undefined` means LEAVE
+   * UNCHANGED, and that distinction is the whole point: an installed build
+   * predating this field sends no key, and coercing a missing key to `false`
+   * would silently strip the exemption off every product an older app saves,
+   * turning non-returnable goods into returnable ones without anyone acting.
+   *
+   * Contrast `isPublicVisible` directly above, which fails CLOSED to false on
+   * a missing key. Opposite defaults, and both are right: publishing is the
+   * risky direction there, un-marking is the risky direction here.
+   */
+  customMade?: boolean;
 };
 
 /** Validate a product create/update payload (metadata only). */
@@ -102,9 +114,19 @@ export function normalizeProductInput(body: unknown): Result<ProductInput> {
   // which should default to a hidden draft rather than silently going public.
   const isPublicVisible = b.isPublicVisible === true;
 
+  if (b.customMade !== undefined && typeof b.customMade !== "boolean") {
+    return { ok: false, error: "customMade must be a boolean." };
+  }
+  // Tri-state on purpose: true, false, or ABSENT meaning "leave unchanged".
+  // See the field's comment on ProductInput for why absent must not become
+  // false.
+  const customMade =
+    b.customMade === undefined ? undefined : b.customMade === true;
+
   return {
     ok: true,
     value: {
+      ...(customMade === undefined ? {} : { customMade }),
       title,
       description,
       category,

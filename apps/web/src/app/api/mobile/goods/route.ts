@@ -96,6 +96,12 @@ export async function POST(req: Request) {
       pickup_note: v.pickupNote,
       quantity: v.quantity,
       is_public_visible: v.isPublicVisible,
+      // Counsel C1.2/Q5. On CREATE an absent key means false (returnable),
+      // which is both the column default and the safe direction: a product is
+      // returnable unless the artist claims the Art. 16(c) exemption. That is
+      // the opposite of the UPDATE path, where absent means "leave unchanged"
+      // so an older build cannot strip an exemption it does not know about.
+      custom_made: v.customMade === true,
       sort_order: count ?? 0,
     })
     .select("id")

@@ -163,6 +163,9 @@ function ProductForm({
   const [isPublicVisible, setIsPublicVisible] = useState(
     initial?.isPublicVisible ?? true,
   );
+  // Defaults FALSE for a new product: most goods are returnable, and claiming
+  // an Art. 16(c) exemption is the artist's deliberate act, never a default.
+  const [customMade, setCustomMade] = useState(initial?.customMade === true);
   const [moreOpen, setMoreOpen] = useState(false);
 
   // Variants: seeded from the server's active set (`?? []` guards an older
@@ -226,6 +229,7 @@ function ProductForm({
     pickupNote !== (initial?.pickupNote ?? "") ||
     quantity !== (initial?.quantity != null ? String(initial.quantity) : "") ||
     isPublicVisible !== (initial?.isPublicVisible ?? true) ||
+    customMade !== (initial?.customMade === true) ||
     hasOptions !== initialVariants.length > 0 ||
     currentVariantKey !== seedVariantKey ||
     (isNew && pendingPhotos.length > 0);
@@ -350,6 +354,7 @@ function ProductForm({
       preorder,
       lowStockThreshold: lowStock.trim() === "" ? null : Number(lowStock.trim()),
       isPublicVisible,
+      customMade,
     };
     const variantsBody: MobileProductVariantsUpdate = {
       variants: variantsPayload,
@@ -755,6 +760,28 @@ function ProductForm({
           <Switch
             value={isPublicVisible}
             onValueChange={setIsPublicVisible}
+            trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
+            thumbColor={colors.bone}
+            ios_backgroundColor="rgba(0,0,0,0.35)"
+          />
+        </View>
+
+        {/* Art. 16(c) custom-made (counsel C1.2/Q5). Web-editor-only until
+            2026-08-03, so an artist working from the app could neither see nor
+            set the flag that decides whether their buyer has a 14-day right of
+            return. Sits at top level rather than under "More settings"
+            because it is a legal disclosure, not a preference. */}
+        <View className="mb-3 flex-row items-center justify-between rounded-2xl border border-shell-border bg-glass px-4 py-3">
+          <View className="flex-1 pr-3">
+            <Text className="text-base text-foreground">Custom-made</Text>
+            <Text className="mt-0.5 text-sm text-shell-dim">
+              Made to the buyer&apos;s specification. Buyers cannot return it,
+              and the shop says so on the item.
+            </Text>
+          </View>
+          <Switch
+            value={customMade}
+            onValueChange={setCustomMade}
             trackColor={{ false: "rgba(0,0,0,0.35)", true: colors.mustard }}
             thumbColor={colors.bone}
             ios_backgroundColor="rgba(0,0,0,0.35)"

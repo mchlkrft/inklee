@@ -65,6 +65,61 @@ describe("normalizeProductInput", () => {
       normalizeProductInput({ title: "X", price: 10, quantity: 1.5 }).ok,
     ).toBe(false);
   });
+
+  /**
+   * customMade is TRI-STATE and the third state is the point (counsel C1.2/Q5).
+   *
+   * `undefined` must survive as `undefined`, meaning "leave unchanged", because
+   * an installed app build that predates this field sends no key. If absent
+   * collapsed to `false`, every save from an older app would silently strip the
+   * Art. 16(c) exemption off the product, turning non-returnable goods
+   * returnable with nobody having touched anything. The route then spreads
+   * nothing for `undefined`, so the column keeps its value.
+   *
+   * Note this is the OPPOSITE default to `isPublicVisible` a few tests above,
+   * which fails closed to false on a missing key. Both are right: publishing is
+   * the risky direction there, un-marking is the risky direction here.
+   */
+  describe("customMade (tri-state)", () => {
+    it("keeps an ABSENT key as undefined, so the route leaves the column alone", () => {
+      const r = normalizeProductInput({ ...base });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.value.customMade).toBeUndefined();
+      // Stronger than the line above: the key must not even be PRESENT, since
+      // the route spreads the object and a present `undefined` would write NULL.
+      expect(Object.prototype.hasOwnProperty.call(r.value, "customMade")).toBe(
+        false,
+      );
+    });
+
+    it("passes an explicit true through", () => {
+      const r = normalizeProductInput({ ...base, customMade: true });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.value.customMade).toBe(true);
+    });
+
+    // DISTINCTION: false must be DISTINGUISHABLE from absent. Without this,
+    // an implementation that dropped every falsy value would pass the test
+    // above and make un-marking a product impossible from the app.
+    it("DISTINCTION: an explicit false is kept, not treated as absent", () => {
+      const r = normalizeProductInput({ ...base, customMade: false });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.value.customMade).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(r.value, "customMade")).toBe(
+        true,
+      );
+    });
+
+    it("rejects a non-boolean rather than coercing it", () => {
+      expect(normalizeProductInput({ ...base, customMade: "yes" }).ok).toBe(
+        false,
+      );
+      expect(normalizeProductInput({ ...base, customMade: 1 }).ok).toBe(false);
+    });
+  });
 });
 
 describe("normalizeVariantsInput", () => {

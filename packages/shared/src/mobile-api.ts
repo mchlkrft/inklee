@@ -686,6 +686,24 @@ export type MobileProductDetail = {
   /** Whether the artist may SET the three fields above. Server-resolved so the
    *  app never re-derives a plan rule. */
   schedulingEntitled?: boolean;
+  /**
+   * The Art. 16(c) custom-made flag (counsel C1.2/Q5). Drives every consumer
+   * return-right disclosure: the per-row "custom-made, no returns" marker, the
+   * checkout notice, and the receipt.
+   *
+   * It was web-editor-only until 2026-08-03, which meant an artist working from
+   * the app could neither see nor set the field that decides whether their
+   * buyer has a 14-day right of return. The mobile BUNDLES route already read
+   * it (api/mobile/goods/bundles/route.ts:53), so the flag reached one mobile
+   * screen and not the editor that is supposed to set it.
+   *
+   * ADDITIVE and optional, which is what makes this a safe wire change: an
+   * installed build that predates it simply omits the key, and the route treats
+   * an absent value as "leave unchanged" rather than as false. Contrast a new
+   * value in a union the app switches on, which is breaking (see
+   * docs/web-native-parity.md).
+   */
+  customMade?: boolean;
   /** Legacy hero (imageUrls[0]); prefer imageUrls. */
   imageUrl: string | null;
   /** Canonical ordered image list — first entry is the hero everywhere. */
