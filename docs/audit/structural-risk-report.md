@@ -5,14 +5,14 @@
 
 # Structural risk report
 
-**Ledger content hash:** `cf22211080d4`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `75ebf3d682cd`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-154 recorded finding(s), 4 structural pattern(s), across 108 mapped area(s).
+154 recorded finding(s), 4 structural pattern(s), across 109 mapped area(s).
 129 remain open by remediation status. 122 are reachable (directly or conditionally) rather than latent.
 126 have not passed independent verification.
 195 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
