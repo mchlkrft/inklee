@@ -462,3 +462,391 @@ Your C1.9 answer asked for one versioned Terms edit and one consolidated approva
 **Sequencing.** Nothing can be signed off until the Terms edit produces a final hash, because the approval binds to that hash and any later edit auto-closes it. A batch of already-approved, version-bound keys will mechanically re-open on that hash change and need re-recording. **That is the confirmation pass you asked for, not a reopening of anything.**
 
 **One thing the gate does not currently cover, and should.** Everything in this document is undeployed. Whatever you sign off will be approved against code that has never run in production, on a branch 186 commits ahead of the deployed one, with 18 unapplied migrations. We would rather you knew that before signing than after.
+
+---
+
+# PART 5 — ANSWERS (counsel review, 2026-08-02, second round)
+
+## 5.0 The provenance question, answered first
+
+You asked whether the Part 4 answers attributed to counsel are genuinely the
+reviewer's. They are: this document's answers and the previous package's Part 4
+come from the same review stream, and the founder has verified each round
+before it was recorded. The standing characterisation applies to both rounds
+equally: these are **compliance-review positions, founder-verified — not an
+external law firm's opinion letter.** Where an item warrants independent
+qualified review, the answers say so (the LO-10 round and the LO-5 DPIA are the
+two standing examples). Treat that consistently, and keep this paragraph in the
+file so the provenance is never ambiguous again.
+
+## 5.1 The six deviations
+
+**D1 (bundle rule)** — resolved by Q2 below: the shipped rule is withdrawn in
+favour of blocking mixed bundles. See Q2.
+
+**D2 (pseudonymise with a constant) — accepted.** A fixed placeholder with no
+mapping retained is irreversible for that field, which satisfies the
+pseudonymise limb (in substance it anonymises the field). Verify no other
+field on the order re-identifies the guest; if the email was the only
+identifier, this is closed.
+
+**D3 (30 days delivering up to ~60) — cure it one of two ways.** A stated
+retention period must be honest. Either raise the purge cadence to weekly
+(preferred; cheap), or amend the RoP and privacy notice to "no later than 60
+days after cancellation / last activity." Do not leave a documented 30-day
+rule with a 60-day reality.
+
+**D4 (clock restarts on row touch) — fix.** Retention runs from the event
+(cancellation), not from `updated_at`. Add a `cancelled_at` timestamp (or use
+the status-change event) and key the purge to it. A clock any later touch can
+restart is not the specified rule and will drift silently.
+
+**D5 (no grace window) — approved as built.** The intended reading was "up to
+60 days to comply," not "wait 60 days" (Q18(b) below). Immediate relocation is
+compliant, stricter for privacy, and acceptable to the artist because
+restore-on-resubscribe exists. Keep it.
+
+**D6 (withdrawn true claim) — re-scope, don't withdraw.** The suppression
+condition was written about the **Plus 0.5% subsidy rate**. For the 3% cohort
+the claim is true and the accountant said so; withdrawing it from them was not
+instructed. Correct implementation: the claim renders for any cohort where
+`fees.payer: application` holds **and** either the rate covers cost (3%) or a
+founder-recorded subsidy approval exists (0.5%). Restore the sentence for the
+3% cohort in the same push that ships the binding.
+
+## 5.2 Carried-forward questions
+
+### Q1 — the tax ledger must become deletable at the horizon
+
+Permanent retention is not the intended exception, and it should not be
+documented as one: the legal obligation is seven years, and append-only
+immutability is a **control**, not a lawful basis for indefinite retention.
+Storage limitation wins at the horizon. Amend the control so it is immutable
+against *edits and corrections* (corrections stay new rows) but deletable by
+exactly one path — the retention purge at 7 years from financial-year end.
+The subscription rows the snapshots reference then purge on their own
+schedule. This is a deliberate, documented amendment to a deliberate control;
+record it as such in the register.
+
+### Q2 — mixed bundles: block them (option three)
+
+Your sharpening settles it. With no per-component billing basis (A8), partial
+returnability is incoherent; and the shipped rule (whole bundle
+non-returnable) suppresses a real return right on the standard components —
+exactly the Art. 10 direction to avoid, and legally weak: a bundle is not
+"made to the consumer's specification" because one component is.
+**Rule: a bundle may not contain both custom-made and standard products.**
+Enforce at bundle creation. An artist who wants both sells them as separate
+items in one cart, which preserves per-line rights cleanly. This is
+consistent with the existing v1 refusal of variant-bearing bundles. Revisit
+only if per-component pricing is ever built.
+
+## 5.3 New questions
+
+### Q4 — the add-on lane carries the same duties
+
+Information duties attach to the **distance contract**, not to the surface.
+The add-on lane concludes a contract that includes goods, so it needs (a) a
+conforming Art. 8(2) label — "Pay deposit and selected items" is arguably an
+unambiguous payment formulation, but do not spend risk on "arguably":
+standardise on the approved label with the total ("Order with obligation to
+pay — [total]: deposit and selected items"); and (b) **per-row custom-made
+markers**. The aggregated "some of your selected items" is precisely the
+blanket-claim shape the C1.2 answer prohibits — an exemption claimed against
+an unidentified item is claimed against no item, and the unmarked items'
+return windows extend under Art. 10. Both before the shop switches on. Your
+two assumptions were indeed in tension; the disclosure assumption was the
+right one.
+
+### Q5 — "per product" means per product at the point of sale; display is a fast-follow
+
+The legal minimum is pre-contractual: the buyer must see the per-product
+claim **before being bound**, which checkout plus confirmation satisfies. The
+public shop page omission is therefore not sign-off-blocking. But add the
+schema field and the product-page badge as a scheduled fast-follow: surfacing
+"no return right" only at checkout invites misleading-omission arguments
+under the UCPD and, more practically, disputes. Until the field exists, the
+browsing surface must not say anything that implies returnability.
+
+### Q6 — the durable record: reproduce, don't reference
+
+(a) The model form must be **reproduced in or attached to** the confirmation.
+Art. 6(1)(h) requires the form to be *provided*, and the Art. 8(7)
+confirmation must carry the Art. 6 information on the durable medium itself
+unless already so provided. A plain-text path reference satisfies neither.
+The form is short — include its text in the email body or attach it.
+(b) A confirmation with no Terms text is **non-compliant on its face** for
+the same reason; checkout acceptance of terms on a mutable web page does not
+cure it. Fix both, as intended. The team's instinct that these are defects,
+not positions, is correct.
+
+### Q7 — the model form wording: construction approved, review in the C1.9 pass
+
+Annex I(B) as the base is right. Addressing the form to the **artist as
+seller** is correct — the withdrawal is from the contract with the artist —
+and naming Inklee as an alternative recipient is permitted and useful,
+provided the page and the Terms state that a withdrawal received by Inklee is
+forwarded to the artist **without delay** and counts as received when Inklee
+receives it (the buyer must not lose days in forwarding). Render the artist's
+name and address into the form, not placeholders. Include the final text in
+the C1.9 package; it will be reviewed there as the sixth artifact.
+
+### Q8 — tamper-evidence is required, not prudent
+
+(a) Yes. The burden of proving that pre-contractual information was given
+sits with the trader; a snapshot the seller can rewrite cannot discharge
+anyone's burden and is not evidence — it is a draft. The exemption's validity
+depends on what was disclosed *at sale*, provable. (b) Yes: as host and
+record-keeper, Inklee relying on a seller-mutable record for its own refund
+enforcement would put it in the position of having facilitated the rewrite.
+Make both order-evidence tables **service-role-write-only before the shop
+switches on.** The RLS policy name that hid this ("artist can read own order
+items" permitting `FOR ALL`) is worth a register entry of its own.
+
+### Q9 — the erasure/retention fail-opens: assess, record, sweep, and push
+
+(a) No supervisory notification on current facts. The waitlist non-erasure is
+an Art. 17 compliance failure, not a security breach. The cleanup job's
+over-deletion path *is* within the Art. 4(12) definition (accidental
+destruction), but with no evidence it fired, a tiny population, and low risk
+to individuals, the correct treatment is an **internal breach-register entry
+under Art. 33(5)**: defect, window, population (8 deletions, ≤5 external
+users), evidence examined, conclusion, fix. No Art. 33 notification unless
+the sweep in (b) finds actual unerased or destroyed data changing that
+assessment. (b) **Yes — run the retrospective waitlist sweep** against
+deleted accounts; it is cheap and completes the erasures if any survived.
+(c) Accountability requires documented controls, an honest record of the
+defect, and the fix — not proof that every historical run held. The record
+in (a) plus the sweep plus fix-forward is sufficient.
+**Sequencing, recorded as requested:** the destructive path runs nightly
+until pushed. Cherry-pick the five live-defect fixes ahead of the 186-commit
+batch if the batch cannot ship this week. Waiting for the full release to fix
+live fail-opens on erasure and retention paths is the wrong trade.
+
+### Q10 — the MFA fail-open: record it, and fix the logging gap it exposed
+
+(a) No notification. The four converging observations (one unverified factor
+ever, zero challenges, zero elevated sessions, empty auth records) support
+"the precondition never existed" strongly enough that a dated internal
+assessment memo — facts, window (~102 days), evidence, the acknowledged limit
+that removal would leave no trace, conclusion — is the proportionate
+response. Absolute proof is not the standard; documented reasonable
+assessment is. (b) **Yes** — zero authentication-event logging is itself an
+Art. 32 gap (no ability to verify the effectiveness of the measure), and it
+is exactly what made (a) hard. Minimum fix alongside the fail-closed change:
+log fail-open/fail-closed events and MFA challenges to Sentry and the audit
+table. The same memo can note both reviewers' positions; they are not
+actually in conflict — the first rates the *design*, the second the
+*realised* exposure.
+
+### Q11 — the intake form: C1.4 transfers wholesale, plus Art. 32 controls
+
+Your suspicion is confirmed on both threads. (a) The unthrottled
+Inklee-branded email to an attacker-supplied address is an abuse/reputation
+issue — apply the sibling booking form's full control set (rate limit,
+honeypot, origin check, MIME allowlist, dedupe) and do not send to the
+supplied address more than once per submission window. (b) The intake
+ingests name, email, and reference photographs — health-adjacent, same as
+booking images: privacy notice at the field (adapt the C1.4 text), RoP
+entry, and a defined retention: rejected or unactioned submissions purge at
+**90 days**; accepted ones merge into the booking lifecycle and follow its
+rules. This surface is live now: it belongs in the same expedited push as
+Q9/Q10, and its images belong in the LO-5 DPIA scope.
+
+### Q12 — deletion with an active subscription: end now, refund the remainder
+
+Adopt one rule, disclosed on the confirmation screen and in the Terms:
+**account deletion ends the subscription immediately and refunds the unused
+part of the current period pro rata** (inside the 14-day window it is simply
+processed as a withdrawal, same arithmetic, existing machinery). Rationale:
+period-end semantics leave a paid period attached to a destroyed account;
+silent forfeiture is the unfair-term shape; and at a 3.00 EUR price the
+refund is trivial against the risk and support cost. Confirmation-screen
+line: "Your Inklee Plus subscription ends now. We will refund the unused
+part of your current period." Add the clause to the single C1.9 Terms
+version — agreed that this was the one genuine gap in the prior package.
+
+### Q13 — the Connected Account: build clause 2, define window-end, order the purge
+
+(a) Stripe's independent-controller status covers *Stripe's* retention of
+KYC data; it does not justify Inklee leaving a **live, open** account
+indefinitely. The affirmative action owed at window-end is the one already
+ratified: request deletion/deauthorisation of the connected account. (b)
+"Window-end" means the **seven-year financial window** — same clock as the
+retained records, deliberately, so the refund-foreclosure risk dies with the
+records. (c) **Yes**: condition the pointer purge on the Stripe-side action
+having completed; a purge that can outrun the deletion it enables is a
+design fault. Build order: the balance check and purge-ordering constraint
+now (cheap, prevents the orphan class); the scheduled deletion job itself is
+not launch-blocking (first window-end ~2033) but must exist before the first
+archive row ages out.
+
+### Q14 — a control that has never fired needs a proving path, not patience
+
+Accountability does not require waiting until 2028; it requires demonstrable
+capability and monitored execution. Three elements: (1) a staging run
+against real-schema synthetic expiring data covering every block, recorded;
+(2) a production **dry-run/report mode** each cycle logging matched-row
+counts per block (zero is then an evidenced result, not silence); (3) fix
+the sequential-halt design — blocks continue on error and every block
+failure alerts. With those, describe the schedule as "implemented with
+monitored execution"; without them, do not describe it as implemented.
+
+### Q15 — depicted-person consent: artist's obligation, Inklee takes an attestation
+
+The artist is the controller of the client relationship and holds the
+consent obligation toward the person depicted. Inklee does not need to
+collect the subject's consent itself — but as host of health-adjacent images
+it should require the same one-line logged attestation on **direct upload**
+as on URL import ("I have my client's consent to display this image"),
+plus an artist-Terms clause making that consent the artist's continuing
+obligation. Parity is cheap and closes the asymmetry. The depicted person's
+own route is the Q16 notice-and-action channel. Agreed this folds into the
+LO-5 DPIA rather than a separate round.
+
+### Q16 — condition (2), concretely
+
+Four elements make the notice-and-action condition satisfied rather than
+assumed: (1) the report route is reachable from or near gallery surfaces,
+and its categories include rights infringement **and** "image of me without
+consent"; (2) a report produces a queued item in the moderation workflow
+with a removal action that removes the **storage object**, not only the
+render; (3) `dsa-moderation-procedure.md` is extended to name galleries
+(the same scope extension the map round required for directory entries);
+(4) where the reporter gave contact details, acknowledgement and a decision
+are sent (Art. 16 mechanics; Art. 17 statement owed only to *recipients of
+the service* — the artist, on removal). Build and verify those four; then
+the grant's second condition is discharged.
+
+### Q17 — abandoned uploads: 7 days, and answer your own open question
+
+The C1.4 logic transfers with a shorter clock: an orphan in the **public**
+bucket is an unreferenced temporary file of sensitive content — purge at
+**7 days** via an orphan sweep (objects unreferenced by any saved gallery
+state older than 7 days are deleted). No legitimate use needs 30. And close
+your own flagged gap: read the account-closure purge; if it sweeps by
+referenced path rather than prefix, the orphan sweep is also what saves you
+there — verify and record which.
+
+### Q18 — the relocation control: invariant monitor or pull the fast-follow forward
+
+(a) The failure class (silent, permanent, self-certifying completion) plus
+the fact the control has only ever run against a mock does change the
+posture, but there are two adequate responses and you may choose: **either**
+(i) before the first capability grant, exercise relocation against real
+storage in staging including the zero-image and failed-read cases, **and**
+add a nightly invariant audit — no object in the public bucket may belong to
+a downgraded artist; violation alerts — in which case the conditional pass
+stands and signed URLs stay at "before any gallery marketing push"; **or**
+(ii) pull signed-expiring URLs forward to "before the capability is granted
+to anyone." An invariant that is independently checked is worth more here
+than the URL scheme, because it catches the *next* silent failure too. Pick
+one, date it, name an owner — the fast-follow currently has none, which was
+the actual finding. (b) The intended reading was **"up to 60 days to
+comply."** Immediate relocation is approved (D5).
+
+### Q19 — the attestation record: its own basis, its own clock
+
+(a) The rights attestation is **not** billing consent and must not inherit
+the accounting clock. Basis: Art. 6(1)(f) — establishment and defence of
+legal claims regarding hosted content. Retention: **for as long as the image
+is hosted, plus three years after its removal** (the Estonian general
+limitation period for claims is the defensible anchor). On account deletion,
+the attestation follows the same rule (survives as claims-defence evidence
+for the tail, pseudonymised where feasible), not the 7-year financial purge.
+Implement as a retention class on the row (or move the type out of the
+billing purge's scope). Add the register entry it currently lacks. (b) Yes —
+the source address is necessary and proportionate: an attestation that
+cannot say *what* was attested has no evidentiary value. Keep it.
+
+### Q20 — P2B applies now; DSA marketplace duties are excluded while micro/small
+
+Answering, not deferring. Two different regimes, two different answers:
+
+- **P2B Regulation (2019/1150): applies at any size** — no micro exemption
+  for its core duties. The goods shop makes Inklee an online intermediation
+  service for business users (artists). Concretely owed now: artist Terms in
+  plain, accessible language; stated grounds and notice for
+  suspension/termination/restriction of an artist's shop (with a statement
+  of reasons on suspension); **15 days' minimum notice** for Terms changes
+  (fold into the versioned-Terms process — it already fits); disclosure of
+  main ranking parameters *where ranking exists* (the shop lists one
+  artist's own products — no cross-trader ranking; the map/directory is the
+  surface to check); and differentiated-treatment disclosure if Inklee ever
+  sells its own goods (it does not). The Art. 11 internal complaint-handling
+  system and Art. 12 mediation duties are **exempt for small enterprises** —
+  record the exemption. Net: a short P2B section in the artist Terms,
+  landing in the same C1.9 version.
+- **DSA Section 4 (trader traceability, Arts. 29-32): excluded** for micro
+  and small enterprises by Art. 29 DSA, as Section 3 was by Art. 19.
+  **Recorded deferral with threshold:** these duties attach when Inklee
+  exceeds micro/small status under Recommendation 2003/361 (and remain
+  excluded for 12 months after crossing) or if a designation changes.
+  Add that trigger to the same monitoring file as the VAT thresholds so one
+  quarterly check covers both.
+
+## 5.4 Part 3 acknowledgments
+
+Noted, no action required, with two exceptions. **The 1,363-row hard-delete:**
+folding the seeded-dataset lawful-basis question into the LO-5 DPIA is
+agreed, but an unexplained bulk deletion with no audit record and no known
+mechanism is itself a finding — determine the mechanism (who or what could
+issue it) and record it now, not at DPIA time; if those rows included sole
+traders, the deletion is *favourable* to them, but the unexplained write
+access is the issue. **The eleven-endpoint credential:** no design work owed
+to this review, but put it at the top of the documented Art. 32 backlog with
+a date; "top of the backlog if one is ever needed" is how it becomes
+permanent.
+
+## 5.5 Part 4 — scope and sequencing of the final sign-off
+
+The §4.4 scope is confirmed, with four additions:
+
+1. **Deployment is a sign-off condition.** The consolidated approval will be
+   recorded against artifact hashes, but its cover note must state that
+   approval is of artifacts *as deployed*: the release candidate must be
+   pushed, migrations applied, and the C2 screenshot taken from the deployed
+   surface before the key is recorded. Approving a branch that has never run
+   in production, silently, is how the ledger stops meaning things.
+2. **The expedited push comes first.** The five live defects (Q9, Q10, Q11,
+   XSS, plus the cron guard) do not wait for the batch — cherry-pick and
+   ship, this week.
+3. **C1.10 is not complete** until the refund-ledger carve-out lands (yes —
+   fix it; that instruction is confirmed) **and** the §11 cross-check is
+   actually performed and recorded. An explicitly ordered cross-check that
+   silently did not happen must not survive a second round.
+4. **The LO-5 DPIA enters the ordered go-live worklist now, with an owner
+   and a date.** It is release-gating by prior decision, its scope has grown
+   three times (booking images → gallery + guest checkout → intake form +
+   seeded dataset), and it is absent from the plan. That is the single
+   largest open risk in this package.
+
+Reconcile the §4.3 record (the production ledger's 2026-07-25
+withdrawal-copy approval vs. the two documents saying pending) in the same
+pass — the hash change moots the key, but a ledger row nobody can explain
+fails the standard this process is built on.
+
+### Answer index
+
+| Item | Answer in one line |
+|---|---|
+| D1-D6 | D2, D5 accepted; D3 cure (weekly or honest notice); D4 fix clock; D6 re-scope to Plus rate only; D1 → Q2 |
+| Q1 | Deletable at 7-year horizon via purge path only; immutable against edits |
+| Q2 | Block mixed bundles at creation (option three) |
+| Q4 | Add-on lane needs the label + per-row markers before shop-on |
+| Q5 | Point of sale is the minimum; product-page badge as scheduled fast-follow |
+| Q6 | Reproduce/attach form and Terms in both receipts; reference insufficient |
+| Q7 | Construction approved; forwarding-without-delay rule; review text in C1.9 |
+| Q8 | Hardening required; service-role-write-only before shop-on |
+| Q9 | Internal Art. 33(5) record + waitlist sweep + expedited push; no notification |
+| Q10 | Assessment memo; fail-closed + auth-event logging (Art. 32) |
+| Q11 | Full control set + C1.4 treatment (notice, RoP, 90-day purge); expedite |
+| Q12 | Delete = end now + pro-rata refund of remainder; clause in C1.9 |
+| Q13 | Build clause 2; window = 7 years; purge conditioned on account action |
+| Q14 | Staging proof + production dry-run counts + per-block alerting |
+| Q15 | Artist's obligation; parity attestation on direct upload; into LO-5 |
+| Q16 | Four concrete elements; then condition (2) is discharged |
+| Q17 | 7-day orphan sweep; verify closure-purge semantics |
+| Q18 | Invariant monitor or signed URLs before first grant; reading = "up to 60 days" |
+| Q19 | Art. 6(1)(f), hosted-life + 3 years; own retention class; keep source URL |
+| Q20 | P2B terms now (in C1.9); DSA Section 4 excluded while micro/small, trigger recorded |

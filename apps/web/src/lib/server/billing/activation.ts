@@ -8,6 +8,11 @@ import {
   type ActivationResult,
   type ApprovalGroup,
 } from "@/lib/billing";
+import {
+  CONNECT_FEE_PAYER_IS_APPLICATION,
+  feeRateCoversProcessingCost,
+  noSeparateCardProcessingFeesClaimVisible,
+} from "@inklee/shared/platform-fee";
 import { REQUIRED_APPROVAL_KEYS, resolveBillingMode } from "./config";
 import { getCurrentBillingArtifacts } from "./artifacts";
 
@@ -125,6 +130,40 @@ export async function isFeeProcessingSubsidyClaimApproved(): Promise<boolean> {
   return approvals.some(
     (a) => a.approvalKey === FEE_PROCESSING_SUBSIDY_CLAIM_KEY && a.approved,
   );
+}
+
+/**
+ * The server-side resolution of `noSeparateCardProcessingFeesClaimVisible` for
+ * an artist whose resolved appointment-lane rate is `feeBps` (null = the tier
+ * cannot transact the lane at all). Supplies the two runtime inputs the shared
+ * predicate cannot know: the Connect fee-payer constant and the founder's
+ * approval row.
+ *
+ * D6 (counsel-handoff-2026-08-02.md §5.1, corrected 2026-08-03): the founder's
+ * approval is required ONLY where the rate sits below processing cost — the
+ * 0.5% subsidy cohort the accountant's suppression condition was actually
+ * written about. Requiring it at every rate withdrew a true, live claim from
+ * the 3% cohort, which nobody instructed.
+ *
+ * THE APPROVAL TABLE IS NOT READ AT ALL when the rate already covers cost, and
+ * that is deliberate rather than an optimisation: `getActivationApprovals`
+ * throws on a read failure by design (fail-closed, so a failure can never read
+ * as "approved"), and the only caller is a server component, so a throw takes
+ * the whole payouts page down. A 3% artist's copy must not be able to fail on
+ * a row their condition never consults. Under the active v1 schedule every
+ * tier is 300 bps, so today this path reads the table zero times.
+ */
+export async function resolveNoSeparateCardProcessingFeesClaim(
+  feeBps: number | null,
+): Promise<boolean> {
+  const rateCoversProcessingCost = feeRateCoversProcessingCost(feeBps);
+  return noSeparateCardProcessingFeesClaimVisible({
+    payerIsApplication: CONNECT_FEE_PAYER_IS_APPLICATION,
+    feeBps,
+    founderApprovedSubsidyClaim:
+      !rateCoversProcessingCost &&
+      (await isFeeProcessingSubsidyClaimApproved()),
+  });
 }
 
 /** Throwing guard for the money path. Call before any live charge. In test
