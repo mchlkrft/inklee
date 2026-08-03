@@ -15,6 +15,7 @@
     "audit:validate": "node scripts/audit/validate.cjs",
     "audit:generate": "node scripts/audit/generate.cjs",
     "audit:check": "node scripts/audit/generate.cjs --check",
+    "check:imports": "node scripts/check-committed-imports.cjs",
     "audit:new": "node scripts/audit/new.cjs"
   },
   "devDependencies": {
