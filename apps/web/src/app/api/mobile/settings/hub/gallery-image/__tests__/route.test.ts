@@ -54,7 +54,7 @@ const USER_ID = "artist1";
 // A realistic Inklee-hosted shape (not a `cdn.example` stand-in): FD4 made the
 // parser reject anything else, so a test proving the route's result is
 // SAVE-ABLE needs a URL that actually passes sanitizeHostedGalleryImageUrl.
-const HOSTED_BASE = "https://x.supabase.co/storage/v1/object/public/logos";
+const HOSTED_BASE = "https://x.supabase.co/storage/v1/object/gallery";
 
 function fakeSupabase(
   bioPage: Record<string, unknown> = { blocks: [], socials: [] },

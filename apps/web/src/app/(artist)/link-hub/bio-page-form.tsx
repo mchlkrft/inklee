@@ -121,6 +121,7 @@ export default function BioPageForm({
   collections = [],
   richBlocksAllowed = false,
   goodsAvailability,
+  gallerySignedUrls = {},
 }: {
   bioPage: BioPageSettings;
   /** The artist's LIVE collections, for the featured-collection picker. */
@@ -135,11 +136,27 @@ export default function BioPageForm({
    *  server always computes this (goods-visibility.ts); optional only so a
    *  missing prop fails open (no false warning) rather than crashing. */
   goodsAvailability?: Record<BioGoodsDestination, boolean>;
+  /** Canonical gallery URL -> short-lived SIGNED URL, for thumbnails only
+   *  (LO-5 DPIA R4, migration 0151). Gallery objects are private, so the
+   *  stored `image.url` renders nothing on its own, not even for the artist
+   *  who owns it. Never written back: the form saves `image.url`, and the
+   *  parser would refuse a `/object/sign/` URL anyway. */
+  gallerySignedUrls?: Record<string, string>;
 }) {
   const [state, action, pending] = useActionState<State, FormData>(
     saveBioPageAction,
     null,
   );
+
+  // Thumbnails signed by the server at page load, plus any signed at upload
+  // time this session. Without the second half, an image the artist just
+  // uploaded would show as blank until a reload, because the server-rendered
+  // map predates it.
+  const [freshSignedUrls, setFreshSignedUrls] = useState<
+    Record<string, string>
+  >({});
+  const signedThumb = (url: string): string | undefined =>
+    freshSignedUrls[url] ?? gallerySignedUrls[url];
 
   const [blocks, setBlocks] = useState<BioBlock[]>(bioPage.blocks);
   const [socials, setSocials] = useState<BioSocial[]>(bioPage.socials);
@@ -250,6 +267,12 @@ export default function BioPageForm({
           setUploadError(result.error);
           return;
         }
+        // Remember the signed URL minted at upload time so the thumbnail
+        // appears now, not after a reload (0151: the stored url is inert).
+        if (result.signedUrl) {
+          const signed = result.signedUrl;
+          setFreshSignedUrls((prev) => ({ ...prev, [result.url]: signed }));
+        }
         if (current.length < MAX_GALLERY_IMAGES) {
           setGalleryImages(blockId, [...current, { url: result.url }]);
         }
@@ -301,6 +324,12 @@ export default function BioPageForm({
         if (!result.ok) {
           setImportError(result.error);
           return;
+        }
+        // Remember the signed URL minted at upload time so the thumbnail
+        // appears now, not after a reload (0151: the stored url is inert).
+        if (result.signedUrl) {
+          const signed = result.signedUrl;
+          setFreshSignedUrls((prev) => ({ ...prev, [result.url]: signed }));
         }
         if (current.length < MAX_GALLERY_IMAGES) {
           setGalleryImages(blockId, [...current, { url: result.url }]);
@@ -650,12 +679,22 @@ export default function BioPageForm({
                           key={imgIndex}
                           className="flex flex-wrap items-start gap-2 rounded-md border border-border/60 px-2 py-2"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={img.url}
-                            alt={img.alt ?? img.caption ?? ""}
-                            className="h-16 w-16 shrink-0 rounded object-cover"
-                          />
+                          {/* Private object: renders only from a signed URL,
+                              and shows an empty frame rather than falling back
+                              to anything unsigned (0151). */}
+                          {signedThumb(img.url) ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={signedThumb(img.url)}
+                              alt={img.alt ?? img.caption ?? ""}
+                              className="h-16 w-16 shrink-0 rounded object-cover"
+                            />
+                          ) : (
+                            <span
+                              aria-hidden
+                              className="h-16 w-16 shrink-0 rounded bg-muted"
+                            />
+                          )}
                           <div className="flex-1 space-y-2">
                             <input
                               value={img.caption ?? ""}

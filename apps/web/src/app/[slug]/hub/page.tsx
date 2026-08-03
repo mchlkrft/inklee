@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import * as Sentry from "@sentry/nextjs";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -12,6 +13,7 @@ import { templateStyles } from "@inklee/shared/page-template-styles";
 import { loadHubFeatureData } from "@/lib/server/hub-feature-data";
 import { getAccountOverrides } from "@/lib/entitlements-server";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
+import { signGalleryImageUrls } from "@/lib/server/gallery-signed-urls";
 import {
   HubFeatureBlock,
   HubGoodsBlock,
@@ -140,6 +142,45 @@ export default async function ArtistHubPage({
     );
   } catch {
     richBlocksAllowed = false;
+  }
+
+  // SIGNED GALLERY URLS (LO-5 DPIA R4, counsel Q18, migration 0151).
+  //
+  // Gallery objects live in the private `gallery` bucket and do not resolve
+  // without a signature, so the stored block URL is inert and a viewable URL
+  // has to be minted here, per render. ONE batched storage call for the whole
+  // page rather than one per image: a page may carry up to
+  // MAX_BLOCKS_PER_TYPE * MAX_GALLERY_IMAGES = 120 objects.
+  //
+  // Only signed when the artist is CURRENTLY entitled. That is not a
+  // duplicate of the render gate below, it is the more important half of it:
+  // the gate stops the markup being emitted, this stops the signature being
+  // minted at all, so a downgraded artist's objects have nothing outstanding
+  // against them beyond URLs already handed out (bounded by the 15-minute TTL,
+  // see GALLERY_SIGNED_URL_TTL_SECONDS).
+  //
+  // FAILS CLOSED, and note what that means here: signing failure omits the
+  // images. It never falls back to an unsigned or public URL, because there is
+  // no such URL to fall back to and inventing one is exactly the R4 defect. A
+  // 500 on a stranger's public page would be the wrong trade for a storage
+  // blip, so this follows the same posture as the entitlement read above:
+  // the page renders, the gallery does not.
+  let signedGalleryUrls = new Map<string, string>();
+  if (richBlocksAllowed) {
+    const galleryUrls = blocks.flatMap((b) =>
+      b.type === "image_gallery" ? b.images.map((i) => i.url) : [],
+    );
+    if (galleryUrls.length > 0) {
+      try {
+        signedGalleryUrls = await signGalleryImageUrls(galleryUrls);
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { action: "hub_gallery_sign" },
+          extra: { artistId: profile.id },
+        });
+        signedGalleryUrls = new Map();
+      }
+    }
   }
 
   const pageStyle: React.CSSProperties = {
@@ -305,6 +346,7 @@ export default async function ArtistHubPage({
                   images={block.images}
                   layout={block.layout}
                   tpl={tpl}
+                  signedUrls={signedGalleryUrls}
                 />
               );
             }

@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // mocking it away — the half-failure behaviour is the whole point of this
 // module and only shows up if a "move" can actually fail mid-run.
 
-const BASE = "https://x.supabase.co/storage/v1/object/public/logos";
+const BASE = "https://x.supabase.co/storage/v1/object/gallery";
 
 type OverrideRow = {
   artist_id: string;
@@ -21,7 +21,7 @@ const h = vi.hoisted(() => {
   const profiles: Record<string, { settings: unknown }> = {};
   const overrides: Record<string, OverrideRow> = {};
   const buckets: Record<string, Set<string>> = {
-    logos: new Set(),
+    gallery: new Set(),
     "gallery-archive": new Set(),
   };
   const forceFail = new Set<string>();
@@ -224,7 +224,7 @@ import {
   restoreArtistGallery,
   galleryCurrentlyEntitled,
   runGalleryRelocationSweep,
-  GALLERY_PUBLIC_BUCKET,
+  GALLERY_LIVE_BUCKET,
   GALLERY_ARCHIVE_BUCKET,
 } from "@/lib/server/gallery-relocation";
 
@@ -249,7 +249,7 @@ function galleryProfile(artistId: string, ...names: string[]) {
 beforeEach(() => {
   for (const k of Object.keys(h.profiles)) delete h.profiles[k];
   for (const k of Object.keys(h.overrides)) delete h.overrides[k];
-  h.buckets.logos = new Set();
+  h.buckets.gallery = new Set();
   h.buckets["gallery-archive"] = new Set();
   h.forceFail.clear();
   h.forceListFail.clear();
@@ -262,14 +262,14 @@ describe("relocateArtistGallery", () => {
   it("moves every hosted object out of the public bucket and marks the artist archived", async () => {
     h.profiles.u1 = galleryProfile("u1", "a.webp", "b.webp");
     h.overrides.u1 = { artist_id: "u1" };
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u1/hub/a.webp");
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u1/hub/b.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u1/hub/a.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u1/hub/b.webp");
 
     const result = await relocateArtistGallery("u1");
 
     expect(result).toEqual({ ok: true, moved: 2, failed: 0, failedPaths: [] });
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u1/hub/a.webp")).toBe(false);
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u1/hub/b.webp")).toBe(false);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u1/hub/a.webp")).toBe(false);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u1/hub/b.webp")).toBe(false);
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u1/hub/a.webp")).toBe(true);
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u1/hub/b.webp")).toBe(true);
     expect(h.overrides.u1.gallery_relocated_at).toBeTruthy();
@@ -305,8 +305,8 @@ describe("relocateArtistGallery", () => {
   it("a half-failed relocation leaves the marker NULL and is observable via Sentry", async () => {
     h.profiles.u3 = galleryProfile("u3", "ok.webp", "bad.webp");
     h.overrides.u3 = { artist_id: "u3" };
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u3/hub/ok.webp");
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u3/hub/bad.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u3/hub/ok.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u3/hub/bad.webp");
     h.forceFail.add("u3/hub/bad.webp");
 
     const result = await relocateArtistGallery("u3");
@@ -318,7 +318,7 @@ describe("relocateArtistGallery", () => {
     // The succeeding object DID move (never left half-relocated as a set).
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u3/hub/ok.webp")).toBe(true);
     // The failing object is untouched — still public, still retryable.
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u3/hub/bad.webp")).toBe(true);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u3/hub/bad.webp")).toBe(true);
     // NOT marked archived: a half-done relocation must not read as "handled".
     expect(h.overrides.u3.gallery_relocated_at).toBeFalsy();
     expect(h.captureMessage).toHaveBeenCalledWith(
@@ -334,8 +334,8 @@ describe("relocateArtistGallery", () => {
   it("is retryable: a RETRY after a half-failure completes the job and marks archived", async () => {
     h.profiles.u4 = galleryProfile("u4", "ok.webp", "wasbad.webp");
     h.overrides.u4 = { artist_id: "u4" };
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u4/hub/ok.webp");
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u4/hub/wasbad.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u4/hub/ok.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u4/hub/wasbad.webp");
     h.forceFail.add("u4/hub/wasbad.webp");
 
     const first = await relocateArtistGallery("u4");
@@ -382,7 +382,7 @@ describe("relocateArtistGallery", () => {
     // it archived.
     h.profiles.u9 = galleryProfile("u9", "bad.webp");
     h.overrides.u9 = { artist_id: "u9" };
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("u9/hub/bad.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("u9/hub/bad.webp");
     h.forceFail.add("u9/hub/bad.webp");
     h.forceListFail.add("u9/hub/bad.webp");
 
@@ -394,7 +394,7 @@ describe("relocateArtistGallery", () => {
     expect(result.failedPaths).toEqual(["u9/hub/bad.webp"]);
     // Still physically public — a false "already_done" here would have left
     // it exactly here while reporting success.
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u9/hub/bad.webp")).toBe(true);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u9/hub/bad.webp")).toBe(true);
     expect(h.overrides.u9.gallery_relocated_at ?? null).toBeNull();
   });
 });
@@ -408,7 +408,7 @@ describe("restoreArtistGallery", () => {
     // bucket afterwards.
     const result = await restoreArtistGallery("u6");
     expect(result).toEqual({ ok: true, moved: 0, failed: 0, failedPaths: [] });
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].size).toBe(0);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].size).toBe(0);
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].size).toBe(0);
   });
 
@@ -423,7 +423,7 @@ describe("restoreArtistGallery", () => {
     const result = await restoreArtistGallery("u7");
 
     expect(result).toEqual({ ok: true, moved: 1, failed: 0, failedPaths: [] });
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u7/hub/a.webp")).toBe(true);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u7/hub/a.webp")).toBe(true);
     expect(h.overrides.u7.gallery_relocated_at).toBeNull();
   });
 
@@ -443,7 +443,7 @@ describe("restoreArtistGallery", () => {
     expect(h.overrides.u8.gallery_relocated_at).toBe(
       "2026-07-01T00:00:00.000Z",
     );
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u8/hub/ok.webp")).toBe(true);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u8/hub/ok.webp")).toBe(true);
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u8/hub/bad.webp")).toBe(true);
   });
 
@@ -470,7 +470,7 @@ describe("restoreArtistGallery", () => {
     );
     // Untouched in storage too — still archived, still privately reachable.
     expect(h.buckets[GALLERY_ARCHIVE_BUCKET].has("u8b/hub/a.webp")).toBe(true);
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("u8b/hub/a.webp")).toBe(false);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("u8b/hub/a.webp")).toBe(false);
     expect(h.captureException).toHaveBeenCalled();
   });
 });
@@ -510,7 +510,7 @@ describe("runGalleryRelocationSweep", () => {
   it("relocates an unentitled free artist not yet archived", async () => {
     h.overrides.a1 = { artist_id: "a1", plan_tier: "free" };
     h.profiles.a1 = galleryProfile("a1", "x.webp");
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("a1/hub/x.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("a1/hub/x.webp");
 
     const result = await runGalleryRelocationSweep();
 
@@ -527,13 +527,13 @@ describe("runGalleryRelocationSweep", () => {
       entitlement_overrides: { rich_content_blocks: true },
     };
     h.profiles.a2 = galleryProfile("a2", "x.webp");
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("a2/hub/x.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("a2/hub/x.webp");
 
     const result = await runGalleryRelocationSweep();
 
     expect(result.relocated).toBe(0);
     expect(h.overrides.a2.gallery_relocated_at ?? null).toBeNull();
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("a2/hub/x.webp")).toBe(true);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("a2/hub/x.webp")).toBe(true);
   });
 
   it("restores a currently-entitled artist who is still marked archived", async () => {
@@ -549,7 +549,7 @@ describe("runGalleryRelocationSweep", () => {
 
     expect(result.restored).toBe(1);
     expect(h.overrides.a3.gallery_relocated_at).toBeNull();
-    expect(h.buckets[GALLERY_PUBLIC_BUCKET].has("a3/hub/x.webp")).toBe(true);
+    expect(h.buckets[GALLERY_LIVE_BUCKET].has("a3/hub/x.webp")).toBe(true);
   });
 
   it("leaves an unentitled, already-archived artist alone (nothing to do in either direction)", async () => {
@@ -568,7 +568,7 @@ describe("runGalleryRelocationSweep", () => {
   it("counts a still-failing candidate separately so it is visible without reading Sentry", async () => {
     h.overrides.a5 = { artist_id: "a5", plan_tier: "free" };
     h.profiles.a5 = galleryProfile("a5", "bad.webp");
-    h.buckets[GALLERY_PUBLIC_BUCKET].add("a5/hub/bad.webp");
+    h.buckets[GALLERY_LIVE_BUCKET].add("a5/hub/bad.webp");
     h.forceFail.add("a5/hub/bad.webp");
 
     const result = await runGalleryRelocationSweep();

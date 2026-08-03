@@ -552,6 +552,52 @@ appearance.tsx` (the one native appearance screen) is global-only and
   build: the server route does not exist in production yet, and reaching
   devices additionally needs the fresh EAS build noted above once it does.
 
+- **2026-08-03 — R4: gallery objects move to a PRIVATE bucket, served only
+  through short-lived signed URLs (LO-5 DPIA §4 R4, counsel Q18, migration
+  0151).** A WIRE CHANGE to an existing native surface, recorded here because
+  the field an installed build renders changed MEANING rather than merely
+  gaining a sibling.
+
+  Gallery images used to live in the public `logos` bucket, so
+  `BioGalleryImage.url` was directly renderable. It now points at the private
+  `gallery` bucket and is deliberately NOT fetchable: a GET without a
+  signature is refused. Rendering therefore requires the new display-only
+  `signedUrl`, attached per response by `GET /api/mobile/settings/hub` and
+  returned by `POST /api/mobile/settings/hub/gallery-image`. `url` keeps its
+  meaning as the STORED identity and is what the POST round-trips, so a client
+  cannot save a signature back into the settings JSON (the parser rebuilds each
+  image and drops `signedUrl`; `sanitizeHostedGalleryImageUrl` refuses an
+  `/object/sign/` URL as a second line of defence).
+
+  **Not a breaking wire change in the register's usual sense** (no value was
+  added to a union the app switches on or indexes by), but it IS a semantic
+  change to an existing field, so an OLD build renders an empty frame where a
+  thumbnail used to be. That is acceptable and bounded for exactly one reason:
+  the `rich_content_blocks` capability has never been granted to any artist and
+  nothing has ever been uploaded through the gallery, so no installed build has
+  gallery data to break. The same change made after the capability was granted
+  would have degraded live artist pages, which is precisely why counsel's Q18
+  said "before the capability is granted to anyone".
+
+  WARNING: **a fresh EAS build is a gate for this**, in addition to the
+  existing `rich_content_blocks` build gate above. An installed build predating
+  this change cannot show gallery thumbnails at all.
+
+  Web kept at parity in the same change: the public Hub page and the web editor
+  both render from signed URLs and neither falls back to the unsigned stored
+  URL (`renderableGalleryImages`, deliberately a tested pure function rather
+  than a fallback expression buried in JSX). Files:
+  `apps/mobile/src/components/GalleryBlockEditor.tsx`,
+  `packages/shared/src/bio-page.ts` (`HOSTED_GALLERY_PRIVATE_MARKER`, plus the
+  split of `sanitizeHostedGalleryImageUrl` from the new
+  `sanitizeHostedPublicImageUrl` that shop hero media keeps using),
+  `packages/shared/src/mobile-api.ts`,
+  `apps/web/src/lib/server/gallery-signed-urls.ts` (new),
+  `apps/web/src/app/api/mobile/settings/hub/route.ts`,
+  `apps/web/src/app/api/mobile/settings/hub/gallery-image/route.ts`,
+  `apps/web/supabase/migrations/0151_gallery_private_bucket.sql` (new). On
+  LOCAL `master`, unpushed; migration 0151 is NOT in production.
+
 - **2026-08-01 — FD12: native REVISE screen closes the parity gap the P9
   slice-2b entry below named ("mobile already had the revise ROUTE from A7,
   but no native SCREEN yet").** `apps/mobile/app/bookings/payments/[id]/

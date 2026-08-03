@@ -1,0 +1,59 @@
+-- 0151: gallery objects move to a PRIVATE bucket (LO-5 DPIA R4, counsel Q18).
+--
+-- DPIA §4 R4: "Unguessable URLs are not access control. Counsel named this
+-- directly. Gallery objects sit at public URLs; signed expiring URLs are dated
+-- and not built." The controller's §7 disposition made this a precondition of
+-- the gallery activation gate, recorded as the approval key
+-- `dpia_r4_signed_gallery_urls_built`.
+--
+-- WHY A NEW BUCKET RATHER THAN SIGNING OVER THE EXISTING ONE. A signed URL
+-- over a PUBLIC object is theatre: the object stays fetchable at its unsigned
+-- `/object/public/logos/...` URL, so the signature grants nothing and withholds
+-- nothing. The only honest form of this control is that the object is
+-- unreachable without a signature. That means a private bucket.
+--
+-- The existing `logos` bucket cannot simply be flipped private: it is shared by
+-- profile logos, cover images, flash designs, goods images and Instagram
+-- previews (see grep for `.from("logos")`), all of which are deliberately
+-- public and none of which are in this DPIA's scope. So gallery objects get
+-- their own bucket rather than dragging five unrelated features private.
+--
+-- COST NOTE, and the reason this is cheap TODAY specifically: the gallery
+-- capability has never been granted to any artist and nothing has ever been
+-- uploaded through it (DPIA §2 activity 2, independently noted at
+-- bio-page.ts's `sanitizeHostedGalleryImageUrl`). There is therefore no data to
+-- migrate, no already-public object whose URL has already leaked into a crawler
+-- or a CDN, and no third-party cache to expire. Every one of those becomes a
+-- real, unfixable cost the day after the capability is granted, which is
+-- exactly why counsel's Q18 said "before the capability is granted to anyone"
+-- rather than "before a marketing push".
+--
+-- ZERO POLICIES, deliberately, mirroring `gallery-archive` (0144),
+-- `studio-media` (0078) and `welcome-pack-files` (0086): RLS is enabled on
+-- `storage.objects` and no policy names this bucket, which is service-role-only
+-- by default. Reads happen ONLY through short-lived signed URLs minted
+-- server-side by `gallery-signed-urls.ts`. There is deliberately no
+-- owner-select case even for the artist who uploaded the image: the editor
+-- renders through the same signing path as the public page, so no client ever
+-- needs direct bucket access.
+--
+-- RELATIONSHIP TO 0144. `gallery-archive` keeps its job (a downgraded artist's
+-- objects are relocated out of the live bucket) but it is no longer the control
+-- that stops public reachability, because the live bucket is now private too.
+-- Relocation becomes defence in depth; the primary control is that nothing
+-- resolves without a signature. `gallery-relocation.ts` moves objects between
+-- `gallery` and `gallery-archive` after this migration, not `logos` and
+-- `gallery-archive`.
+--
+-- CONVERGENCE (AGENTS.md: a migration that re-runs without erroring has not
+-- necessarily converged). The `on conflict ... do update set public =
+-- excluded.public` below is an unconditional replace, not an existence guard:
+-- re-running it against a bucket that someone has flipped to `public = true`
+-- puts it back to false. An `on conflict do nothing` would exit 0 and leave the
+-- bucket public, which is precisely the non-convergent shape AGENTS.md
+-- documents. Proven by execution, not by reading: applied twice, then the
+-- bucket flipped public by hand and re-run, then the bucket row deleted by hand
+-- and re-run.
+insert into storage.buckets (id, name, public)
+values ('gallery', 'gallery', false)
+on conflict (id) do update set public = excluded.public;

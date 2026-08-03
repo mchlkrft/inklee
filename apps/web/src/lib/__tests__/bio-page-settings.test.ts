@@ -625,7 +625,7 @@ describe("sanitizeImageUrl", () => {
 // use the real Inklee-hosted shape (founder ruling FD4, 2026-08-01,
 // SUPERSEDES GB2: gallery images must be Inklee-hosted, so a `cdn.inklee`-style
 // stand-in URL is no longer "safe" — it is exactly what this parser now drops).
-const HOSTED = "https://x.supabase.co/storage/v1/object/public/logos/u1/hub";
+const HOSTED = "https://x.supabase.co/storage/v1/object/gallery/u1/hub";
 
 describe("parseBioPageSettings — image_gallery block", () => {
   function gallery(over: Record<string, unknown> = {}) {
@@ -763,17 +763,47 @@ describe("parseBioPageSettings — image_gallery block", () => {
 // The pure host+path restriction directly (FD4, 2026-08-01, SUPERSEDES GB2),
 // independent of the parser's other rules (caps, caption trimming, etc.).
 describe("sanitizeHostedGalleryImageUrl", () => {
-  it("accepts a supabase.co host under the logos bucket's public marker", () => {
+  // DISTINCTION CONTROL for the three refusals below: the legitimate case
+  // still works. A sanitizer that returned null for everything would satisfy
+  // every rejection test in this describe block.
+  it("accepts a supabase.co host under the PRIVATE gallery bucket's authenticated marker", () => {
     expect(sanitizeHostedGalleryImageUrl(`${HOSTED}/a.jpg`)).toBe(
       `${HOSTED}/a.jpg`,
     );
     expect(
       sanitizeHostedGalleryImageUrl(
-        "http://project-ref.supabase.co/storage/v1/object/public/logos/x.png",
+        "http://project-ref.supabase.co/storage/v1/object/gallery/x.png",
       ),
-    ).toBe(
-      "http://project-ref.supabase.co/storage/v1/object/public/logos/x.png",
-    );
+    ).toBe("http://project-ref.supabase.co/storage/v1/object/gallery/x.png");
+  });
+
+  // LO-5 DPIA R4 (migration 0151). The whole point of moving gallery objects
+  // to a private bucket is that a PUBLIC object can never be one. If this
+  // parser accepted a public URL, a hand-crafted save payload would put a
+  // permanently world-readable image of someone's skin back on a public page,
+  // and every signed URL elsewhere in the feature would be decoration.
+  it("REFUSES the pre-0151 public-bucket URL, including the public form of the gallery bucket itself", () => {
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "https://x.supabase.co/storage/v1/object/public/logos/u1/hub/a.webp",
+      ),
+    ).toBeNull();
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "https://x.supabase.co/storage/v1/object/public/gallery/u1/hub/a.webp",
+      ),
+    ).toBeNull();
+  });
+
+  it("REFUSES a signed URL, which must never be persisted", () => {
+    // A signed URL is a bearer token with an expiry. Storing one would leak a
+    // credential into the settings JSON and leave a dead image behind when it
+    // lapsed, so the inert form is the only storable shape.
+    expect(
+      sanitizeHostedGalleryImageUrl(
+        "https://x.supabase.co/storage/v1/object/sign/gallery/u1/hub/a.webp?token=eyJhbGciOi",
+      ),
+    ).toBeNull();
   });
 
   it("rejects a well-formed http(s) URL on a non-supabase.co host", () => {
@@ -782,12 +812,12 @@ describe("sanitizeHostedGalleryImageUrl", () => {
     ).toBeNull();
   });
 
-  it("rejects a supabase.co host missing the logos-bucket public marker", () => {
+  it("rejects a supabase.co host missing the gallery-bucket marker", () => {
     // Right host, wrong path shape (a different bucket, or not a storage URL
     // at all) — the host alone is not sufficient.
     expect(
       sanitizeHostedGalleryImageUrl(
-        "https://x.supabase.co/storage/v1/object/public/other-bucket/a.jpg",
+        "https://x.supabase.co/storage/v1/object/other-bucket/a.jpg",
       ),
     ).toBeNull();
     expect(
@@ -802,7 +832,7 @@ describe("sanitizeHostedGalleryImageUrl", () => {
     // proves the suffix check is anchored, not a bare substring match.
     expect(
       sanitizeHostedGalleryImageUrl(
-        "https://notsupabase.co/storage/v1/object/public/logos/a.jpg",
+        "https://notsupabase.co/storage/v1/object/gallery/a.jpg",
       ),
     ).toBeNull();
   });

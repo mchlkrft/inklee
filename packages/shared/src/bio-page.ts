@@ -175,9 +175,22 @@ export type BioFeaturedCollectionBlock = {
 /** One image in a gallery block. `url` is an absolute http(s) image URL (the
  *  artist's uploaded media); `caption` and `alt` are optional short strings. */
 export type BioGalleryImage = {
+  /** The STORED identity of the image, and the only field that is persisted.
+   *  Since migration 0151 (LO-5 DPIA R4) this is the INERT
+   *  authenticated-object URL of a private-bucket object: it is not fetchable,
+   *  by design. Never render it directly. */
   url: string;
   caption?: string;
   alt?: string;
+  /** DISPLAY ONLY, never persisted: a short-lived signed URL for `url`,
+   *  attached by a read surface (GET /api/mobile/settings/hub) so a client can
+   *  actually show the image. `parseBioPageSettings` rebuilds each image from
+   *  scratch and therefore drops this on every save, which is what keeps a
+   *  bearer token out of the settings JSON; `sanitizeHostedGalleryImageUrl`
+   *  refuses a `/object/sign/` URL as a second line of defence. It is a
+   *  separate key rather than a rewritten `url` precisely so a client cannot
+   *  round-trip a signature back into storage. */
+  signedUrl?: string;
 };
 
 /** A media block carrying the artist's own uploaded images. A Plus rich block
@@ -249,7 +262,9 @@ export function preserveGoodsDestinationOnSave(
 ): BioBlock[] {
   const rawGoods = rawBlocks.find(
     (b): b is Record<string, unknown> =>
-      !!b && typeof b === "object" && (b as Record<string, unknown>).type === "goods",
+      !!b &&
+      typeof b === "object" &&
+      (b as Record<string, unknown>).type === "goods",
   );
   if (!rawGoods || rawGoods.destination !== undefined) return parsedBlocks;
   const currentGoods = currentBlocks.find(isGoodsBlock);
@@ -527,24 +542,96 @@ export function sanitizeImageUrl(raw: unknown): string | null {
  *  this comment previously named only hub-images.ts as converted.) */
 export const HOSTED_LOGOS_PUBLIC_MARKER = "/storage/v1/object/public/logos/";
 
-/** Allow only an Inklee-HOSTED absolute http(s) image URL: a `supabase.co`
- *  host, under the `logos` bucket's public-object path (founder ruling FD4,
- *  2026-08-01, SUPERSEDES GB2). A public gallery image must never render
- *  from an arbitrary third-party host. Safe to enforce strictly
- *  retroactively: the gallery capability has never been granted, so no
- *  external-URL gallery data exists to break (verified against
- *  `computeLegacyFreeV1Grant`, entitlements.ts).
+/** The Supabase Storage AUTHENTICATED-object marker for the private `gallery`
+ *  bucket (migration 0151, LO-5 DPIA R4 / counsel Q18). This is the
+ *  `/object/{bucket}/` endpoint, NOT `/object/public/{bucket}/`: a GET against
+ *  it with no credentials is refused by Storage, which is the entire point.
+ *  The canonical URL stored in a gallery block is this inert form; a viewable
+ *  URL is minted per render by `gallery-signed-urls.ts` and never persisted.
  *
- *  Trust boundary note: this matches the CSP's existing `img-src
- *  https://*.supabase.co` directive (next.config.ts) — any `*.supabase.co`
- *  subdomain, not only this project's — so it is not a NEW trust boundary,
- *  only this parser catching up to what the page already renders. A
- *  same-project-only check would be strictly tighter but needs an env read,
- *  which this module deliberately has none of (PURE, safe for client
- *  bundles); the actual upload/import pipeline only ever writes to THIS
- *  project's bucket, so this only matters for a hand-crafted save payload
- *  naming a foreign Supabase project's public storage. */
+ *  Kept as a shared constant for the same reason HOSTED_LOGOS_PUBLIC_MARKER is
+ *  (HUB-GAL-006): `hub-images.ts` and `gallery-signed-urls.ts` both derive
+ *  storage paths from it, and a second private copy would be free to drift
+ *  from what this gate accepts. */
+export const HOSTED_GALLERY_PRIVATE_MARKER = "/storage/v1/object/gallery/";
+
+/** Allow only an Inklee-HOSTED absolute http(s) image URL: a `supabase.co`
+ *  host, under the PRIVATE `gallery` bucket's authenticated-object path
+ *  (founder ruling FD4, 2026-08-01, SUPERSEDES GB2; bucket moved from the
+ *  public `logos` bucket to the private `gallery` bucket by migration 0151 for
+ *  LO-5 DPIA R4). A gallery image must never render from an arbitrary
+ *  third-party host, and — new in 0151 — must never resolve at all without a
+ *  signature. Safe to enforce strictly retroactively: the gallery capability
+ *  has never been granted, so no gallery data of ANY shape exists to break
+ *  (verified against `computeLegacyFreeV1Grant`, entitlements.ts).
+ *
+ *  TWO SHAPES THIS MUST REFUSE, and why `startsWith` rather than the
+ *  `includes` the pre-0151 version used:
+ *
+ *   - `/object/public/...` (any bucket), the pre-0151 shape. Accepting it
+ *     would let a hand-crafted save payload put a permanently world-readable
+ *     object back into a gallery block, which is exactly the R4 risk.
+ *   - `/object/sign/...`. A SIGNED url must never be persisted: it carries a
+ *     bearer token and it expires, so storing one would both leak a credential
+ *     into the settings JSON and leave a dead image behind when it lapsed.
+ *
+ *  Anchoring at the start of the pathname excludes both by construction, since
+ *  a pathname cannot begin with two different prefixes. That is deliberate,
+ *  and it is why there are no separate `if` statements rejecting them here: an
+ *  explicit check for either would be unreachable, and an unreachable guard
+ *  reads as a control while testing as nothing. Both refusals are pinned by
+ *  tests in `bio-page-settings.test.ts`, which red if this is ever loosened
+ *  back to `includes` or repointed at the public marker.
+ *
+ *  Trust boundary note (unchanged from FD4): the `*.supabase.co` host test
+ *  matches the CSP's existing `img-src https://*.supabase.co` directive
+ *  (next.config.ts) — any `*.supabase.co` subdomain, not only this project's —
+ *  so it is not a NEW trust boundary. A same-project-only check would be
+ *  tighter but needs an env read, which this module deliberately has none of
+ *  (PURE, safe for client bundles). Note this also means a LOCAL stack's
+ *  `127.0.0.1:54321` storage URL does not pass; that was already true before
+ *  0151 and is unchanged by it. */
 export function sanitizeHostedGalleryImageUrl(raw: unknown): string | null {
+  const url = sanitizeImageUrl(raw);
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!parsed.hostname.toLowerCase().endsWith(".supabase.co")) return null;
+  if (!parsed.pathname.startsWith(HOSTED_GALLERY_PRIVATE_MARKER)) return null;
+  return url;
+}
+
+/** The FD4 trust boundary for Inklee-hosted images that are legitimately
+ *  PUBLIC: a `supabase.co` host under the public `logos` bucket. This is the
+ *  pre-0151 `sanitizeHostedGalleryImageUrl` behaviour, preserved verbatim
+ *  under an accurate name.
+ *
+ *  IT EXISTS BECAUSE 0151 SPLIT ONE GATE INTO TWO, and the split is a
+ *  scope boundary, not a refactor. Before 0151 the shop's hero media
+ *  (surface-content.ts) shared the gallery gate deliberately, so the two could
+ *  not drift (the HUB-GAL-006 lesson). Moving gallery objects to a private
+ *  bucket for LO-5 DPIA R4 made that sharing wrong: hero media is shop
+ *  branding on a public commerce surface, it is NOT one of the DPIA's
+ *  enumerated processing activities (§2 lists gallery images; it does not list
+ *  hero media), and it has no signing path built. Silently dragging it private
+ *  would have broken a working feature under cover of a compliance change.
+ *
+ *  So the drift risk HUB-GAL-006 warned about is now handled by naming rather
+ *  than by sharing: two gates, each named for the bucket it admits, neither
+ *  free to be edited on the assumption it governs the other.
+ *
+ *  NOTE FOR A LATER REVIEWER: whether hero media should ALSO be private is a
+ *  live question this function does not answer. An artist can upload a
+ *  photograph of a client's tattoo as a shop hero exactly as easily as into a
+ *  gallery, which would put the same category of image at a permanent public
+ *  URL. That is recorded as an analogous uninspected area rather than fixed
+ *  here, because R4's scope is the gallery and widening it silently is how a
+ *  gate review stops meaning anything. */
+export function sanitizeHostedPublicImageUrl(raw: unknown): string | null {
   const url = sanitizeImageUrl(raw);
   if (!url) return null;
   let parsed: URL;
@@ -688,8 +775,7 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
 
   if (o.type === "headline" || o.type === "text") {
     const max = o.type === "headline" ? MAX_HEADLINE : MAX_TEXT;
-    const text =
-      typeof o.text === "string" ? o.text.trim().slice(0, max) : "";
+    const text = typeof o.text === "string" ? o.text.trim().slice(0, max) : "";
     if (!text) return null; // an empty headline/text is nothing to render
     return { id: blockId(o, `${o.type}-${index}`), type: o.type, text };
   }
@@ -702,7 +788,13 @@ function parseOneBlock(raw: unknown, index: number): BioBlock | null {
       ? o.label.trim().slice(0, MAX_LINK_LABEL)
       : url;
   const isActive = typeof o.isActive === "boolean" ? o.isActive : true;
-  return { id: blockId(o, `link-${index}`), type: "link", label, url, isActive };
+  return {
+    id: blockId(o, `link-${index}`),
+    type: "link",
+    label,
+    url,
+    isActive,
+  };
 }
 
 /** Build raw block objects from the legacy { headline, text, customLinks }

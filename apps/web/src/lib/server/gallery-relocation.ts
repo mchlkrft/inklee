@@ -5,6 +5,7 @@ import { parseBioPageSettings } from "@/lib/bio-page-settings";
 import { DEFAULT_OVERRIDES, type AccountOverrides } from "@/lib/entitlements";
 import { richContentBlocksAllowed } from "@/lib/server/entitlement-gates";
 import { ownedHubImagePath } from "@/lib/server/hub-images";
+import { GALLERY_LIVE_BUCKET } from "@/lib/server/gallery-signed-urls";
 
 // Gallery downgrade relocation (counsel C1.5,
 // docs/legal/counsel-accountant-handoff-2026-08.md Part 4, migration 0144).
@@ -12,17 +13,39 @@ import { ownedHubImagePath } from "@/lib/server/hub-images";
 // Counsel's conditional pass on hosting client photographs "public but
 // unlisted" requires that a downgrade stop the OBJECTS being publicly
 // reachable, not only stop the block RENDERING. This module is the one place
-// that moves gallery bytes between the public `logos` bucket and the private
-// `gallery-archive` bucket; every caller (the billing reconcile hook, the
-// comp-expiry sweep, the nightly retry sweep) shares it so there is exactly
-// one relocate/restore implementation to get right.
+// that moves gallery bytes between the live bucket and the archive bucket;
+// every caller (the billing reconcile hook, the comp-expiry sweep, the nightly
+// retry sweep) shares it so there is exactly one relocate/restore
+// implementation to get right.
+//
+// CHANGED BY 0151 (LO-5 DPIA R4). The live bucket is no longer the public
+// `logos` bucket: gallery objects now live in the PRIVATE `gallery` bucket and
+// are served only through short-lived signed URLs (gallery-signed-urls.ts).
+// Two consequences worth being explicit about, because they change what this
+// module IS:
+//
+//   1. The source bucket constant had to move with it. Relocating out of
+//      `logos` after 0151 would find nothing there and report every artist
+//      already archived, which is a silent no-op, not an error.
+//   2. This is no longer the control that stops public reachability, because
+//      nothing is publicly reachable any more. It is now defence in depth, and
+//      a lifecycle distinction: `gallery` holds an entitled artist's objects,
+//      `gallery-archive` holds a lapsed artist's. Both are private with zero
+//      policies. The primary R4 control is that neither resolves unsigned; the
+//      primary downgrade control is that the render gate stops minting
+//      signatures. This module remains valuable as the thing that keeps a
+//      lapsed artist's objects out of the bucket the signing path reads from.
 //
 // RELOCATE, NEVER DELETE: an unentitled artist may resubscribe, so this only
-// ever moves bytes to a bucket nothing public can read, never removes them.
-// Deletion on gallery-item removal (hub-images.ts) and account closure
-// (account-deletion.ts) are separate, already-built paths this does not touch.
+// ever moves bytes, never removes them. Deletion on gallery-item removal
+// (hub-images.ts) and account closure (account-deletion.ts) are separate,
+// already-built paths this does not touch.
 
-export const GALLERY_PUBLIC_BUCKET = "logos";
+// The LIVE gallery bucket is private since 0151. Re-exported from the signing
+// module rather than redeclared, so the bucket has exactly one name in the
+// codebase (the HUB-GAL-006 lesson: a second copy of a storage literal is free
+// to drift from the first).
+export { GALLERY_LIVE_BUCKET };
 export const GALLERY_ARCHIVE_BUCKET = "gallery-archive";
 
 export type GalleryRelocationOutcome = {
@@ -165,7 +188,7 @@ export async function relocateArtistGallery(
   try {
     const result = await moveAll(
       artistId,
-      GALLERY_PUBLIC_BUCKET,
+      GALLERY_LIVE_BUCKET,
       GALLERY_ARCHIVE_BUCKET,
     );
     if (result.ok) {
@@ -214,7 +237,7 @@ export async function restoreArtistGallery(
     const result = await moveAll(
       artistId,
       GALLERY_ARCHIVE_BUCKET,
-      GALLERY_PUBLIC_BUCKET,
+      GALLERY_LIVE_BUCKET,
     );
     if (result.ok) {
       await serviceClient
