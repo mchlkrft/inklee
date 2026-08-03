@@ -3463,38 +3463,36 @@ findings:
         - "No check was made for mangling in object COMMENTS, ACL grantee names, or the auth/storage
           schemas."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "07accac0"
       proposed_action: "Migration 0154_repair_order_status_enum.sql (2026-08-03): a guarded,
         convergent DO block that renames the single CR/LF order_status label back to 'cancelled'.
         Applied FIRST in the release, ahead of 0149, because 0149's backfill coerces the literal
         'cancelled' at plan time and aborts against the mangled label. No-op on a clean enum;
-        refuses to guess if more than one label is mangled. NOT YET APPLIED TO PRODUCTION: that is
-        the founder-gated Phase A2.0 step. The finding stays routed to the release-sequencer's
-        post-apply catalog check for closure."
+        refuses to guess if more than one label is mangled. APPLIED TO PRODUCTION 2026-08-03 by the
+        release-sequencer under explicit founder go, as Phase A2.0 (the first apply step, ahead of
+        the 0125-0153 batch)."
       fixed_at: "2026-08-03"
     verification:
-      status: "partially-verified"
+      status: "passed"
       independent: true
-      verification_method: "Repair LOGIC independently verified by a different instance than the
-        one that wrote 0154 (2026-08-03), by execution against the LOCAL stack: the production
-        CR/LF corruption was reproduced in rolled-back transactions, 0149's verbatim backfill went
-        RED (22P02, enum_in, plan-time literal coercion) without 0154 and GREEN with it, and the
-        guard's convergence, idempotency, >1-mangled refusal and clean-cancelled-coexist cases were
-        all exercised. 0149's backfill was confirmed the SOLE apply-time order_status literal
-        coercion in 0125-0153 (0125/0126's 'cancelled' target fresh payment_request/collection
-        enums; 0149's trigger defers coercion and is a latent runtime, not apply-time, failure).
-        Test: apps/web/tests/db/order-status-enum-repair.test.ts, 7/7."
-      residual_risk: "PRODUCTION IS NOT YET REPAIRED: verification is on a local reproduction, not
-        prod; prod's enum state and its zero-cancelled-orders assumption were taken as given from
-        the 2026-08-03 read-only reads. R1 (operational, highest): 0154 is numerically LAST but
-        MUST apply BEFORE 0149; a naive `supabase db push` aborts at 0149 before reaching 0154,
-        leaving the fix inert. Mitigated procedurally by execution-plan step A2.0 (apply+record
-        0154 first, verify clean label, then the batch); fails LOUD (22P02 abort, no data loss) if
-        forgotten, but does NOT self-enforce. R2 (scope, acceptable): the guard catches only CR/LF;
-        tab/trailing-space corruption would be missed, but 0149 still aborts loudly then, so no
-        broken enum ships silently. Final closure requires the release-sequencer's post-apply
-        production catalog check."
+      verified_by: "inklee-verifier (local repair logic, 2026-08-03) and inklee-release-sequencer
+        (production pre/post-apply catalog reads, 2026-08-03); neither authored 0154"
+      verification_method: "Two independent passes, neither by the author of 0154. (1) LOGIC on the
+        LOCAL stack: corruption reproduced in rolled-back transactions, 0149's verbatim backfill
+        RED (22P02, enum_in, plan-time coercion) without 0154 and GREEN with it, guard
+        convergence/idempotency/>1-mangled all exercised; 0149 confirmed the sole apply-time
+        order_status coercion in 0125-0153 (order-status-enum-repair.test.ts, 7/7). (2) PRODUCTION,
+        by the release-sequencer: pre-apply catalog read showed the mangled 13-byte CR/LF label;
+        it ran 0154's SQL; post-apply read showed exactly pending(7)/paid(4)/cancelled(9)/
+        refunded(8)/partially_refunded(18) with no CR/LF; 0154 was recorded only after the SQL ran
+        and the effect was catalog-confirmed. The full 0125-0153 batch then applied clean, so
+        0149's backfill no longer raised 22P02 in production, which is the operational confirmation
+        the repair unblocked the release."
+      residual_risk: "None outstanding for the enum: production is repaired and catalog-verified,
+        and the batch applied clean over it. R2 (guard catches only CR/LF) is now a moot scope note
+        since the label is clean. A restoration-only rollback exists (re-introduces the corruption)
+        but is an escape hatch, not a revert."
     disclosure:
       public_repo_safe: true
       redactions_applied: "Cited by path, symbol and commit rather than reproduced. No secrets, personal
@@ -3528,6 +3526,14 @@ findings:
           apply-first ordering in the go-live execution plan A2.0. Independently verified by
           execution on the local stack (see verification). Stays open, routed to the
           release-sequencer's production catalog check, until prod is actually repaired."
+      - date: "2026-08-03"
+        actor: "inklee-release-sequencer (Phase A2.0, explicit founder go)"
+        action: "verified"
+        note: "0154 applied to PRODUCTION. Pre-apply read re-confirmed the mangled 13-byte CR/LF
+          label; post-apply read showed the clean five labels with 'cancelled' len 9 and no CR/LF;
+          0154 recorded only after the SQL ran and the effect was catalog-confirmed. The 0125-0153
+          batch then applied clean over the repaired enum (0149 no longer raised 22P02). Production
+          is repaired and catalog-verified by a process independent of the fix's author."
 
   - id: "DRIFT-POL-001"
     title: "Production's booking_interests RLS policy name contains an embedded CRLF, so the house `drop
@@ -20190,3 +20196,46 @@ coverage:
       the capability-never-granted fact against production immediately before the founder records
       any dpia_r*_built key; after the release-sequencer run, catalog-verify the gallery bucket
       row (public=false) and the projects.closed_at trigger in production."
+  - area: "Production apply of migrations 0125-0154 (the go-live schema release) and its
+      catalog verification, Phase A2 under explicit founder go 2026-08-03"
+    subsystem: "database"
+    coverage: "substantial"
+    review_type: "production-catalog-read"
+    last_inspected: "2026-08-03"
+    commit_inspected: "6056f173"
+    reviewer: "inklee-release-sequencer (sole production-access process; not the author of the
+      migrations)"
+    evidence: "Applied to production via the Management API, each file as one request proven to run
+      as a single implicit transaction (temp-table txid probe: distinct_txids=1), so each file is
+      atomic and recorded only after HTTP 2xx. 0154 (enum repair) first, catalog-verified clean,
+      then 0125-0153 in strict numeric order, all HTTP 201. Post-apply catalog reads confirmed
+      (actual values, not exit codes): 9/9 new tables present; purge_expired_tax_snapshots (single
+      overload), retention_legal_hold_active, tts_block_mutation present; triggers tts_no_mutation
+      (transaction_tax_snapshots), ctesc_review_no_mutation (connect_teardown_escalation_reviews),
+      projects_stamp_closed_at_trg (projects); deleted_account_records_connect_teardown_idx has
+      0148's corrected drop-then-create shape; storage.buckets gallery public=false with 0 policies;
+      retention_legal_holds and connect_teardown_escalations RLS-enabled with 0 policies (correct
+      service-role posture); 0146 orders_stripe_pi_idx is a partial UNIQUE index and
+      has_table_privilege('authenticated', orders/order_items, INSERT/UPDATE) is FALSE (revoke took
+      effect); order_status enum unchanged and clean (0154 not regressed); ledger holds 30 rows
+      0125-0154 with none of 0125-0153 missing. Live row counts on every touched pre-existing table
+      were <=60, so no build/backfill/index/revoke was a long operation. Migration soundness had
+      been independently reviewed pre-apply (the release-readiness workflow, this session)."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "TWO residuals, both bounded and both closing on the master push (A3), stated
+      rather than hidden. (1) The apply-before-push WINDOW: 0146 revoked authenticated writes on
+      orders/order_items, but the DEPLOYED code (origin/master) still has markGoodsPickedUp writing
+      orders through the user-scoped client. It is guarded by status='paid' and production has ZERO
+      paid orders (the one order is 'pending') and goods is dark, so nothing reachable breaks today;
+      a paid goods order arising before the push would error 42501. This is the normal
+      migrations-before-merge window and argues for pushing master promptly. All other deployed
+      orders/order_items writers are service-role and unaffected. (2) PostgREST still caches its
+      pre-migration schema; irrelevant until deployed code consumes the new tables (post-push), but
+      a live REST/RPC read must confirm the cache reloaded before anything depends on it (NOTIFY
+      pgrst reload was not sent; DDL likely auto-reloaded). A rollback runbook was written before
+      applying (scratchpad rollback_runbook_0125_0153.sql); two documented irreversibles:
+      order_item_type's 'bundle' value and 0146's deliberately-not-reconstructed FOR ALL policies."
+    recommended_next_inspection: "After A3 (push master), a LIVE REST read + a live RPC (e.g.
+      purge_expired_tax_snapshots dry-run) to confirm the PostgREST schema cache reloaded; and
+      confirm the deployed markGoodsPickedUpCore service-role fix closed the 0146 window."

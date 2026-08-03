@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `21a664f544b5`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `fcea1e64ae7f`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,9 +14,9 @@
 
 ## Executive summary
 
-154 recorded finding(s), 4 structural pattern(s), across 106 mapped area(s).
-130 remain open by remediation status. 122 are reachable (directly or conditionally) rather than latent.
-127 have not passed independent verification.
+154 recorded finding(s), 4 structural pattern(s), across 107 mapped area(s).
+129 remain open by remediation status. 122 are reachable (directly or conditionally) rather than latent.
+126 have not passed independent verification.
 195 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
@@ -37,21 +37,21 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 68 |
+| fixed-unverified | 67 |
 | in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
 | open | 52 |
 | risk-accepted | 2 |
-| verified | 21 |
+| verified | 22 |
 
 ## Findings by verification status
 
 | Verification | Count |
 | --- | --- |
 | not-started | 120 |
-| partially-verified | 5 |
-| passed | 27 |
+| partially-verified | 4 |
+| passed | 28 |
 | pending | 2 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -328,7 +328,6 @@ The single most productive defect shape in this repository. A Supabase call is d
 | CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | CRON-RMD-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
-| DRIFT-ENUM-001 | high | fixed-unverified | partially-verified | 07accac0 |
 | PAY-AUTHZ-001 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-AUTHZ-002 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-CONN-001 | high | fixed-unverified | not-started | 7e59c79 |
@@ -607,31 +606,30 @@ These are the register's highest-value entries for an auditor: places a recorded
 16. **CRON-CLN-001** (high, unverified): cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records
 17. **CRON-RMD-001** (high, unverified): Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46
 18. **DATA-MIG-001** (high, unverified): `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks
-19. **DRIFT-ENUM-001** (high, unverified): Production's order_status enum holds a mangled label `cancel\r\n  led` instead of `cancelled`, so 'cancelled'::order_status is not a valid value in production
-20. **GAL-REL-001** (high, unverified): The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public
-21. **GOODS-SET-001** (high, unverified): A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal
-22. **PAY-AUTHZ-001** (high, unverified): refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION
-23. **PAY-AUTHZ-002** (high, unverified): refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from
-24. **PAY-BAL-001** (high, unverified): deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production
-25. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
-26. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
-27. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
-28. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
-29. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
-30. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
-31. **PAY-RFD-011** (high, unverified): The refund path cannot tell a failed payment_collections read from an absent row, and the fallback can retain processor cost from the buyer twice
-32. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
-33. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
-34. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
-35. **WEB-XSS-001** (high, unverified): Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper
-36. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
-37. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
-38. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
-39. **Uninspected**: Mobile client (Expo app) / mobile
-40. **Uninspected**: Background jobs and crons / jobs
-41. **Uninspected**: Dependency security / secops
-42. **Uninspected**: Production configuration / platform
-43. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
+19. **GAL-REL-001** (high, unverified): The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public
+20. **GOODS-SET-001** (high, unverified): A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal
+21. **PAY-AUTHZ-001** (high, unverified): refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION
+22. **PAY-AUTHZ-002** (high, unverified): refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from
+23. **PAY-BAL-001** (high, unverified): deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production
+24. **PAY-CONN-001** (high, unverified): Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault
+25. **PAY-FEE-002** (high, unverified): The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount
+26. **PAY-ORD-001** (high, unverified): The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards
+27. **PAY-ORD-002** (high, unverified): A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing
+28. **PAY-RFD-001** (high, unverified): A fully refunded appointment payment request still reads `paid`: the refund converges the money and never moves the request's status
+29. **PAY-RFD-002** (high, unverified): Fee refund policy v1 'retain non-recoverable' retains the whole platform fee, not the actual Stripe cost
+30. **PAY-RFD-011** (high, unverified): The refund path cannot tell a failed payment_collections read from an absent row, and the fallback can retain processor cost from the buyer twice
+31. **PAY-RLS-005** (high, unverified): 0128 anon SELECT policies expose every sent payment request via the anon key
+32. **PAY-SPON-001** (high, unverified): Sponsorship waivers were released against PaymentIntent metadata (intent) rather than what settlement actually booked, erasing other bookings' real cap usage; and the first webhook release added a delta instead of converging to a target
+33. **PAY-WHK-001** (high, unverified): A P9 appointment-payment intent reaching the deposit webhook answers 409, which is a failed delivery that would push Stripe toward disabling the endpoint every real deposit settles on
+34. **WEB-XSS-001** (high, unverified): Stored XSS on the public /studios/[slug] page: JSON-LD emitted with raw JSON.stringify into dangerouslySetInnerHTML, bypassing the repo's own escaper
+35. **WHK-COLL-001** (high, unverified): P9 appointment-payment intents stamp metadata.booking_id into the same payment_intent.succeeded stream the deposit webhook claims, and the deposit webhook has no discriminator
+36. **WHK-ERR-001** (high, unverified): 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost
+37. **WHK-TOK-001** (high, unverified): The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried
+38. **Uninspected**: Mobile client (Expo app) / mobile
+39. **Uninspected**: Background jobs and crons / jobs
+40. **Uninspected**: Dependency security / secops
+41. **Uninspected**: Production configuration / platform
+42. **Uninspected**: Payments / Stripe webhook endpoint event subscription (Dashboard-side configuration)
 
 ## Limitations and confidence warnings
 
