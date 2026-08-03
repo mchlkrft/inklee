@@ -169,6 +169,12 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
 - [ ] **CL10/CL11/CL12** External image import; guest carts as a personal-data
       store; partial-refund disclosures.
 - [ ] **CL7** Terms coverage of the retained-processor-cost rule.
+- [ ] **LO-5 DPIA** — OWNER: Michel Kraeft (founder, controller), confirmed 2026-08-02.
+      **TARGET DATE: NOT SET.** Draft at `docs/legal/lo-5-dpia.md`; sections 1-5 written from
+      evidenced facts, sections 6-8 (necessity, risk acceptance, sign-off) require the controller
+      and are deliberately empty. Release-gating by prior decision: blocks the goods and gallery
+      activation gates. Counsel escalated its absence in three consecutive rounds and asked that
+      the next round's first line explain it if it arrives without a date.
 - [ ] **CL8** LO-10 round.
 - [ ] **CL1** The single consolidated approval, recorded against versioned
       artifacts. Everything above feeds it.
