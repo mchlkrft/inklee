@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Owner** | Michel Kraeft (founder, controller) — confirmed 2026-08-02 |
-| **Target date** | **NOT SET — see §0** |
-| **Status** | Draft. Sections 1-5 prepared by engineering from evidenced facts. Sections 6-8 require the controller's judgement and are NOT drafted. |
+| **Target date** | Met — controller decision recorded 2026-08-03 |
+| **Status** | **COMPLETED AND SIGNED.** Sections 1-5 prepared by engineering from evidenced facts; sections 6-8 adopted by the controller on 2026-08-03 following compliance review (founder-verified). |
 | **Release-gating** | Yes, by prior decision. Blocks the goods and gallery activation gates. |
 | **Prepared** | 2026-08-02 |
 
@@ -14,16 +14,17 @@
 
 ## 0. What is and is not done
 
-This document exists because counsel escalated its absence in three consecutive rounds. An owner
-is now recorded. **A target date is not**, and counsel's requirement was owner *and* date.
+**RESOLVED 2026-08-03.** This document existed as a draft because counsel escalated its absence
+in three consecutive rounds. Sections 6-8 were deliberately left empty by engineering — a DPIA
+whose risk acceptance was written by the engineer who built the system is not an assessment —
+and were **adopted by the controller on 2026-08-03** on the compliance review's recommendations,
+founder-verified. The assessment is complete and signed (§8). What remains is execution: the §7
+mitigations wired as gate preconditions, tracked in the activation-gate ledger and the ordered
+worklist.
 
-Engineering has drafted what rests on facts: what data is processed, where it lives, what controls
+Engineering drafted what rests on facts: what data is processed, where it lives, what controls
 already exist, and where the gaps are. Every factual claim here is traceable to a commit, a file,
 or an entry in `docs/audit/findings.yaml`.
-
-**Sections 6, 7 and 8 are deliberately empty.** They record controller decisions about acceptable
-risk, and a DPIA whose risk acceptance was written by the engineer who built the system is not an
-assessment. They need the owner named above.
 
 ---
 
@@ -152,26 +153,74 @@ Real and evidenced, not aspirational.
 
 ## 6. Necessity and proportionality assessment
 
-**NOT DRAFTED — controller judgement required.**
+**Adopted by the controller, 2026-08-03.**
 
-Must answer, per activity: is the processing necessary for the stated purpose, is the data
-minimised, is the retention period justified, and is there a less intrusive way to achieve the
-same outcome. The seeded dataset needs a written legitimate-interest balancing test.
+Two corrections to §4 are recorded first: **(a)** controllership for booking reference images
+is not open — `account-deletion-handoff.md` §1 determines it (Inklee processor, Artist
+controller, joint controllership where purposes are jointly determined); only the gallery case
+required fresh determination, made in §7 R7. **(b)** The seeded dataset is not unassessed — the
+Q20 round directed the Art. 6(1)(f) basis, Art. 14(5)(b) transparency page, and Art. 21
+delisting route; what was missing was the written balancing test, adopted below.
+
+Per activity:
+
+1. **Booking reference images — pass.** Necessary (a booking request without reference images
+   defeats the service purpose); minimised (private bucket, 30-day post-resolution purge); no
+   less intrusive means available.
+2. **Gallery images — conditional pass.** Necessary for the artist-portfolio purpose;
+   proportionate only with the §7 mitigations (attestation, signed URLs, takedown route) in
+   force. Retention correction adopted: relocated archive objects receive a deletion horizon of
+   **24 months after entitlement lapse without resubscription** (previously none).
+3. **Intake images — conditional pass.** Necessary for the enquiry purpose; proportionate only
+   once the 90-day purge exists. Until built, proportionality rests solely on the verified
+   zero-volume state.
+4. **Guest checkout — pass**, incorporated by reference from the C1.4 assessment (notice, RoP
+   entry, retention table, purge jobs).
+5. **Seeded dataset — pass, on the balancing test adopted here.** *Purpose:* an artist-facing
+   directory of tattoo studios. *Interests:* legitimate commercial and community interest in a
+   navigable map of the scene; subjects are businesses trading publicly. *Data:* name and
+   location facts only, from published sources, with per-row provenance and mandatory admin
+   review; no private-life data. *Impact:* minimal — publication mirrors the subjects' own
+   public trading presence. *Safeguards:* the transparency page ("why you are listed, how to be
+   removed"), the Art. 21 delisting route, small-cell suppression on the map, and no bulk
+   export. *Balance:* favourable. *Incident note:* the unexplained hard deletion of 1,363 rows
+   on 2026-07-21 is recorded as a handled incident; its mechanism must still be determined and
+   recorded in the register (round-2 §5.4 instruction, carried, not waived).
 
 ## 7. Risk acceptance and mitigation decisions
 
-**NOT DRAFTED — controller judgement required.**
+**Adopted by the controller, 2026-08-03.** Disposition of each §4 risk:
 
-For each risk in §4: mitigate, accept, or avoid. Where accepted, the reason and the residual level
-must be recorded. Engineering can implement any mitigation chosen here; it cannot choose which
-risks are acceptable.
+| Risk | Decision | Mitigation / residual |
+|---|---|---|
+| R1 | **Mitigate** | The Q16 notice-and-action route is the contact route: add an "image of me without consent" category, surface it on gallery pages and in the privacy policy. No new machinery. |
+| R2 | **Mitigate + accept residual** | Artist attestation (R3), artist-Terms clause making client consent the artist's continuing obligation, and the R1 takedown route. **Accepted residual:** Inklee cannot verify artist-client consent; verification would require contacting the subject, which is more intrusive than the risk it addresses. Recorded as accepted. |
+| R3 | **Mitigate** | Direct-upload attestation at parity with URL import (Q15). Precondition of the gallery gate. |
+| R4 | **Mitigate** | Q18 option resolved for the DPIA: **signed expiring URLs before the capability is granted to anyone.** Precondition of the gallery gate. |
+| R5 | **Mitigate** | Balancing test adopted (§6.5); transparency page + delisting route ship with the public map, per Q20 §7.7. |
+| R6 | **Mitigate** | The 90-day intake purge is built **before** the goods and gallery gates open; the form is live and the gap arms on first submission. Precondition of both gates. |
+| R7 | **Decide + moot operationally** | Determination: **joint controllership is assumed for gallery images.** Operational rule adopted: **Inklee acts on deletion requests for hosted images directly**, whatever the role characterisation — this discharges the duty under either analysis. |
+
+**Gate wiring (required, not prose):** R3, R4, and R6 are recorded as named preconditions in
+the activation-gate ledger for the gallery and goods gates — not as document conditions. This
+project's own record shows prose conditions drift; gate keys do not.
 
 ## 8. Outcome and sign-off
 
-**NOT DRAFTED.**
+**Outcome.** With the §7 mitigations adopted as gate preconditions and the two recorded
+residual acceptances (R2's unverifiable artist-client consent; R6's interim zero-volume
+reliance), residual risk is **not high** within the meaning of Art. 35(7)/36 GDPR.
+**No prior consultation with the supervisory authority is required.**
 
-Records whether residual risk is acceptable, whether Art. 36 prior consultation with the
-supervisory authority is required, the controller's signature and date, and the review interval.
+**Sign-off.** Approved by **Michel Kraeft, founder and controller, Inklee OÜ — 2026-08-03**,
+following compliance review (founder-verified; this document's standing is recorded in
+`counsel-handoff-2026-08-02.md` §5.0). Independent qualified review of this DPIA remains the
+standing recommendation and is not superseded by this sign-off.
+
+**Review interval.** Twelve months (next review by **2027-08-03**), or immediately upon any
+scope change — explicitly: **any new image surface, any new category of non-user data
+subjects, or any change to gallery hosting reopens this assessment.** Given this document's
+own history of threefold scope growth, the scope-change trigger is the operative one.
 
 ---
 
