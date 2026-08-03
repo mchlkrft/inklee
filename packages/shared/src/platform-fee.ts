@@ -1,5 +1,10 @@
-// Platform fee (RS-4 + Slice 79 Custom Connect). Inklee charges a flat 3%
-// all-in fee on each in-app deposit (DECISIONS.md D-a/D-b).
+// Platform fee (RS-4 + Slice 79 Custom Connect). Under fee schedule v1, the
+// one active today, Inklee charges a flat 3% all-in fee on each in-app deposit
+// (DECISIONS.md D-a/D-b). The rate is a property of the SCHEDULE and the
+// artist's TIER, not a constant of this module: see `fee-schedule.ts` and the
+// 2026-08-01 correction below. This module models more than one rate as of the
+// D6 change (`feeRateCoversProcessingCost`), so read the opening sentence as
+// "what v1 charges", never as "what Inklee charges".
 //
 // Under the Custom Connect model (Slice 79) the connected account is
 // platform-controlled with `controller.fees.payer = application`, so Stripe
@@ -100,31 +105,109 @@ export const NO_SEPARATE_CARD_PROCESSING_FEES_CLAIM =
   "No separate card-processing fees.";
 
 /**
+ * The VARIABLE component of Stripe's European card processing cost in basis
+ * points (~1.5%), quoted from the accountant's own A7 reference figure:
+ * "Stripe's ~1.5% + 0.25 exceeds the fee" at the Plus 0.5% rate.
+ *
+ * A REFERENCE FIGURE FOR COPY, NOT A BILLING INPUT. Nothing charges, settles
+ * or reconciles against it; it exists so `feeRateCoversProcessingCost` below
+ * compares the fee against a NAMED cost, rather than against a hard-coded
+ * `=== 300` that is only true by coincidence of today's headline rate.
+ */
+export const STRIPE_PROCESSING_RATE_REFERENCE_BPS = 150;
+
+/**
+ * Whether a fee rate covers Inklee's card-processing cost — i.e. whether
+ * absorbing Stripe's fee at this rate is a MARGIN (3%) or a SUBSIDY (0.5%).
+ *
+ * This is the distinction the accountant drew in A7 and the one counsel's D6
+ * correction turns on: the claim itself is equally true either way (the artist
+ * genuinely sees no separate processing line at any rate), but a rate at which
+ * Inklee loses money per transaction is a policy the founder has to own, and
+ * one where it does not is not.
+ *
+ * COHORT-LEVEL, DELIBERATELY NOT PER-TRANSACTION. Stripe's cost also carries a
+ * fixed ~0.25 per charge, which this omits on purpose: the predicate answers
+ * "is this cohort's rate priced above processing cost", which is the question
+ * the payouts page can actually ask — that page describes a rate, not a
+ * deposit, and has no amount to feed in. Do not repurpose it as a per-charge
+ * profitability test.
+ *
+ * The imprecision is BOUNDED, and only one cohort can feel it:
+ *
+ *   3%   covers cost above a EUR 16.67 deposit (0.03A = 0.015A + 0.25). Below
+ *        that this returns true while the charge is fractionally subsidised,
+ *        worst case ~0.25.
+ *   0.5% NEVER covers cost, at ANY amount — 0.005A < 0.015A for all A > 0, so
+ *        it loses on the variable component alone and the fixed term is not
+ *        even what breaks it. For this cohort the predicate is not an
+ *        approximation, it is exactly correct.
+ *
+ * That gap is only ever about small deposits in the covering cohort, and it is
+ * DECIDED, not open. Counsel round 4 ruled the claim stands as written and
+ * ruled AGAINST making this predicate amount-aware: the founder-approval
+ * condition records subsidy by design, and a rate that covers cost in the
+ * ordinary case is not that. See CR4-1 in
+ * `docs/product/plus-build-time-decisions.md`.
+ *
+ * Corroborated live 2026-08-03 (G-5): a EUR 1.00 deposit cost EUR 0.27 in
+ * Stripe fees, which is the subsidy described above at the magnitude predicted.
+ * Measuring it changed nothing and was never going to.
+ *
+ * If you are about to write 16.67, 1667, or a per-charge profitability test
+ * into this file, read CR4-1 first. That change is ruled against.
+ *
+ * `null` (the v2 Free tier, which cannot transact the appointment lane at all)
+ * is NOT a covering rate: an absent rate covers nothing.
+ */
+export function feeRateCoversProcessingCost(feeBps: number | null): boolean {
+  if (feeBps === null || !Number.isFinite(feeBps)) return false;
+  return feeBps > STRIPE_PROCESSING_RATE_REFERENCE_BPS;
+}
+
+/**
  * Whether the "no separate card-processing fees" claim may be shown.
  *
  * A7's answer: the claim is true whenever Inklee absorbs the Stripe
  * processing cost (`payerIsApplication`), REGARDLESS of the deposit rate — at
  * 0.5% it is a subsidy (Stripe's ~1.5%+0.25 typically exceeds the fee itself),
  * at 3% it is a straightforward margin, but "who pays Stripe" is the same
- * structural fact either way. The PREVIOUS implementation bound the claim to
+ * structural fact either way. The ORIGINAL implementation bound the claim to
  * `feeBps === 300`, which reads as "true because the rate happens to be 3%
  * today" — a future fee-schedule change (v2's Plus 50bps) would silently make
  * that condition false even though the underlying claim stays true, and
  * conversely a hypothetical future payer change could leave a stale `=== 300`
  * check reporting true when it should not. Binding to `payerIsApplication`
- * instead makes the claim track the actual reason it is true.
+ * makes the claim track the actual reason it is true.
  *
- * `founderApprovedSubsidyClaim` is the SECOND, independent condition (never a
- * fallback/default): the founder must have recorded the per-transaction
- * subsidy as intended policy before the claim may show at a rate where it is
- * a subsidy rather than a margin. Both conditions are required — this
- * function returns false unless BOTH hold, which is what keeps the claim
- * suppressed by default (no `billing_activation_approvals` row for it exists
- * yet) until that recording happens.
+ * CORRECTED 2026-08-03 (counsel deviation D6, counsel-handoff-2026-08-02.md
+ * §5.1). The A7 rebuild made `founderApprovedSubsidyClaim` a second REQUIRED
+ * condition, so with no approval row recorded the claim rendered nowhere. That
+ * over-corrected: the accountant's suppression condition was written about the
+ * Plus 0.5% SUBSIDY rate only. For the 3% cohort the claim is a plain margin,
+ * the accountant said so, it is live in production today, and withdrawing it
+ * from that cohort was never instructed. Counsel: "re-scope, don't withdraw."
+ *
+ * The corrected binding is one AND over an OR:
+ *
+ *   payerIsApplication AND (rate covers cost OR founder approved the subsidy)
+ *
+ * so `founderApprovedSubsidyClaim` gates exactly the case it was written for —
+ * a rate BELOW processing cost — and nothing else. `payerIsApplication` stays
+ * an unconditional veto: if Inklee ever stops bearing Stripe's cost, no rate
+ * and no founder row can make the sentence true.
+ *
+ * The suppression this must not lose: the 0.5% cohort with no approval row
+ * still gets nothing. That is the case the whole condition exists for.
  */
 export function noSeparateCardProcessingFeesClaimVisible(input: {
   payerIsApplication: boolean;
+  feeBps: number | null;
   founderApprovedSubsidyClaim: boolean;
 }): boolean {
-  return input.payerIsApplication && input.founderApprovedSubsidyClaim;
+  if (!input.payerIsApplication) return false;
+  return (
+    feeRateCoversProcessingCost(input.feeBps) ||
+    input.founderApprovedSubsidyClaim
+  );
 }

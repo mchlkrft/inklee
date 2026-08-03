@@ -6,6 +6,43 @@
 
 **Roadmap note:** roadmap §3.1/§8/§9 still carry the pre-reset "Bio Page + Goods cluster + OT-12 gate launch" framing. That is superseded — goods are showcase-only (2026-06-03 money-scope reset) and the deposit code is done. THIS file is the launch source of truth.
 
+## ✅ G-5 PASSED 2026-08-03 — first real money moved, with one criterion de-gated
+
+The second attempt succeeded. Artist `stripe-artist`
+(`71d022c0-7818-4215-a3ce-0ad45509c76b`) onboarded live as
+`acct_1U0FdrH3gYinii8E` (`charges_enabled`, `payouts_enabled`), took a EUR 1.00
+deposit and refunded it. Verified from the Stripe API and the production
+database, not from the UI:
+
+| Criterion | Result |
+| --- | --- |
+| Live card deposit created and paid | ✅ `pi_3U0GhxHkG0exykzF0OZO6pXj`, `livemode: true` |
+| Destination charge to the artist | ✅ `on_behalf_of` + `transfer_data.destination` = `acct_1U0FdrH3gYinii8E` |
+| Booking flips via the LIVE webhook | ✅ `approved`, written at the payment instant by `payment_intent.succeeded` |
+| Sponsorship booked against settlement | ✅ `deposit_fee_sponsorship_booked_cents` 3, counter +3 |
+| Refund converges, waiver released | ✅ `released` 0→3, artist counter 3→0, Stripe `amount_refunded: 100` |
+| `application_fee` = 3% | ❌ **NOT exercised** — see below |
+
+**The 3% split was not proven and is deliberately no longer a blocker.** Fee
+sponsorship was left enabled on the test artist, so `application_fee_amount` was
+`0` on every live charge to date. Founder ruling FD14 (2026-08-03,
+`docs/product/plus-build-time-decisions.md`) keeps this OPEN as a task and
+de-gates it from launch. Read FD14 before treating the absence as an oversight:
+it records why the untested branch is a strict subset of one proven end to end,
+and it records the residual honestly (in a destination charge the fee comes out
+of the ARTIST's transfer, so a wrong fee over-collects from them).
+
+**Post-launch check, not a gate:** on the first real unsponsored deposit, read
+`application_fee_amount` on the charge and compare it to 3% of the amount.
+
+**Two production defects surfaced during onboarding and are NOT fixed:**
+"Refresh status" on `/settings/payouts` never writes (the sync timestamp stayed
+frozen across presses), and `account.updated` did not update the cached
+`profiles.stripe_*` columns despite the webhook being enabled and subscribed.
+"Update details" was the only path that worked. Note the contrast:
+`payment_intent.succeeded` demonstrably DOES land and write, so this is specific
+to the Connect-sync path, not to webhooks generally.
+
 ## 🔴 G-5 update 2026-07-21 — the first live attempt failed, and what it now needs
 
 The founder ran the first real-money deposit and the client page showed **no pay
@@ -68,7 +105,7 @@ warning notification + email, and an expiry notice when the comp lapses.
 
 1. **Stripe LIVE cutover.** ✅ DONE 2026-07-04. `STRIPE_SECRET_KEY` (sk_live_, Inklee OÜ `acct_1TODmK…`, verified `GET /v1/balance` livemode + EUR balance) and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (pk_live_) swapped in Vercel Production and redeployed (prod `84dfc2a`); build log no longer logs the test-mode warning. Live account shows `card_payments: active` + `transfers: active` (Connect ready). Secrets mirrored to the Control Tower vault (`stripe-inklee-live`). NOTE: vars are type "Encrypted" (readable via `vercel env pull` by the project owner) — flip to "Sensitive" in the dashboard if you want them write-only. Still confirm the Connect controller / loss-liability / `fees.payer: application` settings from `beta-launch-checklist.md` Phases C–E carried over (G-5 validates).
 2. **LIVE webhook.** ✅ DONE 2026-07-04. Endpoint `we_1TpPmyHkG0exykzFYTq26SyV` created + `enabled` at `https://inklee.app/api/stripe/webhook` with all 5 events (`payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`, `account.application.deauthorized`). Its `whsec_…` is in `STRIPE_WEBHOOK_SECRET` (Vercel prod) + the vault (`stripe-webhook-inklee-live`); verified live: unsigned POST → 400 (signature check active).
-3. **G-5: one real €1–5 deposit + refund end-to-end on live.** The only money flow never run outside sandbox. Verify: charge paid, `application_fee` = 3%, `on_behalf_of`/destination = artist, booking flips to Accepted via the live webhook, emails send; then refund and confirm the return. **This run doubles as the value-check for the fail-closed env vars** (one public booking submission proves Upstash; one signup/reset email proves the auth hook + Resend).
+3. **G-5: one real €1–5 deposit + refund end-to-end on live.** ✅ **DONE 2026-08-03** — see the PASSED section at the top of this file for the per-criterion evidence. Charge paid, destination = artist, booking flipped via the live webhook, refund converged. `application_fee` = 3% was NOT exercised (sponsorship was on) and is de-gated by founder ruling FD14. Original criteria kept here for the record: charge paid, `application_fee` = 3%, `on_behalf_of`/destination = artist, booking flips to Accepted via the live webhook, emails send; then refund and confirm the return. **This run doubles as the value-check for the fail-closed env vars** (one public booking submission proves Upstash; one signup/reset email proves the auth hook + Resend).
 4. **Comp the beta artists to Plus** (`/admin/accounts` → Plan). Deposits are entitlement-gated — without this, testers never see a card form. (`ADMIN_EMAILS` is set, so `/admin` works.)
 
 ### App path (Android) — founder config + one small code task
@@ -119,7 +156,7 @@ warning notification + email, and an expiry notice when the comp lapses.
 | # | Task | Owner | Size |
 | --- | --- | --- | --- |
 | 1–2 | Stripe live mode + live webhook | Founder | ~2 h |
-| 3 | G-5 real €1–5 deposit + refund — **first attempt failed 2026-07-21, see below** | Founder (Claude verifies via API) | ~1 h + live onboarding |
+| 3 | G-5 real €1–5 deposit + refund — ✅ **PASSED 2026-08-03** (3% split de-gated, FD14) | Founder (Claude verified via API) | done |
 | 4 | Comp beta artists to Plus — **and check their payout status in the same panel** | Founder | 5 min per artist |
 | 5 | Supabase deep-link allowlist | ✅ done (Claude, 2026-07-07) | — |
 | 6 | Auth email rate limit | ✅ done (Claude, 2026-07-07) | — |

@@ -1688,3 +1688,46 @@ enters the C1.9 input package IN THE SAME WORK ITEM as the code.**
   actually has to fire.
 - Confirm: nothing outstanding.
 - Reversible? N/A (process).
+
+**FD14 [FOUNDER, FINAL] — the 3% application-fee split is UNPROVEN live, stays
+OPEN, and is explicitly NOT a launch blocker.**
+
+- Ruling (founder, 2026-08-03, after the G-5 run): the money path is considered
+  fully working. The one criterion that was not exercised stays open as a task
+  and is de-gated from launch.
+- What G-5 actually proved live on 2026-08-03, against real money, booking
+  `a9823746-60e3-4a2b-bc24-c1e7ad0bbba0` / `pi_3U0GhxHkG0exykzF0OZO6pXj`:
+  a live card deposit was created and paid (`livemode: true`, EUR 1.00);
+  the charge routed as a destination charge (`on_behalf_of` and
+  `transfer_data.destination` both `acct_1U0FdrH3gYinii8E`); the booking flipped
+  to `approved` **via the live webhook**, not a local write; settlement booked
+  the sponsorship against `deposit_fee_sponsorship_booked_cents` (3) and moved
+  the artist-global counter by exactly that; and the refund converged, moving
+  `deposit_fee_sponsorship_released_cents` 0 -> 3 and the counter 3 -> 0.
+- What it did NOT prove: `application_fee_amount` was **0** on every live charge
+  to date, because fee sponsorship was enabled on the test artist. No live code
+  path has ever produced a non-zero application fee. That is the residual.
+- Why de-gating is defensible, and this is the reason to record rather than a
+  rationalisation: the sponsored path is strictly the MORE complex branch. It
+  computes the rate, waives it, books the waiver, and releases it on refund, and
+  all four steps were observed correct. The unsponsored branch omits the waiver
+  steps and keeps the computed fee. The rate computation itself carries unit
+  coverage (`platform-fee-a7-claim.test.ts`). So the untested branch is a strict
+  subset of a branch proven end to end.
+- Residual risk, stated plainly and NOT waived by this entry: in a destination
+  charge the application fee is deducted from the artist's transfer. A wrong fee
+  is therefore the ARTIST's money, not only Inklee's revenue, and the failure
+  direction that matters is over-collection. Magnitude is bounded by volume:
+  3% of early deposits.
+- Detection, which is what makes the risk acceptable rather than merely small:
+  the first real unsponsored deposit is checkable in one API call. Read
+  `application_fee_amount` on that charge and compare to 3% of the amount. This
+  is a post-launch check, deliberately not a gate.
+- Cheap reversal, if a later reader wants the proof after all: disable fee
+  sponsorship on any artist, take one EUR 1 deposit, read
+  `application_fee_amount`. Roughly five minutes. Nothing about this entry
+  should be read as "the test is hard" — it is not, the founder judged it
+  unnecessary to hold launch for.
+- Confirm: nothing outstanding from counsel or the accountant. This is a
+  founder scope call, not a legal one.
+- Reversible? Yes, trivially, per the paragraph above.
