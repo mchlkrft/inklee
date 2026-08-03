@@ -166,15 +166,38 @@ what is live.
   git deploy from master). Spot-check one public page and `/api/health`-class
   route if present; check Sentry for a spike in the first 30 minutes.
 
-### A4. Stripe webhook config (🧑 FOUNDER, config not code)
+### A4. Stripe connected-account webhook delivery — IN PROGRESS 2026-08-03
 
-Enable **connected-account event delivery** on the live Stripe webhook
-endpoint (the only real fix for `account.updated`; evidence and event ids in
-go-live-path §3). Do this AFTER A3 so the 40687c93 fix is live first — the
-order matters: restoring delivery before the fix would swallow lookup failures
-behind HTTP 200. Then tick both Connect checkboxes in
-`docs/ot-12-rollout-runbook.md` and verify one `account.updated` arrives and
-persists (Stripe CLI or dashboard delivery log + the profiles row updating).
+**The runbook was WRONG that this is "config not code".** Investigation
+2026-08-03 found: the live `/api/stripe/webhook` (deposit) endpoint was already
+subscribed to `account.updated` + `account.application.deauthorized`, but both
+live endpoints are platform-only (`connect=false`), and Stripe makes `connect`
+IMMUTABLE after creation. So the fix required a NEW `connect=true` endpoint,
+which carries its OWN signing secret, and the route verified a single secret,
+so connect events would arrive and fail signature verification. That is a CODE
+change, not a toggle.
+
+Done under founder go 2026-08-03:
+1. CODE (`50135c6f`, independently verified): `/api/stripe/webhook` now verifies
+   against BOTH `STRIPE_WEBHOOK_SECRET` and (when set) `STRIPE_CONNECT_WEBHOOK_SECRET`,
+   trying each — full Stripe verification per attempt, no weakening, no-op when
+   the connect secret is unset. The connect endpoint points at this same route
+   so the existing `account.updated` handler stays the one source of truth.
+2. ENDPOINT: live `connect=true` webhook `we_1U0OaPHkG0exykzFN4oqRVGg` created
+   (url `/api/stripe/webhook`, events `account.updated` +
+   `account.application.deauthorized`; `application` field set confirms
+   connect). Ordering constraint satisfied: the `40687c93` swallow-fix is
+   already live (A3), so enabling delivery after it is correct.
+3. SECRET: the endpoint's signing secret is in Vercel prod
+   (`STRIPE_CONNECT_WEBHOOK_SECRET`, Production) and mirrored in the Control
+   Tower vault (`stripe-connect-webhook-inklee-live`, recovery copy, targets []).
+4. ACTIVATING: a deploy is needed for the running functions to pick up the new
+   env var; done via a git push (the `vercel redeploy` path hit a team-scope
+   error). VERIFICATION PENDING: resend an `account.updated` to the connect
+   endpoint and confirm 200 + the profile persists.
+
+Temp restricted key `claude-03-08-2026` (webhook write + events read) was used
+for the create; delete it after verification.
 
 ---
 
