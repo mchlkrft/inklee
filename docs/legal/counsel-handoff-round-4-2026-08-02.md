@@ -183,3 +183,102 @@ and will not be opened on a provisional answer.
 
 Every claim above is traceable to a commit, a file, or an entry in `docs/audit/findings.yaml`.
 Where we say something is unverified, that is a statement about our evidence rather than a hedge.
+
+---
+
+## 7. Answers (counsel review, round 4, 2026-08-02)
+
+### 7.1 On §1 — the two missed conditions and the unscheduled fast-follow
+
+Acknowledged, with one requirement: **both clauses (Q7 forwarding-without-delay, Q12
+delete-and-refund) land in the single C1.9 Terms version** — not a later one. The Q7 lapse is
+the instructive one: a conditional permission was implemented without its condition. Since the
+surface is dark there is no live gap, but the pattern to fix is procedural — when an answer
+says "conditional on a Terms clause," the clause enters the C1.9 input package **in the same
+work item** as the code, so the two cannot separate again. Q5's scheduling is accepted as now
+done; the worklist entry is what "scheduled" means, nothing less.
+
+### 7.2 On §2 — the carve-out is ratified on the correct legal basis, with two conditions
+
+Restoring unconditionally while awaiting a ruling was the right default, and raising this
+rather than defending it was the right instinct. Now the ruling, which **ratifies the
+carve-out** — engineering's reading lands in the right place, though the cleaner basis is the
+pairing of Art. 6(1)(h) with Art. 6(1)(k): the model-form duty applies **where a right of
+withdrawal exists**; where it does not, the required content is instead the **statement that
+the consumer will not benefit from a right of withdrawal**. For an order in which every line
+validly carries the custom-made claim, no withdrawal right exists, so the form is not owed —
+the 6(1)(k) statement is. Two conditions:
+
+1. Suppression triggers **only** when every line of the order carries a validly disclosed,
+   snapshot-frozen custom-made claim (the Q8 hardening makes that snapshot trustworthy — the
+   two answers depend on each other).
+2. When suppressed, the receipt must carry the no-withdrawal statement **prominently** (the
+   approved custom-made notice satisfies this if rendered per line and in the summary).
+
+Any order with even one standard line gets the form. The failure mode to respect: if a
+custom-made claim is ever invalid (mis-flagged, undisclosed), the suppressed form compounds
+the Art. 10 exposure — which is exactly why condition 1 is strict. Re-apply the carve-out on
+this basis and cite this section in the code comment, so the determination rests here and not
+in engineering.
+
+### 7.3 On §3.1 — rounding, and do not encode the threshold
+
+The claim "no separate card-processing fees" states who bears the cost, and it is true at any
+amount in both cohorts. The founder-approval condition exists to record **subsidy by design**
+— a rate that cannot cover cost at any amount, which is the 0.5% cohort and only that cohort.
+A sub-EUR-16.67 deposit at 3% is incidental rounding inside a rate that covers cost in the
+ordinary case: **no founder approval required, cohort-level implementation stands.** The
+decision not to encode EUR 16.67 is expressly endorsed — record this ruling in the decision
+log instead, so the constant never appears and the reasoning survives.
+
+### 7.4 On §3.2 — yes, the horizon applies to live accounts
+
+The retention basis for a tax snapshot is the accounting obligation, which is time-bound —
+seven years from financial-year end — and **indifferent to whether the account still exists.**
+A live artist's eight-year-old snapshot has exhausted its Art. 6(1)(c) basis and storage
+limitation applies. Extend the purge to all snapshots past the horizon regardless of account
+status, with one carve-out: rows subject to an open dispute, audit, or litigation hold are
+excluded case-by-case (Art. 17(3)(e)), flagged rather than silently skipped. First eligible
+row is years away; build it now while the trigger is already being corrected (§4), and note
+the same fix must cover the trigger-test gap — a compliance guard is tested only when its
+**removal** fails the suite. Adopt mutation-style verification as the standard for every
+guard this process has created.
+
+### 7.5 On §3.3 — escalation path, not a hard delete
+
+No blind deletion deadline: force-deleting a Connect account with a non-zero balance orphans
+money and forecloses refunds — a worse outcome than retention, and the retention has a lawful
+basis while the balance is unresolved (Art. 17(3)(e); the balance *is* the legal claim). What
+is not acceptable is **silent** indefinite retention. Backstop: at the seven-year mark, an
+uncompleted teardown raises an **operator escalation** — an alert and a case — and the
+continued retention becomes a documented, per-account decision reviewed **annually** with the
+reason recorded (unresolved balance, amount, what resolution requires). The stated period then
+remains honest: seven years, or documented cause.
+
+### 7.6 On §4 and §5 — acknowledgments and one escalation
+
+The Q2/Q8/Q11/C1.10/D3/D4/Q14 completions are acknowledged; the §11 cross-check being
+actually performed closes that instruction. The refusal to use "implemented with monitored
+execution" before a real Q14 run exists is precisely right — keep the honest phrasing until
+the first production dry-run report exists. The upload-consent gap arriving by two
+independent routes confirms the Q15 answer's priority: build the direct-upload attestation
+**together with the LO-5 DPIA work**, not after it.
+
+**The escalation: the LO-5 DPIA is now the critical path, and this is its third consecutive
+round without an owner or a date.** It is release-gating by prior decision, its scope has
+grown three times (booking images → gallery + guest checkout → intake form + seeded dataset +
+upload consent), and every other launch-blocking item now has an owner and a state. This
+cannot be cured by another counsel round — it is a founder assignment. **Requirement: owner
+and date recorded in the ordered worklist before the next handoff round; if the next round
+arrives without it, that round's first line should say why.**
+
+### 7.7 Answer index
+
+| Item | Ruling |
+|---|---|
+| §1 Q7/Q12 | Both clauses into the single C1.9 version; condition-and-code travel together from now on |
+| §2 carve-out | Ratified on Art. 6(1)(h)/(k) basis; strict all-lines-valid trigger + prominent no-withdrawal statement |
+| §3.1 | Rounding — no founder approval at 3%; threshold stays unencoded; ruling recorded in decision log |
+| §3.2 | Horizon applies to live accounts; dispute/hold carve-out; mutation-test the guard |
+| §3.3 | No hard delete; operator escalation at 7 years + documented annual review |
+| §5 LO-5 | Founder must assign owner + date before the next round; now the critical path |
