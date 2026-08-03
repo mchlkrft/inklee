@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { captureException } from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import {
   ensureConnectAccount,
@@ -295,11 +296,25 @@ export async function syncConnectAccountAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { data: profile } = await supabase
+  // PAT-004. The error used to be dropped here, so a failed read fell through
+  // to the guard below and told the artist "No payout account to refresh yet."
+  // - which is the same sentence a genuinely unconnected artist sees. A
+  // database fault was therefore indistinguishable, on screen, from having no
+  // account, on the one page whose whole job is reporting Connect state.
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("stripe_account_id, stripe_account_status")
     .eq("id", user.id)
     .single();
+  if (profileError) {
+    captureException(profileError, {
+      tags: { area: "payouts", op: "syncConnectAccountAction" },
+      extra: { userId: user.id },
+    });
+    return {
+      error: "Could not read your payout account just now. Please try again.",
+    };
+  }
   const accountId = profile?.stripe_account_id as string | null;
   const status = profile?.stripe_account_status as string | null;
 

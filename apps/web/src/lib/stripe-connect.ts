@@ -517,6 +517,15 @@ export async function syncConnectAccount(args: {
   try {
     account = await stripe.accounts.retrieve(args.accountId);
   } catch (e) {
+    // Captured, unlike before. On 2026-08-03 this path and the document-upload
+    // path issued a byte-identical profile read and neither left any
+    // server-side trace, so a failing UPLOAD was reported and diagnosed for a
+    // day as a failing REFRESH. Two controls that fail the same way silently
+    // are one control as far as anyone debugging is concerned.
+    Sentry.captureException(e, {
+      tags: { area: "stripe-connect", op: "syncConnectAccount" },
+      extra: { userId: args.userId, stripeAccountId: args.accountId },
+    });
     return { error: stripeMessage(e, "Could not refresh account status.") };
   }
   return persistConnectAccount({ userId: args.userId, account });
@@ -612,15 +621,36 @@ export async function markConnectAccountUnreachable(
 export async function persistConnectAccountFromEvent(
   account: Stripe.Account,
 ): Promise<{ userId: string | null } | { error: string }> {
-  const { data: artist } = await serviceClient
+  // PAT-004. This read used to be `const { data: artist }` with the error
+  // dropped, so a failed lookup and an unrecognised account both produced
+  // `{ userId: null }`, which the route turns into HTTP 200 {received:true}.
+  // Stripe then considers the event delivered and never retries, and the
+  // cached Connect state stays stale with nothing recorded anywhere.
+  //
+  // `maybeSingle`, not `single`: `single` treats "no rows" as an ERROR, which
+  // would make the legitimate unrecognised-account case indistinguishable from
+  // a real failure the moment we start checking `error` at all. The two
+  // outcomes need different handling, so they need different signals.
+  const { data: artist, error } = await serviceClient
     .from("profiles")
     .select("id")
     .eq("stripe_account_id", account.id)
-    .single();
+    .maybeSingle();
+  if (error) {
+    // FAIL LOUD. Returning an error gives the route a non-2xx, so Stripe
+    // retries with backoff and a transient database fault self-heals instead
+    // of silently dropping a Connect state change.
+    Sentry.captureException(error, {
+      tags: { area: "stripe-connect", op: "persistConnectAccountFromEvent" },
+      extra: { stripeAccountId: account.id },
+    });
+    return { error: `Could not look up the account: ${error.message}` };
+  }
   if (!artist) {
-    // Webhook for an account we don't recognise — Inklee's webhook endpoint
-    // may receive events for accounts created by other apps that share the
-    // same Stripe Connect platform. Safe to no-op.
+    // Genuinely unrecognised, which is NOT a fault: Inklee's endpoint can
+    // receive events for accounts created by other apps sharing the same
+    // Connect platform. Distinct from the branch above precisely so a broken
+    // read can never be filed under this benign explanation.
     return { userId: null };
   }
   const result = await persistConnectAccount({ userId: artist.id, account });
