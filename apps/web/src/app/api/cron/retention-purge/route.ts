@@ -249,9 +249,26 @@ export async function GET(request: Request) {
   // pointer be purged, so this runs first and a row that completes here is
   // purgeable in the SAME cycle. Until ~2033 it matches zero rows, which is
   // reported as an evidenced zero rather than left silent (Q14).
+  // Counsel ruling 7.5 adds two more counts here, and they belong in the
+  // durable run log rather than only in Sentry: `connect_teardown_escalations_
+  // opened` is how many archived accounts crossed the seven-year mark this
+  // cycle with the teardown still incomplete, and `connect_teardown_reviews_
+  // due` is how many open cases are due or overdue for their annual review.
+  // The second is the one that must never be silent: it is the measure of
+  // whether "seven years, or documented cause" is still true, and a run log
+  // that records it every cycle is what makes a lapse provable afterwards
+  // instead of merely alertable at the time.
   const teardown = await runStep("connect_account_teardown", async () => {
     const result = await runConnectAccountTeardown(now, mode);
     steps.connect_teardowns_blocked = { ok: true, count: result.blocked };
+    steps.connect_teardown_escalations_opened = {
+      ok: true,
+      count: result.escalationsOpened,
+    };
+    steps.connect_teardown_reviews_due = {
+      ok: true,
+      count: result.reviewsDue,
+    };
     return result.completed;
   });
   steps.connect_accounts_torn_down = teardown;

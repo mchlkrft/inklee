@@ -207,6 +207,8 @@ beforeEach(() => {
   mockRunConnectAccountTeardown.mockResolvedValue({
     completed: 0,
     blocked: 0,
+    escalationsOpened: 0,
+    reviewsDue: 0,
   });
   mockRunIntakeRetentionPurges.mockResolvedValue(INTAKE_STEPS_ALL_OK);
 });
@@ -482,6 +484,53 @@ describe("Q14: every run leaves a retention_purge_runs row", () => {
       purged_cancelled_standalone_order_emails: 0,
     });
     expect(typeof row.duration_ms).toBe("number");
+  });
+
+  /**
+   * Counsel ruling 7.5 (docs/legal/counsel-handoff-round-4-2026-08-02.md
+   * §7.5). The escalation regime is what makes the stated retention period
+   * "seven years, or documented cause" rather than seven years or silence, and
+   * the measure of whether it is still honest is how many cases are sitting
+   * past their annual review. Sentry alerts at the time; this row is what
+   * makes a lapse provable a year later, so both counts have to reach it.
+   *
+   * RED: dropping either `steps.connect_teardown_*` assignment from the route,
+   * or leaving the mock's pre-7.5 `{ completed, blocked }` shape in place (the
+   * counts then arrive `undefined` and are silently dropped from the JSON,
+   * which is exactly how this would have gone unnoticed).
+   */
+  it("records the 7.5 escalation counts, which is how a missed annual review stays provable", async () => {
+    mockRunConnectAccountTeardown.mockResolvedValue({
+      completed: 1,
+      blocked: 2,
+      escalationsOpened: 1,
+      reviewsDue: 3,
+    });
+
+    const res = await GET(req());
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(body.connect_accounts_torn_down).toBe(1);
+    expect(body.connect_teardowns_blocked).toBe(2);
+    expect(body.connect_teardown_escalations_opened).toBe(1);
+    expect(body.connect_teardown_reviews_due).toBe(3);
+
+    expect(runLogRows[0].step_counts).toMatchObject({
+      connect_accounts_torn_down: 1,
+      connect_teardowns_blocked: 2,
+      connect_teardown_escalations_opened: 1,
+      connect_teardown_reviews_due: 3,
+    });
+  });
+
+  // DISTINCTION: the counts are not hard-coded reporting. A quiet cycle
+  // records zeros, which is the evidenced-zero half of Q14.
+  it("DISTINCTION: a quiet cycle records the escalation counts as evidenced zeros", async () => {
+    await GET(req());
+    expect(runLogRows[0].step_counts).toMatchObject({
+      connect_teardown_escalations_opened: 0,
+      connect_teardown_reviews_due: 0,
+    });
   });
 
   it("records a dry-run as mode=dry-run so it can never be mistaken for a purge", async () => {

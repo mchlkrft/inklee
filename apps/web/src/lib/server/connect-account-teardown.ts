@@ -3,6 +3,18 @@ import * as Sentry from "@sentry/nextjs";
 import { serviceClient } from "@/lib/supabase/service";
 import { stripe } from "@/lib/stripe";
 import { financialYearRetentionCutoff } from "@/lib/server/retention-cutoffs";
+import {
+  type BalanceBucket,
+  type EscalationReason,
+  balanceBlockReason,
+  deletionRefusedReason,
+  findEscalationsDueForReview,
+  nextAnnualReview,
+  nonZeroBuckets,
+  openOrRefreshEscalation,
+  resolveEscalation,
+  UNREADABLE_BALANCE_REASON,
+} from "@/lib/server/connect-teardown-escalation";
 
 /**
  * Counsel Q13 (docs/legal/counsel-handoff-2026-08-02.md §5.3), clause 2 of the
@@ -44,6 +56,24 @@ import { financialYearRetentionCutoff } from "@/lib/server/retention-cutoffs";
  * still have a balance, a pending payout, or a client refund route running
  * through that account. The teardown is what happens once the whole financial
  * window has closed.
+ *
+ * ROUND-4 RULING 7.5 (docs/legal/counsel-handoff-round-4-2026-08-02.md §7.5),
+ * migration 0153. The above raised its own problem, recorded as §3.3: teardown
+ * requires a zero balance, so an account with a permanently non-zero balance
+ * never completes and its pointer is never purged, which means the stated
+ * seven-year period was not a maximum. Counsel REFUSED a hard deletion
+ * deadline, because "force-deleting a Connect account with a non-zero balance
+ * orphans money and forecloses refunds", and "the balance *is* the legal
+ * claim" (Art. 17(3)(e)). What was refused instead is SILENT indefinite
+ * retention. So at the seven-year mark an uncompleted teardown now raises an
+ * operator escalation, "an alert and a case", and the continued retention
+ * becomes a per-account decision reviewed annually with the reason, the amount
+ * and what resolution requires all recorded. Counsel's acceptance criterion is
+ * the sentence to hold this to: "the stated period then remains honest: seven
+ * years, or documented cause."
+ *
+ * The case lives in ./connect-teardown-escalation.ts; the alert is raised
+ * here, where the outcome is decided.
  */
 
 export type ConnectTeardownRow = {
@@ -57,6 +87,10 @@ export type ConnectTeardownResult = {
   completed: number;
   /** Rows that reached window-end but could not be torn down yet. */
   blocked: number;
+  /** Counsel 7.5: cases raised for the FIRST time by this run. */
+  escalationsOpened: number;
+  /** Counsel 7.5: open cases whose annual review is due or overdue. */
+  reviewsDue: number;
 };
 
 /**
@@ -85,19 +119,17 @@ export async function findConnectTeardownDue(
  * `available` as authoritative would delete an account with money moving
  * through it. Unknown future buckets are handled by iterating whatever
  * arrays Stripe returns rather than naming the two we know about today.
+ *
+ * ONE TRAVERSAL, shared with the escalation record (counsel 7.5): the
+ * gate and the amount the case documents are derived from the same
+ * `nonZeroBuckets` call, so the case can never report an amount the gate did
+ * not act on, or vice versa. `null` from `nonZeroBuckets` means the balance
+ * was unreadable, which is NOT zero: an unevaluated precondition must not
+ * read as a satisfied one.
  */
 export function balanceIsZero(balance: unknown): boolean {
-  const buckets = balance as Record<string, unknown> | null;
-  if (!buckets) return false;
-  for (const [key, value] of Object.entries(buckets)) {
-    if (key === "object" || key === "livemode") continue;
-    if (!Array.isArray(value)) continue;
-    for (const entry of value) {
-      const amount = (entry as { amount?: unknown } | null)?.amount;
-      if (typeof amount === "number" && amount !== 0) return false;
-    }
-  }
-  return true;
+  const buckets = nonZeroBuckets(balance);
+  return buckets !== null && buckets.length === 0;
 }
 
 /** Stripe's "this account no longer exists" shape. Already gone == done. */
@@ -123,6 +155,23 @@ async function markRow(
 }
 
 /**
+ * The outcome of one attempt, carrying WHY when it was blocked.
+ *
+ * The reason and the observed amount are returned rather than only logged
+ * because counsel 7.5 requires them to be recorded on a per-account case, and
+ * this function is the only place that knows them. Returning them keeps the
+ * decision and the record derived from a single observation: a second balance
+ * read for the case could disagree with the one the gate acted on.
+ */
+export type TeardownAttempt = {
+  outcome: "completed" | "blocked";
+  /** Present only when blocked. The documented cause for the escalation. */
+  escalation?: EscalationReason;
+  /** Non-zero buckets observed. Empty when the balance was unreadable. */
+  buckets?: BalanceBucket[];
+};
+
+/**
  * Request deletion of one connected account, gated on a zero balance.
  * Never throws: a per-row failure is recorded on the row and reported, so one
  * unreachable account cannot stop the rest of the batch (the same
@@ -131,10 +180,13 @@ async function markRow(
 export async function tearDownConnectAccount(
   row: ConnectTeardownRow,
   now: Date = new Date(),
-): Promise<"completed" | "blocked"> {
-  if (!stripe) return "blocked";
+): Promise<TeardownAttempt> {
+  if (!stripe) {
+    return { outcome: "blocked", escalation: UNREADABLE_BALANCE_REASON };
+  }
   const at = now.toISOString();
 
+  let observed: BalanceBucket[] = [];
   let balanceOk = false;
   try {
     // `stripeAccount` is a REQUEST OPTION (second argument), not a param: it
@@ -146,7 +198,9 @@ export async function tearDownConnectAccount(
       {},
       { stripeAccount: row.stripe_account_id },
     );
-    balanceOk = balanceIsZero(balance);
+    const buckets = nonZeroBuckets(balance);
+    observed = buckets ?? [];
+    balanceOk = buckets !== null && buckets.length === 0;
     await markRow(row.id, { connect_balance_checked_at: at });
   } catch (err) {
     // An account Stripe no longer knows about has nothing left to tear down,
@@ -158,7 +212,7 @@ export async function tearDownConnectAccount(
         connect_teardown_completed_at: at,
         connect_teardown_last_error: null,
       });
-      return "completed";
+      return { outcome: "completed" };
     }
     await markRow(row.id, {
       connect_teardown_state: "blocked",
@@ -167,7 +221,11 @@ export async function tearDownConnectAccount(
         err instanceof Error ? err.message : String(err)
       }`,
     });
-    return "blocked";
+    return {
+      outcome: "blocked",
+      escalation: UNREADABLE_BALANCE_REASON,
+      buckets: [],
+    };
   }
 
   if (!balanceOk) {
@@ -177,21 +235,28 @@ export async function tearDownConnectAccount(
       connect_teardown_last_error:
         "non-zero balance; deletion requires a zero balance",
     });
-    return "blocked";
+    return {
+      outcome: "blocked",
+      escalation: balanceBlockReason(observed),
+      buckets: observed,
+    };
   }
 
   try {
     await stripe.accounts.del(row.stripe_account_id);
   } catch (err) {
     if (!isAlreadyGone(err)) {
+      const message = err instanceof Error ? err.message : String(err);
       await markRow(row.id, {
         connect_teardown_state: "blocked",
         connect_teardown_attempted_at: at,
-        connect_teardown_last_error: `account deletion failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        connect_teardown_last_error: `account deletion failed: ${message}`,
       });
-      return "blocked";
+      return {
+        outcome: "blocked",
+        escalation: deletionRefusedReason(message),
+        buckets: observed,
+      };
     }
   }
 
@@ -201,7 +266,7 @@ export async function tearDownConnectAccount(
     connect_teardown_completed_at: at,
     connect_teardown_last_error: null,
   });
-  return "completed";
+  return { outcome: "completed" };
 }
 
 /**
@@ -218,26 +283,101 @@ export async function runConnectAccountTeardown(
   mode: "purge" | "dry-run" = "purge",
 ): Promise<ConnectTeardownResult> {
   const due = await findConnectTeardownDue(now);
-  if (mode === "dry-run") return { completed: 0, blocked: due.length };
-  if (due.length === 0) return { completed: 0, blocked: 0 };
+
+  // The review sweep is a pure read, so it runs in BOTH modes and even when
+  // nothing is due for teardown. It must not be conditioned on `due` being
+  // non-empty or on Stripe being configured: an overdue annual review is a
+  // failure of the documented-cause regime itself, not of this cycle's Stripe
+  // work, and it is exactly the thing that would otherwise go quiet.
+  const reviewsDue = await reportReviewsDue(now, mode);
+
+  if (mode === "dry-run") {
+    return {
+      completed: 0,
+      blocked: due.length,
+      escalationsOpened: 0,
+      reviewsDue,
+    };
+  }
+  if (due.length === 0) {
+    return { completed: 0, blocked: 0, escalationsOpened: 0, reviewsDue };
+  }
 
   if (!stripe) {
     // Rows stay `pending`/`blocked` and are retried next cycle. Silence here
     // would be the failure: the window has closed and the action is owed.
+    //
+    // NO CASE IS OPENED on this path, on purpose. A missing Stripe key is a
+    // PLATFORM fault affecting every account at once, not a per-account
+    // documented cause, and writing "the balance is unresolved" against every
+    // archived artist because a key was rotated would fill counsel's evidence
+    // ledger with a claim that was never observed. It already alerts at error
+    // level, which is the correct response to a platform fault.
     Sentry.captureMessage(
       `Connect teardown due for ${due.length} archived account(s) but Stripe is not configured`,
       { level: "error", tags: { action: "connect_account_teardown" } },
     );
-    return { completed: 0, blocked: due.length };
+    return {
+      completed: 0,
+      blocked: due.length,
+      escalationsOpened: 0,
+      reviewsDue,
+    };
   }
 
   let completed = 0;
   let blocked = 0;
+  let escalationsOpened = 0;
   for (const row of due) {
     try {
-      const outcome = await tearDownConnectAccount(row, now);
-      if (outcome === "completed") completed += 1;
-      else blocked += 1;
+      const attempt = await tearDownConnectAccount(row, now);
+      if (attempt.outcome === "completed") {
+        completed += 1;
+        // The documented-cause episode ends here. Normally the archive purge
+        // later in this same cron pass then removes the row and cascades the
+        // case away.
+        await resolveEscalation(row.id, now);
+        continue;
+      }
+
+      blocked += 1;
+      // COUNSEL 7.5. Every row reaching this point is past the seven-year
+      // mark by construction (`findConnectTeardownDue` filters on the cutoff)
+      // and its teardown did not complete. That is precisely the trigger
+      // condition: raise the case, record the reason and the amount, and let
+      // the retention become a documented decision instead of a silent one.
+      const escalation = attempt.escalation ?? UNREADABLE_BALANCE_REASON;
+      const { opened } = await openOrRefreshEscalation({
+        recordId: row.id,
+        reason: escalation.reason,
+        resolutionRequires: escalation.resolutionRequires,
+        buckets: attempt.buckets ?? [],
+        now,
+      });
+      if (!opened) continue;
+
+      escalationsOpened += 1;
+      // The ALERT half of "an alert and a case". Raised once, when the case is
+      // first opened, and carrying everything an operator needs to act without
+      // querying the database.
+      Sentry.captureMessage(
+        `Connect teardown escalation opened: archived account past the seven-year mark cannot be torn down`,
+        {
+          level: "error",
+          tags: {
+            action: "connect_account_teardown",
+            escalation: "opened",
+          },
+          extra: {
+            recordId: row.id,
+            stripeAccountId: row.stripe_account_id,
+            reason: escalation.reason,
+            resolutionRequires: escalation.resolutionRequires,
+            balance: attempt.buckets ?? [],
+            nextReviewDue: nextAnnualReview(now).toISOString(),
+          },
+        },
+      );
     } catch (err) {
       blocked += 1;
       Sentry.captureException(err, {
@@ -255,7 +395,48 @@ export async function runConnectAccountTeardown(
       { level: "warning", tags: { action: "connect_account_teardown" } },
     );
   }
-  return { completed, blocked };
+  return { completed, blocked, escalationsOpened, reviewsDue };
+}
+
+/**
+ * Counsel 7.5's "reviewed **annually**". A case whose review date has passed
+ * is retention that has stopped being documented, so it alerts at error level
+ * rather than as a warning: the whole regime rests on the review actually
+ * happening, and an unanswered case is indistinguishable from the silent
+ * indefinite retention counsel refused.
+ *
+ * Read-only, so the count is computed in dry-run too and only the alert is
+ * mode-gated (a dry-run that pages someone is not a dry-run).
+ */
+async function reportReviewsDue(
+  now: Date,
+  mode: "purge" | "dry-run",
+): Promise<number> {
+  const overdue = await findEscalationsDueForReview(now);
+  if (overdue.length === 0) return 0;
+  if (mode === "purge") {
+    Sentry.captureMessage(
+      `Connect teardown: ${overdue.length} escalation case(s) are due or overdue for their annual retention review`,
+      {
+        level: "error",
+        tags: { action: "connect_account_teardown", escalation: "review_due" },
+        extra: {
+          cases: overdue.map((c) => ({
+            escalationId: c.id,
+            recordId: c.record_id,
+            openedAt: c.opened_at,
+            reviewDueAt: c.next_review_due_at,
+            lastReviewedAt: c.last_reviewed_at,
+            reviewCount: c.review_count,
+            reason: c.reason,
+            resolutionRequires: c.resolution_requires,
+            balance: c.balance_detail,
+          })),
+        },
+      },
+    );
+  }
+  return overdue.length;
 }
 
 /**
