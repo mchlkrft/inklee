@@ -290,17 +290,32 @@ export default async function PayoutsSettingsPage() {
   );
 }
 
+// Brand tokens only, and SOLID rather than tinted.
+//
+// These chips previously used emerald / amber / orange from the default
+// Tailwind palette at 15-25% opacity. Two problems, and the second is the one
+// that mattered on 2026-08-03: none of those hues exists in this product's
+// palette (near-black #1e1e1e, cream #e5e1d5, red #cf2e2c), and a low-opacity
+// tint of an already-light hue on a cream background is close to unreadable.
+// "Connected" rendered as mint on beige; "Action needed" as pale orange on
+// pale peach - illegible at exactly the moment a user must notice it.
+//
+// A status chip is not decoration. It is the only place the payouts page says
+// whether an artist can take money, and it was styled as though it were.
+//
+// restricted and disabled deliberately share destructive: both mean "cannot
+// take card payments", and the LABEL already distinguishes recoverable
+// ("Action needed") from terminal ("Disabled by Stripe"). Colour carries the
+// consequence; the word carries the nuance.
 function StatusBadge({ status }: { status: ConnectStatus }) {
   const tone =
     status === "active"
-      ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
+      ? "bg-primary text-primary-foreground"
       : status === "pending"
-        ? "bg-amber-500/20 text-amber-900 dark:text-amber-100"
-        : status === "restricted"
-          ? "bg-orange-500/25 text-orange-950 dark:text-orange-50"
-          : status === "disabled"
-            ? "bg-destructive/15 text-destructive"
-            : "bg-muted text-muted-foreground";
+        ? "border border-border bg-secondary text-secondary-foreground"
+        : status === "restricted" || status === "disabled"
+          ? "bg-destructive text-white"
+          : "border border-border bg-muted text-muted-foreground";
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone}`}
