@@ -159,7 +159,7 @@ Pushed fast-forward to `38d233c2` (0 behind). Everything stays dark:
 shop/store routes 404. Pre-push `check:imports` and `audit:check` were green.
 Live site serves; PostgREST schema cache confirmed reloaded; the 0146
 apply-before-push window closed by the deployed service-role markGoodsPickedUp
-fix. Open: confirm the Vercel build for `38d233c2` promoted to green (dashboard).
+fix. Vercel build for `38d233c2` CONFIRMED promoted ("Ready", 2026-08-03).
 
 ### Step 4 — Close the three DPIA gate keys — the work is BUILT; recording is the founder's
 

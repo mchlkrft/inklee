@@ -86,9 +86,11 @@ object (prod DB now at 0154, ledger 0125-0154 complete). A3 pushed master
 (fast-forward to `38d233c2`); live site serves with the shop/consumer surfaces
 dark (404), PostgREST schema cache confirmed reloaded, and the 0146
 apply-before-push window closed (deployed markGoodsPickedUp now uses the
-service-role core). No approval key recorded, no flag flipped. **REMAINING IN
-PHASE A: A4 (founder, Stripe webhook config) and watching the Vercel build for
-`38d233c2` promote to green.** Details below are kept as the executed record.
+service-role core). No approval key recorded, no flag flipped. The Vercel build
+for `38d233c2` is CONFIRMED promoted (Production Deployment "Ready", master @
+38d233c, serving inklee.app + inkl.ee, 2026-08-03). **REMAINING IN PHASE A: A4
+only (founder, Stripe webhook config).** Details below are kept as the executed
+record.
 
 **🧑 FOUNDER GO REQUIRED before anything in this phase touches production.**
 Owner: the `inklee-release-sequencer` flow. Migration-first is NOT negotiable:
