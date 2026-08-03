@@ -16606,6 +16606,205 @@ findings:
           pending for someone else. The AGENTS.md generalisation is the durable half; the 0148
           instance is just what made it visible."
 
+  - id: "DATA-MIG-004"
+    title: "0148's purge self-reference exclusion is one level deep, so a 3-link correction chain
+      aborts the whole retention step with FK 23503 every cycle"
+    summary: "purge_expired_tax_snapshots() as shipped in 0148 excluded a row from deletion only when
+      its IMMEDIATE correction was itself young; it never asked whether that correction was pinned
+      by a correction of its own. On a 3-link chain (young A corrects B corrects old C) the
+      function selects C for deletion while B still references it, so the DELETE fails with 23503
+      and the retention step aborts, every run, until the chain ages out. Found and fixed by the
+      0150 rewrite (recursive held_chain/retained CTEs); never reached production because 0148 has
+      never been applied there."
+    classification:
+      domain: "migration"
+      category: "broken-invariant"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-03"
+      detected_by: "the wf-0150-tax-horizon build session (self-reported in 0150's header); traced
+        independently by a read-only database reviewer on 2026-08-03"
+      repository: "mchlkrft/inklee"
+      branch: "wf-0150-tax-horizon"
+      commit: "a28dcf3d"
+      environment: "local"
+      discovery_context: "Surfaced while widening the purge to live accounts per counsel round-4
+        §7.4; the reviewer hand-traced 0148's exclusion subquery against the 3-link case and
+        confirmed the abort shape before the merge."
+    location:
+      files:
+        - "apps/web/supabase/migrations/0148_tax_ledger_purge_and_connect_teardown.sql"
+        - "apps/web/supabase/migrations/0150_tax_snapshot_horizon_all_accounts.sql"
+        - "apps/web/tests/db/tax-ledger-purge.test.ts"
+      database_objects:
+        - "purge_expired_tax_snapshots()"
+        - "transaction_tax_snapshots"
+    evidence:
+      observed_facts:
+        - "0148:220-231's candidate exclusion tests only the immediate child: `not exists (select 1
+          ... where c.corrects_snapshot_id = s.id and not (c.artist_id is null and c.created_at <
+          _cutoff))` — the child's own age, never whether the child is itself referenced by a
+          younger row."
+        - "0150:339-386 replaces it with two recursive CTEs (held_chain, retained) that propagate
+          'stays' transitively up the correction chain; 0150's header (lines 76-97) documents the
+          defect and the fix."
+        - "Branch regression test 'a THREE-LINK chain does not abort the run'
+          (tax-ledger-purge.test.ts, merged 2026-08-03) constructs young-corrects-mid-corrects-old
+          and asserts the purge call does not throw; executed green against the local database
+          post-merge (30/30 in the suite)."
+      reproduction: "Insert snapshots C (past horizon), B correcting C (past horizon), A correcting
+        B (inside window); run purge_expired_tax_snapshots() under 0148's definition; the DELETE of
+        C raises 23503 because B references it and B is retained via A."
+      references:
+        - "apps/web/supabase/migrations/0150_tax_snapshot_horizon_all_accounts.sql"
+        - "apps/web/tests/db/tax-ledger-purge.test.ts"
+    assessment:
+      interpretation: "A retention job that aborts wholesale on a legal data shape is an
+        availability defect for the purge regime: nothing is corrupted, but nothing is purged
+        either, and the failure repeats every cycle while looking like an operational error rather
+        than a logic one."
+      root_cause_hypothesis: "The exclusion was written against the 2-row mental model (original
+        plus one correction) that the earlier tests used; no test data had a chain of three."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "None. 0148 has never been applied to production (migrations applied
+        there end at 0124)."
+      remaining_uncertainty: "The red-without-fix direction rests on the SQL trace and 0150's own
+        header, not on a run of 0148's definition against the 3-link fixture by this session; the
+        mutation pass on 2026-08-03 mutated the scoping, marker, horizon and hold conditions but
+        not the recursion arm itself."
+    relationships:
+      related_findings:
+        - "MIG-IDX-001"
+      analogous_uninspected_areas:
+        - "No other append-only, self-referencing ledger table was checked for the same
+          one-level-deep exclusion shape; deleted_account_records' teardown predicates in 0148
+          part 3/4 were not re-examined under chained references."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "a28dcf3d"
+      proposed_action: "Fixed by 0150's recursive retained CTE; merged to master 2026-08-03."
+      fixed_at: "2026-08-03"
+    verification:
+      status: "partially-verified"
+      independent: true
+      verification_method: "The 3-link regression test executed green against the local database by
+        the merge runner (a different instance from the branch author), inside a 5-mutation pass
+        that verified the neighbouring conditions red-then-green. NOT yet shown: the 3-link test
+        going red under 0148's own definition (the recursion arm was not mutated)."
+      residual_risk: "If the regression test were vacuous (passing under 0148 too), this record
+        would overstate the fix; the test's failure mode has not been demonstrated."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "Cited by path and object name; no production rows, no secrets."
+    history:
+      - date: "2026-08-03"
+        actor: "read-only database reviewer (0150 pre-merge review)"
+        action: "opened"
+        note: "Traced 0148's exclusion subquery by hand against the 3-link case; entry recorded by
+          the merge-running session on the reviewer's behalf."
+      - date: "2026-08-03"
+        actor: "merge runner"
+        action: "fix-committed"
+        note: "0150 merged to master with the branch's regression suite; 30/30 green locally."
+  - id: "DISC-FORM-001"
+    title: "Withdrawal-form suppression trusted the order-level claim alone, so a mis-flagged line
+      still lost the form — the exact Art. 10 case counsel's §7.2 condition 1 refuses"
+    summary: "buildOrderReceiptBody suppressed the Annex I(B) model withdrawal form whenever the
+      order-level disclosure said all_custom_made, without checking that every line item carried
+      the per-line custom-made claim. A caller that disagrees with itself (order says all custom,
+      a line lacks the claim) is the mis-flagged shape §7.2 condition 1 names, and the shipped
+      code resolved it toward suppression. Condition 2's per-line prominence was also short: the
+      short row marker rendered per line, not the approved notice. Latent: the goods surface is
+      dark, no consumer receipt has ever been sent."
+    classification:
+      domain: "email"
+      category: "disclosure"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-03"
+      detected_by: "read-only worktree assessor, by executing both module versions against the same
+        input"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "b95173ab"
+      environment: "local"
+      discovery_context: "Found while dispositioning the uncommitted work in worktree
+        wf_1b792867-5b0-1: the fix existed there unlabelled, while round-5 §4.3 was describing the
+        remaining work to counsel as a comment-only citation fix. The execution comparison
+        disproved that characterisation; §4.3 was corrected the same day before the handoff went
+        out."
+    location:
+      files:
+        - "packages/shared/src/consumer-disclosures.ts"
+        - "apps/web/src/lib/__tests__/withdrawal-form-suppression.test.ts"
+    evidence:
+      observed_facts:
+        - "Both versions of consumer-disclosures.ts executed standalone (the module has no imports)
+          against input {disclosure: 'all_custom_made', items: [one line WITHOUT customMade]}: the
+          pre-fix version reproduces NO withdrawal form; the fixed version reproduces it."
+        - "Pre-fix, the suppression branch read only `input.disclosure !== 'all_custom_made'`; the
+          per-line claims were never consulted."
+        - "Counsel round-4 §7.2 condition 1: suppression only when every line carries a validly
+          disclosed, snapshot-frozen custom-made claim; 'any order with even one standard line gets
+          the form'."
+      reproduction: "Call buildOrderReceiptBody with disclosure 'all_custom_made' and a line item
+        lacking customMade; inspect whether the Annex I(B) form text is present in the output."
+      references:
+        - "docs/legal/counsel-handoff-round-4-2026-08-02.md"
+        - "docs/legal/counsel-handoff-round-5-2026-08-03.md"
+    assessment:
+      interpretation: "The order-level summary and the per-line claims are two independent inputs
+        to one legal decision; trusting the aggregate alone turns any upstream mis-flag into a
+        suppressed statutory disclosure. The fix resolves a disagreement toward disclosure (mixed
+        treatment) and renders the approved notice per line and in the summary when suppression is
+        earned."
+      root_cause_hypothesis: "The carve-out predates the per-line customMade field reaching the
+        receipt path; when the field arrived (Q4 work), the suppression branch was not revisited."
+      reachability: "currently-unreachable"
+      impact_status: "latent"
+      production_exposure: "None. GOODS_COMMERCE_ENABLED has never been on; no consumer goods
+        receipt has ever been sent."
+      remaining_uncertainty: "Whether the custom-made claim is surfaced at point of sale for every
+        line (the 'validly disclosed' leg) remains unverified; recorded as such in round-5 §4.3."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "Other places an order-level aggregate is trusted over per-line facts were not swept:
+          summarizeReturnDisclosure call sites, the add-on lane's disclosure sections, and any
+          surface deriving legal copy from a precomputed summary rather than the lines."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "162415ae"
+      proposed_action: "Suppression earned by every line; disagreement resolves to the mixed
+        treatment; per-line approved notice when suppressed. 13-test suite pins the mis-flagged
+        case."
+      fixed_at: "2026-08-03"
+    verification:
+      status: "partially-verified"
+      independent: true
+      verification_method: "The assessor (not the fix's author) executed both versions against the
+        mis-flagged input and observed the behavioural difference; the merge runner executed the
+        landed suite (143/143 across the five affected files). Red-without-fix is demonstrated by
+        the version comparison itself."
+      residual_risk: "The point-of-sale surfacing leg is out of scope of the executed evidence."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "No personal data, no production rows; the defect never reached a real
+        recipient."
+    history:
+      - date: "2026-08-03"
+        actor: "worktree assessor (read-only)"
+        action: "opened"
+        note: "Execution comparison of both module versions; entry recorded by the merge-running
+          session on the assessor's behalf."
+      - date: "2026-08-03"
+        actor: "merge runner"
+        action: "fix-committed"
+        note: "Worktree A's four files landed on master; round-5 §4.3 corrected in the same
+          change."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -19851,3 +20050,108 @@ coverage:
       landing state, so an all-custom-made artist's shop headline-promises a return right that
       applies to nothing on sale. Left deliberately to counsel because the approved C1.1 seller
       block above it says 'see below', and suppressing the notice would strand approved copy."
+  - area: "Migration 0150 (tax-snapshot horizon to live accounts, retention_legal_holds, the 0148
+      chain-abort fix) and its merge into master: the migration file, billing-record-retention.ts,
+      the retention cron route, tax-ledger-purge.test.ts, retention-purge-dry-run.test.ts,
+      retention-purge-operations.md"
+    subsystem: "data-retention"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-03"
+    commit_inspected: "a28dcf3d"
+    reviewer: "read-only database reviewer (line-level read of all seven files on both sides), then
+      the merge-running session (execution), neither of whom authored the branch"
+    evidence: "Reviewer: every guard in 0150 checked convergent (drop-then-create constraints,
+      indexes, trigger; create-or-replace functions with re-asserted REVOKE/GRANT); RLS-on-no-policy
+      plus explicit revoke on retention_legal_holds matched against the 0146/0149 precedent and the
+      branch's own 42501 tests; retention_legal_hold_active's SECURITY DEFINER traced as the
+      fail-closed direction; both predicted merge conflicts scoped exactly and resolved as
+      prescribed (test file wholesale, decisions log concatenated with both round-4 sections
+      preserved). Merge runner: 0150 applied to the local database; five mutations applied one at a
+      time and reverted (trigger regains deleted-account scoping -> 8 red including both §7.4
+      distinction tests; marker condition dropped -> exactly the 2 condition-1 tests; horizon
+      condition dropped -> exactly the condition-2 test; hold check disabled -> exactly the 7 hold
+      tests; RPC regains scoping -> exactly the §7.4 RPC test); restored 30/30 green, dry-run suite
+      6/6, cron route units 21/21."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "DATA-MIG-004"
+    known_exclusions: "Not executed against production (0125+ are not applied there). The
+      hypothetical raw-authenticated-role EXECUTE edge on retention_legal_hold_active is untested
+      (the db harness's raw session connects as the superuser). The retained-CTE recursion arm was
+      not mutated, so the 3-link regression test's own failure mode is undemonstrated (recorded on
+      DATA-MIG-004). The reviewer worked from stated shas without an independent git view."
+    recommended_next_inspection: "When 0125-0150 are applied to production via the release
+      sequencer, catalog-verify pg_proc/pg_trigger/pg_indexes for the 0150 objects rather than
+      trusting exit 0; mutate the retained-CTE recursion arm once to close DATA-MIG-004's
+      verification."
+  - area: "Uncommitted work in worktrees wf_1b792867-5b0-1 (counsel §7.2 model-form suppression)
+      and wf_1b792867-5b0-3 (counsel §7.5 Connect-teardown escalation, migration
+      0151_connect_teardown_escalations pre-renumber): what each implements, completeness,
+      duplication against master"
+    subsystem: "governance"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-03"
+    commit_inspected: "b95173ab"
+    reviewer: "read-only worktree assessor (a different instance from any author of the work)"
+    evidence: "Worktree 1: per-file normalized comparison against HEAD showed three of five files
+      already absorbed by master (da21ab21, 65d0d096) and a four-file novel remainder; both module
+      versions executed against the same mis-flagged input, proving the behavioural difference now
+      recorded as DISC-FORM-001; the four-file unit ran 71 tests green in the worktree and 143
+      green across five suites after landing. Worktree 3: migration read line-by-line for the
+      AGENTS.md convergence rules (guarded do-blocks for every constraint, drop-then-create
+      indexes and triggers, RLS-on-no-policy with explicit revokes, append-only review log
+      enforced by trigger); cron wiring and the round-5 §4.5 unreadable-balance case confirmed
+      covered; 56 unit tests green; all four modified files verified byte-identical between the
+      worktree base and master by object hash."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "DISC-FORM-001"
+    known_exclusions: "The recordEscalationReview operator write path has no production caller:
+      the library half exists, the operator surface does not (first escalation cannot fire until
+      roughly 2033). The assessor's HEAD reference was b95173ab; later same-day commits were not
+      in its view. CLOSED at merge time (2026-08-03, same session): the db suite the assessor
+      could not run was executed against local Supabase after the 3-way apply — 17 tests EXECUTED
+      not skipped, and proven able to fail: dropping ctesc_review_no_mutation redded exactly the
+      two append-only refusal tests, and re-running migration 0153 restored the trigger
+      (drop-then-create convergence observed live), 17/17 again."
+    recommended_next_inspection: "Decide whether the operator review surface for
+      recordEscalationReview ships now or stays a tracked follow-up; nothing else outstanding
+      from this pass."
+  - area: "The three LO-5 DPIA gate-key builds (R3 direct-upload attestation 2a1c81d6, R4 private
+      gallery bucket + signed URLs 69f54d53 with migration 0151, R6 intake retention purge
+      637a8aaa with migration 0152) and their merges into master on 2026-08-03"
+    subsystem: "storage"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-03"
+    commit_inspected: "c146f05a"
+    reviewer: "read-only database reviewer (full file reads of all three worktrees against master;
+      no git tooling in its role), then the merge-running session (execution); neither authored
+      the branches"
+    evidence: "Reviewer: R3's shared attestation module traced through all three ingest paths with
+      the strict string comparison, ordering (before capacity/file work), fail-closed evidence
+      write and v1-to-v2 text upgrade confirmed; R4's 0151 confirmed convergent (unconditional
+      on-conflict replace, header proves it by execution) with the real-stack raw-fetch bucket
+      test enumerating refusal of both URL forms, no anon/authenticated bypass, signature bound to
+      its object, expiry enforced; R6's windows confirmed event-anchored (created_at/closed_at,
+      explicitly not decided_at or updated_at) with objects-before-rows deletion; none of the
+      three records a dpia_r*_built key (confirmed by search). Merge runner: 0151+0152 applied to
+      the local database; suites executed post-merge per branch (R6 17 db + 52 unit, R4 10
+      real-stack db + 140 unit, R3 79 unit + mobile tsc); the four files R3 and R4 both edit
+      (gallery-image route, mobile-image.ts, bio-page-form.tsx, GalleryBlockEditor.tsx)
+      auto-merged except the editor, hand-resolved and re-tested rather than trusted."
+    changed_since_inspection: "no"
+    known_exclusions: "uploadProcessedGalleryFile's upload-time thumbnail signing has NO direct
+      unit test (its intentional try/catch would swallow a signing failure; the security property
+      is proven at the render path and bucket level, so the exposure is a blank thumbnail until
+      reload, not an access hole). The DPIA's load-bearing fact that the gallery capability has
+      never been granted to anyone — which is what makes R3's native wire break and R4's bucket
+      flip safe — was relied on as stated in the DPIA, not independently re-queried against
+      production during this pass. Nothing here ran against production; 0151/0152 exist only
+      locally and on unpushed master."
+    recommended_next_inspection: "Add the uploadProcessedGalleryFile signing unit test; re-verify
+      the capability-never-granted fact against production immediately before the founder records
+      any dpia_r*_built key; after the release-sequencer run, catalog-verify the gallery bucket
+      row (public=false) and the projects.closed_at trigger in production."

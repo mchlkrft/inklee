@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `296fa550a550`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `c3a5a2de2e3c`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-152 recorded finding(s), 4 structural pattern(s), across 103 mapped area(s).
-128 remain open by remediation status. 121 are reachable (directly or conditionally) rather than latent.
-125 have not passed independent verification.
-193 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+154 recorded finding(s), 4 structural pattern(s), across 106 mapped area(s).
+130 remain open by remediation status. 122 are reachable (directly or conditionally) rather than latent.
+127 have not passed independent verification.
+195 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -27,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 37 |
-| medium | 68 |
+| medium | 70 |
 | low | 41 |
 | informational | 4 |
 
@@ -37,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 65 |
+| fixed-unverified | 67 |
 | in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
@@ -50,7 +50,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Verification | Count |
 | --- | --- |
 | not-started | 121 |
-| partially-verified | 2 |
+| partially-verified | 4 |
 | passed | 27 |
 | pending | 2 |
 
@@ -169,8 +169,8 @@ The single most productive defect shape in this repository. A Supabase call is d
 | web | 13 |
 | database | 12 |
 | testing | 8 |
+| migration | 7 |
 | data-retention | 6 |
-| migration | 6 |
 | authorization | 5 |
 | public-surface | 5 |
 | governance | 4 |
@@ -181,6 +181,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | tooling | 2 |
 | api | 1 |
 | auth | 1 |
+| email | 1 |
 | entitlement | 1 |
 | logging | 1 |
 | storage | 1 |
@@ -239,6 +240,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | CRON-TOK-001 | medium | conditionally-reachable | latent | Reconfirmation rotates the customer's magic-link token before sending the email, so a crash between the two permanently locks the customer out |
 | DATA-MIG-002 | medium | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
 | DATA-MIG-003 | medium | conditionally-reachable | theoretical | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
+| DATA-MIG-004 | medium | conditionally-reachable | latent | 0148's purge self-reference exclusion is one level deep, so a 3-link correction chain aborts the whole retention step with FK 23503 every cycle |
 | DRIFT-ACT-001 | medium | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
@@ -344,6 +346,8 @@ The single most productive defect shape in this repository. A Supabase call is d
 | BILL-UI-002 | medium | fixed-unverified | passed | 8e75dcc |
 | CRON-IGX-001 | medium | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
+| DATA-MIG-004 | medium | fixed-unverified | partially-verified | a28dcf3d |
+| DISC-FORM-001 | medium | fixed-unverified | partially-verified | 162415ae |
 | FEE-DSP-002 | medium | fixed-unverified | not-started | 1b8671fc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | GOODS-DISC-001 | medium | fixed-unverified | not-started | b036075e |
@@ -429,6 +433,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - My grep excluded *.md but covered the whole tree; only scripts/ matched, so apps/ appears clean, but I did not separately audit apps/mobile config files.
 - No check was made for mangling in object COMMENTS, ACL grantee names, or the auth/storage schemas.
 - No check was made of whether any existing test in apps/web/tests/db/ actually depends on the growth views' grants, so the concrete number of tests affected is unknown.
+- No other append-only, self-referencing ledger table was checked for the same one-level-deep exclusion shape; deleted_account_records' teardown predicates in 0148 part 3/4 were not re-examined under chained references.
 - No other name-keyed object class was swept for near-miss names (constraints, triggers, indexes matched exactly, but a name that differs only in invisible characters WOULD have shown as a missing/extra pair, and only this one did).
 - No sweep was done for OTHER metadata keys that two features now share on one Stripe account. `artist_id` is on both the deposit intent and the P9 intent; `order_id` is on the combined deposit-plus-goods intent. Whether any consumer treats one of those as a discriminator was not checked.
 - Non-public schemas were not swept for orphans.
@@ -443,6 +448,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - Other module-scope caches in route handlers were not enumerated.
 - Other multi-statement read-then-write sequences in apps/web/src/lib/server/ were NOT enumerated by me. 'Read a count, then act on it in a separate round trip' is generic and I checked only collections and payment-requests.
 - Other one-source-of-truth pairs between scripts/ and apps/web that encode the same policy twice (the entitlement caps in legacy-free-recompute.cjs:32-37 are explicitly described as mirroring packages/shared/src/entitlements.ts; I read the comment but did not diff the two).
+- Other places an order-level aggregate is trusted over per-line facts were not swept: summarizeReturnDisclosure call sites, the add-on lane's disclosure sections, and any surface deriving legal copy from a precomputed summary rather than the lines.
 - Other server actions that create-then-delete on failure: project intake, flash intake.
 - Other tables where a function enforces business logic but RLS permits direct bypass: flash items, discount codes, any table with both a restrictive function and a permissive DELETE policy.
 - Other webhook handlers that mutate money-adjacent counters were not enumerated by me for the delta-vs-converge property. The AGENTS.md rule is general but I verified it only for the sponsorship release path.

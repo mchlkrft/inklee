@@ -222,8 +222,20 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
       Terms notice.
 - [ ] **FA12** Un-park `GOODS_COMMERCE_ENABLED` — only after GS1-GS4 + GA1-GA2
       are answered, FA2 has passed, and Gate 1's structural items are in.
-- [ ] Grant the capabilities: `rich_content_blocks` (needs HUB-GAL-008),
-      `goods_collections`, `goods_bundles` (both need FA3).
+- [ ] **Q16-R1** Notice-and-action for gallery images (counsel round-2 Q16,
+      four named elements; DPIA mitigation R1, adopted 2026-08-03; task #79).
+      Unbuilt as of 2026-08-03: (1) an "image of me without consent" report
+      category PLUS a report link on gallery/bio/hub surfaces, (2) a queued
+      moderation item and a removal action that actually removes the storage
+      object, (3) the gallery section of the DSA moderation procedure, (4) the
+      Art. 16(5) acknowledgement flow extended to it. Discharges the second
+      condition of the C1.6 hosting grant. Gate key
+      `dpia_r1_notice_and_action_built` guards the gallery gate beside
+      R3/R4/R6 (added per round-5 §4.2, which found R1 was the one adopted
+      mitigation with no key and no worklist entry). **Blocks granting the
+      gallery capability**, together with the three R-keys and FA3.
+- [ ] Grant the capabilities: `rich_content_blocks` (needs HUB-GAL-008 and
+      Q16-R1), `goods_collections`, `goods_bundles` (both need FA3).
 
 ## Not blocking go-live, but do not lose
 
