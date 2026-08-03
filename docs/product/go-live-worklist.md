@@ -222,18 +222,29 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
       Terms notice.
 - [ ] **FA12** Un-park `GOODS_COMMERCE_ENABLED` — only after GS1-GS4 + GA1-GA2
       are answered, FA2 has passed, and Gate 1's structural items are in.
-- [ ] **Q16-R1** Notice-and-action for gallery images (counsel round-2 Q16,
-      four named elements; DPIA mitigation R1, adopted 2026-08-03; task #79).
-      Unbuilt as of 2026-08-03: (1) an "image of me without consent" report
-      category PLUS a report link on gallery/bio/hub surfaces, (2) a queued
-      moderation item and a removal action that actually removes the storage
-      object, (3) the gallery section of the DSA moderation procedure, (4) the
-      Art. 16(5) acknowledgement flow extended to it. Discharges the second
-      condition of the C1.6 hosting grant. Gate key
-      `dpia_r1_notice_and_action_built` guards the gallery gate beside
-      R3/R4/R6 (added per round-5 §4.2, which found R1 was the one adopted
-      mitigation with no key and no worklist entry). **Blocks granting the
-      gallery capability**, together with the three R-keys and FA3.
+- [~] **Q16-R1** Notice-and-action for gallery images (counsel round-2 Q16,
+      DPIA mitigation R1; task #79). **All four elements BUILT 2026-08-04**
+      (unpushed, dark): (1) the "image of me without consent" report category
+      (shared `report-categories.ts`) + a "Report content" link on the public
+      Hub; (2) the durable `content_reports` queue (migration 0155) and the
+      `gallery-takedown.ts` removal action that deletes the storage object from
+      both private gallery buckets, with a real-storage db test; (3) the DSA
+      procedure §2b (v3); (4) the Art. 16(5) acknowledgement, which fires for
+      the new category with no branch. Discharges the second condition of the
+      C1.6 hosting grant. **REMAINING before the gate key is recorded:** an
+      independent verification pass (do not record a key for work you did
+      yourself), and the small operator-facing `/admin/content-reports` LIST
+      page (the takedown ACTION shipped; the queue UI is a follow-up). Gate key
+      `dpia_r1_notice_and_action_built` stays UNRECORDED (founder's act) and
+      guards the gallery gate beside R3/R4/R6.
+- [ ] **B2 / Q20-DSA-§4** The DSA Section 4 trader-traceability threshold
+      (counsel round-2 Q20 second half). Add a `dsa_micro_small_2003_361` row to
+      `tax_thresholds` (alongside the VAT thresholds so one quarterly check
+      covers both) that alerts if Inklee crosses the small-enterprise ceiling
+      under Rec. 2003/361. **Blocked on counsel round-6 Q1 (the ceiling figure)
+      and Q2 (the Section 3/Art. 19 vs Section 4/Art. 29 citation);** the row is
+      deliberately not seeded with an invented figure. The DSA-procedure §6 note
+      and this line both point at that pending answer.
 - [ ] Grant the capabilities: `rich_content_blocks` (needs HUB-GAL-008 and
       Q16-R1), `goods_collections`, `goods_bundles` (both need FA3).
 
