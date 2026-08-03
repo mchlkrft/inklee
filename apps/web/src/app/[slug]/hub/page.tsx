@@ -202,6 +202,10 @@ export default async function ArtistHubPage({
   // rewritten under /<slug>/ or /<slug>/hub/ on the subdomains and 404.
   const termsHref = await apexHref("/terms");
   const privacyHref = await apexHref("/privacy");
+  // Q16 / DPIA R1: the notice-and-action route must be reachable from the one
+  // public surface that renders hosted gallery images. Apex-only, so host-aware
+  // like the others (a relative path would 404 under the subdomain rewrite).
+  const reportHref = await apexHref("/legal/report");
   const homeHref = await apexHref("/");
 
   return (
@@ -386,6 +390,12 @@ export default async function ArtistHubPage({
           className="transition-colors hover:text-brand-bone"
         >
           Privacy
+        </Link>
+        <Link
+          href={reportHref}
+          className="transition-colors hover:text-brand-bone"
+        >
+          Report content
         </Link>
         {!hideBranding && (
           <>
