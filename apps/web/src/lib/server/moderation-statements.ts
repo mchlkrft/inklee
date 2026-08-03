@@ -143,3 +143,56 @@ async function insertStatement(input: RecordInput): Promise<string | null> {
   }
   return statementId;
 }
+
+// ---------------------------------------------------------------------------
+// Gallery-image takedowns (#79 / counsel Q16, migration 0155). A person
+// depicted in a hosted gallery image can report it; when the operator removes
+// it, the ARTIST (the recipient of the hosting service) is owed the Art. 17
+// statement of reasons, exactly as a studio owner is for a map action. Same
+// register, target_type='gallery_image' (added in 0155), action='removed'.
+// The caller (gallery-takedown.ts) owns the content_reports back-link, so this
+// does not touch it.
+// ---------------------------------------------------------------------------
+
+function composeGalleryGrounds(operatorNote?: string): string {
+  const why =
+    operatorNote?.trim() ||
+    "a person depicted in the image reported that it was published without their consent";
+  return [
+    "A gallery image on your Inklee hub was removed following a notice under the EU Digital Services Act (Article 16).",
+    `Why: ${why}.`,
+    "Scope: the image was removed from your public hub and deleted from storage.",
+    "Automated means: no. A person reviewed and took this action.",
+    "Right of redress: reply to the action notice if you believe this was in error and we will reconsider.",
+  ].join(" ");
+}
+
+/**
+ * Record one Art. 17 statement of reasons for a removed gallery image, owed to
+ * the hosting artist. Returns the statement id, or null if the register write
+ * failed (the takedown proceeds regardless and logs the miss).
+ */
+export async function recordGalleryModerationStatement(input: {
+  artistId: string;
+  grounds?: string;
+}): Promise<string | null> {
+  try {
+    const { data: stmt, error } = await serviceClient
+      .from("moderation_statements")
+      .insert({
+        target_type: "gallery_image",
+        target_artist_id: input.artistId,
+        action: "removed",
+        grounds: composeGalleryGrounds(input.grounds),
+        automated: false,
+        delivered_to: input.artistId,
+        delivered_at: null,
+      })
+      .select("id")
+      .maybeSingle();
+    if (error || !stmt?.id) return null;
+    return stmt.id as string;
+  } catch {
+    return null;
+  }
+}
