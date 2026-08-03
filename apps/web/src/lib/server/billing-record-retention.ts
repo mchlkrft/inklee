@@ -18,11 +18,17 @@ import {
  * fixed from being deleted too early is the same compliance failure
  * pointing the other way.
  *
- * SCOPE: only rows already de-identified by 0129 (`artist_id IS NULL`, i.e.
- * belonging to a DELETED account). A row still attached to a live artist is
- * ordinary ongoing billing history for an active customer, not part of this
- * gap — purging a live artist's own subscription/tax history is a separate,
- * much bigger product and legal question this function does not answer.
+ * SCOPE, AND ITS ONE EXCEPTION SINCE COUNSEL ROUND 4. Four of the five tables
+ * here purge only rows already de-identified by 0129 (`artist_id IS NULL`,
+ * i.e. belonging to a DELETED account); a row still attached to a live artist
+ * is ordinary ongoing billing history for an active customer. The FIFTH,
+ * `transaction_tax_snapshots`, is no longer scoped that way: counsel round 4
+ * §7.4 ruled that a tax snapshot's retention basis is the accounting
+ * obligation, which is "time-bound... and indifferent to whether the account
+ * still exists", so a LIVE artist's eight-year-old snapshot has exhausted its
+ * Art. 6(1)(c) basis too. Migration 0150 widens both that step and the
+ * database trigger behind it. The asymmetry is deliberate and is not an
+ * oversight in the other four: counsel ruled on the tax ledger specifically.
  *
  * ANCHOR + CUTOFF: 7 years from the end of the financial year (the same
  * arithmetic the guest-shop purges use — `financialYearRetentionCutoff`),
@@ -52,7 +58,15 @@ import {
  * PostgREST delete (which cannot set the marker) is still refused, and a row
  * inside its retention window is still undeletable even by a caller that
  * forges the marker. See 0148's header for why the exemption has three
- * conditions rather than one.
+ * conditions rather than one, and 0150's for what the third one became.
+ *
+ * THE CARVE-OUT (counsel round 4 §7.4, migration 0150). Rows under an open
+ * dispute, audit or litigation hold are excluded case by case under
+ * Art. 17(3)(e), and counsel requires them "flagged rather than silently
+ * skipped". So the RPC returns the ids it held back as well as the ids it
+ * removed, this module reports them as their own counted block, and a
+ * non-zero count in `purge` mode raises its own alert. A held row that simply
+ * failed to appear in a count would be the silent skip counsel ruled out.
  *
  * ORDER MATTERS for all five. None of the FKs among them carry ON DELETE
  * CASCADE/SET NULL (only the artist_id FK to profiles does, per 0129) —
@@ -182,12 +196,16 @@ export async function purgeDeletedAccountBillingConsentRecords(
 }
 
 /**
- * The amended tax ledger (counsel Q1, migration 0148). Unlike every other
- * step here this is an RPC, not a `.delete()`, and that is the whole design:
+ * The amended tax ledger (counsel Q1 / migration 0148, widened to live
+ * accounts by counsel round 4 §7.4 / migration 0150). Unlike every other step
+ * here this is an RPC, not a `.delete()`, and that is the whole design:
  * `tts_no_mutation` only stands down for a transaction-local marker that
  * `purge_expired_tax_snapshots()` alone can set, so the append-only control
  * still refuses every delete that arrives over PostgREST — including this
  * module's own, if someone later "simplifies" it into a `.delete()`.
+ *
+ * NOT scoped to `artist_id IS NULL`, unlike its four neighbours. That is the
+ * §7.4 ruling, not an omission — see this file's header.
  *
  * `now` is passed for symmetry with the other steps and for tests, but the
  * function CLAMPS it to `least(_now, now())` and the trigger re-derives the
@@ -196,19 +214,36 @@ export async function purgeDeletedAccountBillingConsentRecords(
  * own window keeps the snapshot it corrects alive) lives in the RPC because
  * PostgREST cannot express it; that is also why `dry-run` is a parameter of
  * the RPC rather than a second predicate on this side.
+ *
+ * `heldIds` are the rows the Art. 17(3)(e) carve-out kept back. They are
+ * surfaced, not swallowed: `runBillingRecordRetentionPurges` reports them as
+ * their own block and alerts on a non-zero count.
  */
-export async function purgeDeletedAccountTransactionTaxSnapshots(
+export type TaxSnapshotPurgeResult = PurgeResult & {
+  ids: string[];
+  heldCount: number;
+  heldIds: string[];
+};
+
+export async function purgeExpiredTransactionTaxSnapshots(
   now: Date = new Date(),
   mode: RetentionMode = "purge",
-): Promise<PurgeResult & { ids: string[] }> {
+): Promise<TaxSnapshotPurgeResult> {
   const { data, error } = await serviceClient.rpc(
     "purge_expired_tax_snapshots",
     { _now: now.toISOString(), _dry_run: mode === "dry-run" },
   );
   if (error) throw error;
-  const payload = (data ?? {}) as { count?: number; ids?: string[] };
+  const payload = (data ?? {}) as {
+    count?: number;
+    ids?: string[];
+    held_count?: number;
+    held_ids?: string[];
+  };
   const ids = payload.ids ?? [];
   const count = payload.count ?? 0;
+  const heldIds = payload.held_ids ?? [];
+  const heldCount = payload.held_count ?? 0;
   // The RPC returns one jsonb row carrying both, so these cannot disagree
   // through truncation the way a `setof uuid` could. If they ever do, the
   // shape has changed underneath us and the dependent step's exclusion set
@@ -218,7 +253,15 @@ export async function purgeDeletedAccountTransactionTaxSnapshots(
       `purge_expired_tax_snapshots returned count=${count} but ${ids.length} ids`,
     );
   }
-  return { count, ids };
+  // Same check on the carve-out half, and it matters more, not less: the held
+  // count is the evidence that the exclusion was not silent. A count that has
+  // drifted from its own id list is not evidence of anything.
+  if (heldCount !== heldIds.length) {
+    throw new Error(
+      `purge_expired_tax_snapshots returned held_count=${heldCount} but ${heldIds.length} held ids`,
+    );
+  }
+  return { count, ids, heldCount, heldIds };
 }
 
 /**
@@ -314,6 +357,13 @@ export async function runBillingRecordRetentionPurges(
     taxSnapshotIds: new Set(),
   };
 
+  // Declared before `steps` so the tax step can write its carve-out block
+  // straight in, the same way the cron route lets the Connect teardown
+  // contribute `connect_teardowns_blocked` alongside its own count. If that
+  // step THROWS the key is simply absent, which is correct: a run that failed
+  // does not get to report zero rows held.
+  const results: Record<string, BillingRetentionStepResult> = {};
+
   const steps: [string, () => Promise<PurgeResult>][] = [
     [
       "purged_deleted_account_withdrawal_cases",
@@ -341,14 +391,39 @@ export async function runBillingRecordRetentionPurges(
     // FOURTH, and it must stay before subscriptions: a snapshot references
     // billing_subscriptions, so purging snapshots first is what frees the
     // subscription in the same run (counsel Q1, 0148).
+    //
+    // The key dropped `deleted_account_` when §7.4 widened the step past
+    // deleted accounts. Renaming a run-log key is normally not worth the
+    // discontinuity, but 0148/0149 have never been applied to production, so
+    // there is no history to break — and a compliance evidence ledger whose
+    // key says "deleted account" for a block that purges live accounts is
+    // worse than a gap.
     [
-      "purged_deleted_account_transaction_tax_snapshots",
+      "purged_expired_transaction_tax_snapshots",
       async () => {
-        const result = await purgeDeletedAccountTransactionTaxSnapshots(
-          now,
-          mode,
-        );
+        const result = await purgeExpiredTransactionTaxSnapshots(now, mode);
         for (const id of result.ids) removed.taxSnapshotIds.add(id);
+        // Counsel round 4 §7.4: "flagged rather than silently skipped."
+        results.transaction_tax_snapshots_held_by_legal_hold = {
+          ok: true,
+          count: result.heldCount,
+        };
+        if (mode === "purge" && result.heldCount > 0) {
+          // A held row is an erasure the horizon has come due on and that a
+          // case-by-case decision is deliberately withholding. It is lawful
+          // and it is also an open obligation someone owns, so it does not
+          // get to live only in a JSON field. Dry-runs do not alert: the
+          // count is already reported, and a weekly duplicate of a standing
+          // condition is how alerts stop being read.
+          Sentry.captureMessage(
+            `Tax-snapshot retention: ${result.heldCount} row(s) past the 7-year horizon withheld under an active legal hold`,
+            {
+              level: "warning",
+              tags: { action: "billing_record_retention_purge", mode },
+              extra: { held_ids: result.heldIds },
+            },
+          );
+        }
         return result;
       },
     ],
@@ -358,7 +433,6 @@ export async function runBillingRecordRetentionPurges(
     ],
   ];
 
-  const results: Record<string, BillingRetentionStepResult> = {};
   for (const [name, fn] of steps) {
     try {
       const { count } = await fn();

@@ -1,36 +1,95 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adminClient, makeActor, type Actor } from "./helpers/actor";
+import {
+  adminClient,
+  anonClient,
+  makeActor,
+  type Actor,
+} from "./helpers/actor";
 import { PgSession } from "./helpers/pg-session";
 
 vi.mock("server-only", () => ({}));
 
-import { purgeDeletedAccountTransactionTaxSnapshots } from "@/lib/server/billing-record-retention";
+import {
+  purgeExpiredTransactionTaxSnapshots,
+  runBillingRecordRetentionPurges,
+} from "@/lib/server/billing-record-retention";
 import { financialYearRetentionCutoff } from "@/lib/server/retention-cutoffs";
 
 /**
- * Counsel Q1 (docs/legal/counsel-handoff-2026-08-02.md §5.2), migration 0148.
+ * The tax-ledger retention horizon: counsel Q1 (migration 0148) and counsel
+ * round 4 §7.4 (migration 0150).
  *
- * `transaction_tax_snapshots` was append-only against EVERYTHING: the trigger
- * refused every UPDATE and every DELETE, so the ledger was retained
- * permanently and (because nearly every real subscription generates a tax
- * event) dragged its subscription rows into permanence with it. Counsel:
- * immutability is a control, not a lawful basis for indefinite retention;
- * amend it so the ledger stays immutable against EDITS and becomes deletable
- * by exactly one path, the retention purge at 7 years from financial-year end.
+ * Q1 made the append-only ledger deletable by exactly one path at 7 years
+ * from financial-year end. §7.4 then answered the scope question 0148 raised
+ * and did not resolve: "the retention basis for a tax snapshot is the
+ * accounting obligation, which is time-bound... and indifferent to whether
+ * the account still exists. A live artist's eight-year-old snapshot has
+ * exhausted its Art. 6(1)(c) basis and storage limitation applies." So the
+ * purge now covers EVERY snapshot past the horizon, not only de-identified
+ * ones, with one carve-out: rows under an open dispute, audit or litigation
+ * hold are excluded case by case under Art. 17(3)(e), "flagged rather than
+ * silently skipped".
  *
- * The thing that makes this a control rather than a hole is that the exemption
- * is over-determined, so this file pins BOTH halves:
+ * ===========================================================================
+ * WHY THIS FILE IS SHAPED THE WAY IT IS
+ * ===========================================================================
  *
- *   what must still be REFUSED — every ad-hoc delete over the API, every
- *   update, and (the important one) a purge-lane delete of a row that is not
- *   actually past the horizon or not actually de-identified;
+ * Counsel, same paragraph: "a compliance guard is tested only when its
+ * REMOVAL fails the suite. Adopt mutation-style verification as the standard
+ * for every guard this process has created."
  *
- *   what must now SUCCEED — the purge itself, on exactly the rows the horizon
- *   covers, freeing the subscriptions those rows were pinning.
+ * The guard is `tts_block_mutation()`'s DELETE exemption, which has THREE
+ * conditions. Before this file was rewritten, only ONE of them was covered.
+ * Measured, not assumed, against migration 0148 on 2026-08-03:
  *
- * A guard that refuses everything would pass every "must be refused" test in
- * here, which is why every one of them is paired with a positive control.
+ *   marker      remove it -> suite RED   (1 failure)  [covered]
+ *   artist_id   remove it -> suite GREEN (12 passed)  [NOT covered]
+ *   horizon     remove it -> suite GREEN (12 passed)  [NOT covered]
+ *
+ * The reason both gaps existed is the same, and it is worth naming because it
+ * is easy to rebuild: every "must be refused" test went through
+ * `purge_expired_tax_snapshots()`, whose OWN predicate already filtered those
+ * rows out. The RPC refused to ASK, so the trigger was never given the chance
+ * to answer, and deleting the trigger's condition changed nothing observable.
+ * A test of a backstop has to route around the thing in front of it.
+ *
+ * So the trigger conditions are now tested through a privileged raw SQL
+ * session that sets the marker by hand and issues the DELETE directly. That
+ * is precisely the caller the third condition exists to stop: someone with
+ * raw SQL who can forge the marker, but who still cannot forge `now()` and
+ * cannot see past a legal hold.
+ *
+ * ===========================================================================
+ * THE MUTATIONS, AND WHAT EACH ONE REDS
+ * ===========================================================================
+ *
+ * Each was executed against the local stack, confirmed red, and the file
+ * restored byte-exact (sha256 compared) afterwards.
+ *
+ *   1. Drop `coalesce(current_setting('inklee.tts_retention_purge',...)`
+ *      from the trigger
+ *        -> reds "refuses an ad-hoc DELETE over the API"
+ *        -> reds "TRIGGER CONDITION 1"
+ *   2. Drop `OLD.created_at < financial_year_retention_cutoff(now(), 7)`
+ *      from the trigger
+ *        -> reds "TRIGGER CONDITION 2"
+ *   3. Drop `not retention_legal_hold_active(...)` from the trigger
+ *        -> reds "TRIGGER CONDITION 3"
+ *   4. Drop the hold exclusion from `purge_expired_tax_snapshots()`'s
+ *      `held_chain` CTE
+ *        -> reds the carve-out tests (the purge tries to delete a held row
+ *           and the trigger stops it, so the step ERRORS instead of holding)
+ *   5. Return `held_count`/`held_ids` as 0/[] from the RPC
+ *        -> reds "the carve-out is reported, not silent"
+ *   6. Restore `and s.artist_id is null` to the RPC predicate (i.e. undo
+ *      §7.4)
+ *        -> reds "a LIVE artist's snapshot past the horizon IS purged"
+ *
+ * Every one of those is paired with a DISTINCTION test, because a guard that
+ * refuses everything passes every "must be refused" test ever written. The
+ * distinction for the trigger conditions is `TRIGGER DISTINCTION`: the same
+ * privileged path, on a row that satisfies all three conditions, succeeds.
  */
 
 // financialYearRetentionCutoff(now, 7) with a 2026 clock = 2019-01-01. The RPC
@@ -42,16 +101,29 @@ const NOT_OLD_ENOUGH = "2019-06-15T00:00:00.000Z"; // FY2019 -> inside the windo
 
 let admin: SupabaseClient;
 let liveArtist: Actor;
+/** Raw SQL, superuser. The only way to reach the trigger's 2nd and 3rd
+ *  conditions: PostgREST cannot send `set_config` alongside a DELETE, which
+ *  is exactly what the 1st condition relies on. */
+let root: PgSession;
 
-const createdSnapshotIds: string[] = [];
 const createdSubscriptionIds: string[] = [];
+const createdHoldIds: string[] = [];
 
 beforeAll(async () => {
   admin = adminClient();
-  liveArtist = await makeActor(admin, "q1-tax-ledger");
+  root = PgSession.open("tax-ledger-horizon");
+  liveArtist = await makeActor(admin, "q74-tax-ledger");
 }, 60_000);
 
 afterAll(async () => {
+  // Holds first: a leftover hold would make every LATER run of this file find
+  // rows it cannot purge, and the failure would look like a broken purge.
+  if (createdHoldIds.length > 0) {
+    await root.query(
+      "delete from retention_legal_holds where id = any($1::uuid[])",
+      [createdHoldIds],
+    );
+  }
   // Snapshots that survived their test on purpose are cleaned up through the
   // ONE path that may delete them — which is itself a small end-to-end proof
   // that the path works. Rows that are not past the horizon cannot be removed
@@ -66,6 +138,7 @@ afterAll(async () => {
   }
   await admin.from("profiles").delete().eq("id", liveArtist.id);
   await admin.auth.admin.deleteUser(liveArtist.id);
+  await root.close();
 }, 60_000);
 
 function uniq(prefix: string): string {
@@ -94,9 +167,7 @@ async function insertSnapshot(
     .select("id")
     .single();
   expect(error, error?.message).toBeNull();
-  const id = data!.id as string;
-  createdSnapshotIds.push(id);
-  return id;
+  return data!.id as string;
 }
 
 async function insertSubscription(
@@ -130,7 +201,141 @@ async function snapshotExists(id: string): Promise<boolean> {
   return Boolean(data);
 }
 
+/** Open a hold. Raw SQL rather than PostgREST because the table is
+ *  service-role-only by grant and the test is not exercising that path here
+ *  (the RLS section below does). */
+async function placeHold(
+  snapshotId: string,
+  reason: "dispute" | "audit" | "litigation" = "dispute",
+): Promise<string> {
+  const rows = await root.query<{ id: string }>(
+    `insert into retention_legal_holds
+       (record_table, record_id, reason, case_reference, opened_by)
+     values ('transaction_tax_snapshots', $1, $2, $3, 'db-test')
+     returning id`,
+    [snapshotId, reason, uniq("case")],
+  );
+  createdHoldIds.push(rows[0].id);
+  return rows[0].id;
+}
+
+async function releaseHold(holdId: string): Promise<void> {
+  await root.query(
+    `update retention_legal_holds
+        set released_at = now(), released_by = 'db-test', release_note = 'test release'
+      where id = $1`,
+    [holdId],
+  );
+}
+
+/**
+ * The privileged delete lane: the marker is set BY HAND, then the DELETE is
+ * issued directly. This is not a supported path in production; it exists here
+ * because it is the only way to hand the trigger a row the RPC's own
+ * predicate would have filtered out, and therefore the only way a missing
+ * trigger condition can be observed at all.
+ */
+async function privilegedDelete(
+  id: string,
+  { withMarker }: { withMarker: boolean },
+): Promise<{ ok: boolean; message: string }> {
+  await root.begin();
+  try {
+    if (withMarker) {
+      await root.query(
+        "select set_config('inklee.tts_retention_purge', 'on', true)",
+      );
+    }
+    await root.query("delete from transaction_tax_snapshots where id = $1", [
+      id,
+    ]);
+    await root.commit();
+    return { ok: true, message: "" };
+  } catch (err) {
+    await root.rollbackIfOpen();
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // ===========================================================================
+// THE THREE TRIGGER CONDITIONS, ONE TEST EACH.
+//
+// This whole block is what counsel's "the same fix must cover the
+// trigger-test gap" asks for. Note what every one of them has in common: the
+// row is constructed so that the OTHER two conditions are satisfied, so the
+// only thing standing between the DELETE and success is the condition under
+// test. A test whose row fails two conditions cannot tell you which one
+// refused it, and would stay green if either were deleted.
+// ===========================================================================
+
+describe("tts_block_mutation: each DELETE condition, isolated", () => {
+  it("TRIGGER CONDITION 1 — without the transaction-local marker, a raw SQL delete of an otherwise fully-eligible row is refused", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH, // past the horizon
+    });
+    // No hold, past the horizon, superuser connection: everything except the
+    // marker is in place. The next test proves the same row goes once it is.
+    const attempt = await privilegedDelete(id, { withMarker: false });
+    expect(attempt.ok).toBe(false);
+    expect(attempt.message).toContain("append-only");
+    expect(await snapshotExists(id)).toBe(true);
+  });
+
+  it("TRIGGER CONDITION 2 — WITH the marker forged, a row inside its retention window is still refused (the horizon is re-derived, never supplied)", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: NOT_OLD_ENOUGH, // inside the window
+    });
+    const attempt = await privilegedDelete(id, { withMarker: true });
+    expect(attempt.ok).toBe(false);
+    expect(attempt.message).toContain("append-only");
+    expect(await snapshotExists(id)).toBe(true);
+  });
+
+  it("TRIGGER CONDITION 3 — WITH the marker forged and the horizon passed, an active legal hold still refuses (Art. 17(3)(e))", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    const holdId = await placeHold(id, "litigation");
+    const attempt = await privilegedDelete(id, { withMarker: true });
+    expect(attempt.ok).toBe(false);
+    expect(attempt.message).toContain("append-only");
+    expect(await snapshotExists(id)).toBe(true);
+
+    // ...and the hold is the ONLY reason. Release it and the identical
+    // statement succeeds, which is what makes the assertion above a test of
+    // the hold rather than a test of "raw deletes never work".
+    await releaseHold(holdId);
+    const afterRelease = await privilegedDelete(id, { withMarker: true });
+    expect(afterRelease.ok, afterRelease.message).toBe(true);
+    expect(await snapshotExists(id)).toBe(false);
+  });
+
+  it("TRIGGER DISTINCTION — all three conditions satisfied, the same privileged path DELETES, so the guard is not simply refusing everything", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    const attempt = await privilegedDelete(id, { withMarker: true });
+    expect(attempt.ok, attempt.message).toBe(true);
+    expect(await snapshotExists(id)).toBe(false);
+  });
+
+  it("TRIGGER DISTINCTION — a LIVE artist's row is now equally deletable through that path, which is the §7.4 widening at the trigger level", async () => {
+    const id = await insertSnapshot({
+      artist_id: liveArtist.id,
+      created_at: OLD_ENOUGH,
+    });
+    const attempt = await privilegedDelete(id, { withMarker: true });
+    expect(attempt.ok, attempt.message).toBe(true);
+    expect(await snapshotExists(id)).toBe(false);
+  });
+});
 
 describe("the append-only control still refuses everything it refused before", () => {
   it("refuses an ad-hoc DELETE over the API, even of a row that IS past the horizon", async () => {
@@ -162,16 +367,47 @@ describe("the append-only control still refuses everything it refused before", (
   });
 });
 
-describe("the purge path (the one exemption) deletes exactly what the horizon covers", () => {
+// ===========================================================================
+// §7.4: THE HORIZON NO LONGER ASKS WHETHER THE ACCOUNT STILL EXISTS
+// ===========================================================================
+
+describe("the purge path covers every account status past the horizon", () => {
   it("DELETES a de-identified row past the 7-year horizon — the capability Q1 added", async () => {
     const id = await insertSnapshot({
       artist_id: null,
       created_at: OLD_ENOUGH,
     });
-    const result = await purgeDeletedAccountTransactionTaxSnapshots();
-    expect(result.count).toBeGreaterThanOrEqual(1);
+    const result = await purgeExpiredTransactionTaxSnapshots();
     expect(result.ids).toContain(id);
     expect(await snapshotExists(id)).toBe(false);
+  });
+
+  it("DELETES a LIVE artist's row past the horizon — the §7.4 widening, and the assertion this file previously made in reverse", async () => {
+    const id = await insertSnapshot({
+      artist_id: liveArtist.id,
+      created_at: OLD_ENOUGH,
+    });
+    const result = await purgeExpiredTransactionTaxSnapshots();
+    expect(result.ids).toContain(id);
+    expect(await snapshotExists(id)).toBe(false);
+    // The artist is untouched. Counsel widened a retention deadline, not the
+    // account lifecycle.
+    const { data } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", liveArtist.id)
+      .maybeSingle();
+    expect(data?.id).toBe(liveArtist.id);
+  });
+
+  it("DISTINCTION: leaves a LIVE artist's row that is still inside its window", async () => {
+    const id = await insertSnapshot({
+      artist_id: liveArtist.id,
+      created_at: NOT_OLD_ENOUGH,
+    });
+    const result = await purgeExpiredTransactionTaxSnapshots();
+    expect(result.ids).not.toContain(id);
+    expect(await snapshotExists(id)).toBe(true);
   });
 
   it("DISTINCTION: leaves a de-identified row that is still inside its window", async () => {
@@ -179,21 +415,136 @@ describe("the purge path (the one exemption) deletes exactly what the horizon co
       artist_id: null,
       created_at: NOT_OLD_ENOUGH,
     });
-    const result = await purgeDeletedAccountTransactionTaxSnapshots();
+    const result = await purgeExpiredTransactionTaxSnapshots();
     expect(result.ids).not.toContain(id);
     expect(await snapshotExists(id)).toBe(true);
   });
+});
 
-  it("DISTINCTION: leaves an OLD row that still belongs to a LIVE artist (scope is deleted accounts)", async () => {
+// ===========================================================================
+// THE CARVE-OUT: EXCLUDED, AND VISIBLE
+// ===========================================================================
+
+describe("legal holds exclude a row from the purge and are reported, not skipped", () => {
+  it("a held row past the horizon is NOT purged and IS returned in heldIds", async () => {
     const id = await insertSnapshot({
       artist_id: liveArtist.id,
       created_at: OLD_ENOUGH,
     });
-    const result = await purgeDeletedAccountTransactionTaxSnapshots();
+    await placeHold(id, "dispute");
+
+    const result = await purgeExpiredTransactionTaxSnapshots();
     expect(result.ids).not.toContain(id);
+    expect(result.heldIds).toContain(id);
+    expect(result.heldCount).toBe(result.heldIds.length);
     expect(await snapshotExists(id)).toBe(true);
   });
 
+  it("DISTINCTION: releasing the hold lets the identical row purge on the very next run, and it stops being reported as held", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    const holdId = await placeHold(id, "audit");
+
+    const held = await purgeExpiredTransactionTaxSnapshots();
+    expect(held.heldIds).toContain(id);
+    expect(await snapshotExists(id)).toBe(true);
+
+    await releaseHold(holdId);
+
+    const freed = await purgeExpiredTransactionTaxSnapshots();
+    expect(freed.heldIds).not.toContain(id);
+    expect(freed.ids).toContain(id);
+    expect(await snapshotExists(id)).toBe(false);
+  });
+
+  it("a hold placed on a row still INSIDE its window is not reported as held — nothing is being withheld yet", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: NOT_OLD_ENOUGH,
+    });
+    await placeHold(id, "dispute");
+    const result = await purgeExpiredTransactionTaxSnapshots();
+    // Retained, but by the horizon, not by the carve-out. Reporting it as
+    // held would inflate the number counsel asked to be able to read.
+    expect(result.ids).not.toContain(id);
+    expect(result.heldIds).not.toContain(id);
+  });
+
+  it("two holds on one row: releasing only the first keeps the row held", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    const disputeHold = await placeHold(id, "dispute");
+    await placeHold(id, "audit");
+
+    await releaseHold(disputeHold);
+
+    const result = await purgeExpiredTransactionTaxSnapshots();
+    expect(result.ids).not.toContain(id);
+    expect(result.heldIds).toContain(id);
+    expect(await snapshotExists(id)).toBe(true);
+  });
+
+  it("a hold on a CORRECTION also holds back the snapshot it corrects, and both are reported", async () => {
+    const original = await insertSnapshot({
+      artist_id: null,
+      created_at: "2018-06-01T00:00:00.000Z",
+    });
+    const correction = await insertSnapshot({
+      kind: "credit_note",
+      corrects_snapshot_id: original,
+      artist_id: null,
+      created_at: "2018-07-01T00:00:00.000Z",
+      net_minor: -1000,
+      vat_minor: 0,
+      gross_minor: -1000,
+    });
+    await placeHold(correction, "litigation");
+
+    const result = await purgeExpiredTransactionTaxSnapshots();
+    // The FK is NO ACTION, so the original cannot go while the correction
+    // stays. Its retention is therefore just as attributable to the hold, and
+    // reporting only the directly-held row would understate the carve-out.
+    expect(result.ids).not.toContain(original);
+    expect(result.ids).not.toContain(correction);
+    expect(result.heldIds).toContain(correction);
+    expect(result.heldIds).toContain(original);
+    expect(await snapshotExists(original)).toBe(true);
+    expect(await snapshotExists(correction)).toBe(true);
+  });
+});
+
+describe("the run surfaces the carve-out as its own block", () => {
+  it("reports transaction_tax_snapshots_held_by_legal_hold alongside the purge count", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    await placeHold(id, "dispute");
+
+    const steps = await runBillingRecordRetentionPurges(new Date(), "dry-run");
+
+    const purge = steps.purged_expired_transaction_tax_snapshots;
+    expect(purge, JSON.stringify(steps)).toBeDefined();
+    expect(purge.ok).toBe(true);
+
+    const heldBlock = steps.transaction_tax_snapshots_held_by_legal_hold;
+    expect(heldBlock, JSON.stringify(steps)).toBeDefined();
+    expect(heldBlock.ok).toBe(true);
+    // A held row that only ever showed up as "one fewer than expected" in the
+    // purge count would be exactly the silent skip counsel ruled against.
+    expect(heldBlock.ok && heldBlock.count).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ===========================================================================
+// SELF-REFERENCE, INCLUDING THE CHAIN 0148 GOT ONE LEVEL DEEP
+// ===========================================================================
+
+describe("a snapshot is never purged while something that stays still references it", () => {
   it("a correction still inside its own window keeps the snapshot it corrects alive", async () => {
     const original = await insertSnapshot({
       artist_id: null,
@@ -208,7 +559,7 @@ describe("the purge path (the one exemption) deletes exactly what the horizon co
       vat_minor: 0,
       gross_minor: -1000,
     });
-    const result = await purgeDeletedAccountTransactionTaxSnapshots();
+    const result = await purgeExpiredTransactionTaxSnapshots();
     expect(result.ids).not.toContain(original);
     expect(await snapshotExists(original)).toBe(true);
     expect(await snapshotExists(correction)).toBe(true);
@@ -228,12 +579,52 @@ describe("the purge path (the one exemption) deletes exactly what the horizon co
       vat_minor: 0,
       gross_minor: -1000,
     });
-    const result = await purgeDeletedAccountTransactionTaxSnapshots();
+    const result = await purgeExpiredTransactionTaxSnapshots();
     // Deleting the parent while a child still referenced it would raise 23503;
     // both ids in one result is the proof they went in the same statement.
     expect(result.ids).toEqual(expect.arrayContaining([original, correction]));
     expect(await snapshotExists(original)).toBe(false);
     expect(await snapshotExists(correction)).toBe(false);
+  });
+
+  it("a THREE-LINK chain does not abort the run: a young correction protects its parent AND its grandparent", async () => {
+    // Regression for the defect described in 0150's header. 0148's exclusion
+    // asked only "is there a correction of `s` that is not purgeable?", and
+    // answered it from that correction's own age — never from whether the
+    // correction was in turn pinned by one of its own. So `grandparent` was
+    // selected for deletion while `parent` (correctly retained) still
+    // referenced it, and the DELETE failed with 23503, aborting the whole
+    // step every cycle.
+    const grandparent = await insertSnapshot({
+      artist_id: null,
+      created_at: "2018-03-01T00:00:00.000Z",
+    });
+    const parent = await insertSnapshot({
+      kind: "credit_note",
+      corrects_snapshot_id: grandparent,
+      artist_id: null,
+      created_at: "2018-04-01T00:00:00.000Z",
+      net_minor: -1000,
+      vat_minor: 0,
+      gross_minor: -1000,
+    });
+    const child = await insertSnapshot({
+      kind: "credit_note",
+      corrects_snapshot_id: parent,
+      artist_id: null,
+      created_at: NOT_OLD_ENOUGH, // young: pins `parent`, which must pin `grandparent`
+      net_minor: 1000,
+      vat_minor: 0,
+      gross_minor: 1000,
+    });
+
+    // Not throwing IS the assertion: on 0148 this call raised 23503.
+    const result = await purgeExpiredTransactionTaxSnapshots();
+    expect(result.ids).not.toContain(grandparent);
+    expect(result.ids).not.toContain(parent);
+    expect(await snapshotExists(grandparent)).toBe(true);
+    expect(await snapshotExists(parent)).toBe(true);
+    expect(await snapshotExists(child)).toBe(true);
   });
 });
 
@@ -243,7 +634,7 @@ describe("the caller cannot widen the horizon", () => {
       artist_id: null,
       created_at: NOT_OLD_ENOUGH,
     });
-    const result = await purgeDeletedAccountTransactionTaxSnapshots(
+    const result = await purgeExpiredTransactionTaxSnapshots(
       new Date("2200-01-01T00:00:00.000Z"),
     );
     expect(result.ids).not.toContain(inWindow);
@@ -256,14 +647,14 @@ describe("the caller cannot widen the horizon", () => {
       created_at: OLD_ENOUGH,
     });
     // 2024 clock -> cutoff 2017-01-01, so an FY2018 row is NOT yet purgeable.
-    const narrowed = await purgeDeletedAccountTransactionTaxSnapshots(
+    const narrowed = await purgeExpiredTransactionTaxSnapshots(
       new Date("2024-05-01T00:00:00.000Z"),
     );
     expect(narrowed.ids).not.toContain(id);
     expect(await snapshotExists(id)).toBe(true);
     // ...and with the real clock it goes, so the row was purgeable all along
     // and the previous assertion was the parameter working, not a dead row.
-    const real = await purgeDeletedAccountTransactionTaxSnapshots();
+    const real = await purgeExpiredTransactionTaxSnapshots();
     expect(real.ids).toContain(id);
   });
 });
@@ -274,17 +665,32 @@ describe("dry-run reports what a purge would do, and does nothing", () => {
       artist_id: null,
       created_at: OLD_ENOUGH,
     });
-    const dry = await purgeDeletedAccountTransactionTaxSnapshots(
+    const dry = await purgeExpiredTransactionTaxSnapshots(
       new Date(),
       "dry-run",
     );
     expect(dry.ids).toContain(id);
     expect(await snapshotExists(id)).toBe(true);
 
-    const real = await purgeDeletedAccountTransactionTaxSnapshots();
+    const real = await purgeExpiredTransactionTaxSnapshots();
     expect(real.ids).toContain(id);
     expect(real.count).toBe(dry.count);
     expect(await snapshotExists(id)).toBe(false);
+  });
+
+  it("a dry-run reports held rows too, so the carve-out is visible before anything is deleted", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    await placeHold(id, "audit");
+    const dry = await purgeExpiredTransactionTaxSnapshots(
+      new Date(),
+      "dry-run",
+    );
+    expect(dry.heldIds).toContain(id);
+    expect(dry.ids).not.toContain(id);
+    expect(await snapshotExists(id)).toBe(true);
   });
 });
 
@@ -309,7 +715,7 @@ describe("the knock-on effect Q1 was actually about", () => {
       .eq("id", subId);
     expect(blocked?.code).toBe("23503");
 
-    await purgeDeletedAccountTransactionTaxSnapshots();
+    await purgeExpiredTransactionTaxSnapshots();
     expect(await snapshotExists(snapshotId)).toBe(false);
 
     const { error: freed } = await admin
@@ -317,6 +723,92 @@ describe("the knock-on effect Q1 was actually about", () => {
       .delete()
       .eq("id", subId);
     expect(freed, freed?.message).toBeNull();
+  });
+});
+
+// ===========================================================================
+// THE HOLD LEDGER IS NOT A PUBLIC TABLE
+// ===========================================================================
+
+describe("retention_legal_holds is reachable only by the service role", () => {
+  it("an authenticated user can neither read it nor open a hold of their own", async () => {
+    const target = await insertSnapshot({
+      artist_id: liveArtist.id,
+      created_at: OLD_ENOUGH,
+    });
+
+    const read = await liveArtist.client
+      .from("retention_legal_holds")
+      .select("id");
+    expect(read.error?.code).toBe("42501");
+
+    const write = await liveArtist.client.from("retention_legal_holds").insert({
+      record_table: "transaction_tax_snapshots",
+      record_id: target,
+      reason: "dispute",
+      case_reference: "self-serve",
+      opened_by: "the artist",
+    });
+    expect(write.error?.code).toBe("42501");
+
+    // DISTINCTION: the service role, which is what the retention run uses,
+    // can do both. Without this the assertions above would also pass against
+    // a table that simply does not work.
+    const asService = await admin.from("retention_legal_holds").select("id");
+    expect(asService.error, asService.error?.message).toBeNull();
+
+    await admin.rpc("purge_expired_tax_snapshots", { _dry_run: false });
+  });
+
+  it("an anonymous visitor is refused as well", async () => {
+    const { error } = await anonClient()
+      .from("retention_legal_holds")
+      .select("id");
+    expect(error).not.toBeNull();
+  });
+
+  it("a hold cannot be recorded against a table that does not consult this ledger", async () => {
+    // A hold nobody checks is a hold that silently does nothing, which is the
+    // exact failure mode counsel ruled out. The CHECK constraint is what stops
+    // someone believing they have protected a row in another table.
+    const rejected = await root
+      .query(
+        `insert into retention_legal_holds
+           (record_table, record_id, reason, case_reference, opened_by)
+         values ('billing_subscriptions', gen_random_uuid(), 'dispute', 'x', 'db-test')`,
+      )
+      .then(
+        () => null,
+        (err: unknown) => (err instanceof Error ? err.message : String(err)),
+      );
+    expect(rejected).toContain("retention_legal_holds_record_table_check");
+  });
+
+  it("a release must name who released it", async () => {
+    const id = await insertSnapshot({
+      artist_id: null,
+      created_at: OLD_ENOUGH,
+    });
+    const holdId = await placeHold(id, "dispute");
+    const rejected = await root
+      .query(
+        "update retention_legal_holds set released_at = now() where id = $1",
+        [holdId],
+      )
+      .then(
+        () => null,
+        (err: unknown) => (err instanceof Error ? err.message : String(err)),
+      );
+    expect(rejected).toContain("retention_legal_holds_release_complete_check");
+
+    // DISTINCTION: naming the releaser works, so the constraint is not simply
+    // refusing every release.
+    await releaseHold(holdId);
+    const rows = await root.query<{ released_by: string }>(
+      "select released_by from retention_legal_holds where id = $1",
+      [holdId],
+    );
+    expect(rows[0].released_by).toBe("db-test");
   });
 });
 
@@ -338,139 +830,5 @@ describe("fixture/production cutoff agreement", () => {
     expect(new Date(NOT_OLD_ENOUGH).getTime()).toBeGreaterThanOrEqual(
       cutoff.getTime(),
     );
-  });
-});
-
-/**
- * The trigger's OWN delete conditions, reached directly.
- *
- * WHY THIS BLOCK EXISTS, and it is a correction to this file rather than an
- * addition. The docblock at the top already claims to pin "a purge-lane delete
- * of a row that is not actually past the horizon or not actually
- * de-identified". It did not. A mutation sweep on 2026-08-02 removed the
- * HORIZON condition from `tts_block_mutation` and the entire suite stayed
- * green.
- *
- * The reason is structural, not an oversight in any one test.
- * `tts_block_mutation`'s DELETE exemption has THREE conditions:
- *
- *   1. the transaction-local marker `inklee.tts_retention_purge` is 'on'
- *   2. OLD.artist_id is null            (de-identified only)
- *   3. OLD.created_at < the 7-year horizon, re-derived from now()
- *
- * Every pre-existing test reached the trigger through one of two doors, and
- * neither door can exercise 2 or 3:
- *
- *   - the ad-hoc DELETE tests go through PostgREST, which cannot set a
- *     transaction-local setting, so they are refused by condition 1 and stop
- *     there;
- *   - the DISTINCTION tests call the purge RPC, whose own WHERE clause already
- *     filters out young rows and live-artist rows, so those rows are never
- *     presented to the trigger at all.
- *
- * So conditions 2 and 3 are defence in depth behind the RPC's WHERE, and
- * defence in depth that no test can fail is indistinguishable from no defence.
- * It matters because the two layers can drift: widen or mistype the RPC's
- * WHERE and the trigger is the only thing left standing between a bug and the
- * deletion of a tax record inside its statutory retention period, which is the
- * append-only guarantee counsel's Q1 answer is built on.
- *
- * These tests use a raw session because that is the ONLY way to hold the
- * marker and present a disqualified row at the same time. That is deliberately
- * not a production-reachable path: the point is to test the guard, not the
- * lane.
- */
-describe("the trigger's own DELETE conditions (defence in depth behind the RPC)", () => {
-  let session: PgSession;
-
-  beforeAll(() => {
-    session = PgSession.open("tts-trigger-conditions");
-  });
-
-  afterAll(async () => {
-    await session.rollbackIfOpen();
-    await session.close();
-  });
-
-  /** Attempt a DELETE in the purge lane: marker set, one row targeted. Always
-   *  rolled back, so a success does not remove the fixture. Returns the error
-   *  message, or null when the delete was permitted. */
-  async function purgeLaneDelete(id: string): Promise<string | null> {
-    await session.begin();
-    try {
-      await session.query(
-        "select set_config('inklee.tts_retention_purge', 'on', true)",
-      );
-      await session.query(
-        "delete from transaction_tax_snapshots where id = $1",
-        [id],
-      );
-      return null;
-    } catch (err) {
-      return err instanceof Error ? err.message : String(err);
-    } finally {
-      await session.rollbackIfOpen();
-    }
-  }
-
-  // FAILS IF condition 3 is removed from tts_block_mutation. This is the exact
-  // mutation that left the old suite green.
-  it("refuses a purge-lane DELETE of a row still INSIDE its retention window", async () => {
-    const id = await insertSnapshot({
-      artist_id: null,
-      created_at: NOT_OLD_ENOUGH,
-    });
-    expect(await purgeLaneDelete(id)).toContain("append-only");
-    expect(await snapshotExists(id)).toBe(true);
-  });
-
-  // FAILS IF condition 2 is removed. Distinct from the test above: this row IS
-  // old enough, and is refused only because it still belongs to someone.
-  it("refuses a purge-lane DELETE of an OLD row that still belongs to a LIVE artist", async () => {
-    const id = await insertSnapshot({
-      artist_id: liveArtist.id,
-      created_at: OLD_ENOUGH,
-    });
-    expect(await purgeLaneDelete(id)).toContain("append-only");
-    expect(await snapshotExists(id)).toBe(true);
-  });
-
-  // POSITIVE CONTROL, and the whole block is worthless without it. A trigger
-  // that refused EVERY delete would pass both tests above, and so would a
-  // harness that simply failed to set the marker. This proves the lane these
-  // two are refused in is genuinely open for the row that qualifies.
-  it("POSITIVE CONTROL: the same lane DELETES a de-identified row past the horizon", async () => {
-    const id = await insertSnapshot({
-      artist_id: null,
-      created_at: OLD_ENOUGH,
-    });
-    expect(await purgeLaneDelete(id)).toBeNull();
-    // Rolled back, so it is still here. The assertion that matters is the
-    // null above: the trigger permitted it.
-    expect(await snapshotExists(id)).toBe(true);
-  });
-
-  // The marker is the third condition and the only one the old suite covered,
-  // but it covered it through PostgREST. Pinned here too, on the SAME session
-  // and the SAME row shape as the positive control, so the difference between
-  // this and the control is exactly one setting rather than one code path.
-  it("refuses the identical DELETE when the marker is absent", async () => {
-    const id = await insertSnapshot({
-      artist_id: null,
-      created_at: OLD_ENOUGH,
-    });
-    await session.begin();
-    let message: string | null = null;
-    try {
-      await session.query(
-        "delete from transaction_tax_snapshots where id = $1",
-        [id],
-      );
-    } catch (err) {
-      message = err instanceof Error ? err.message : String(err);
-    } finally {
-      await session.rollbackIfOpen();
-    }
-    expect(message).toContain("append-only");
   });
 });

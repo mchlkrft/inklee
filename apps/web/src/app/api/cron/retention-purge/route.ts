@@ -63,8 +63,15 @@ export const runtime = "nodejs";
 //     `transaction_tax_snapshots` (the fifth) used to be excluded because its
 //     append-only trigger refused every delete; counsel Q1 amended that
 //     control (migration 0148) so the ledger stays immutable against EDITS
-//     and becomes deletable by exactly one path, this purge. Delegated to
-//     billing-record-retention.ts, which is DB-tested on its own.
+//     and becomes deletable by exactly one path, this purge. Counsel round 4
+//     §7.4 then widened it past deleted accounts: a tax snapshot's basis is
+//     the accounting obligation, which is time-bound and indifferent to
+//     whether the account still exists, so EVERY snapshot past the horizon
+//     purges (migration 0150) except rows under an open dispute, audit or
+//     litigation hold, which are reported as
+//     `transaction_tax_snapshots_held_by_legal_hold` rather than silently
+//     skipped. Delegated to billing-record-retention.ts, which is DB-tested
+//     on its own.
 //   • A2 tax-threshold rollup (counsel-accountant-handoff-2026-08.md PART 4
 //     A2, tax-threshold-rollup.ts): NOT a purge, but reuses this SAME weekly
 //     schedule deliberately rather than registering a new vercel.json cron

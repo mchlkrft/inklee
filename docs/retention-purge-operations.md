@@ -91,8 +91,16 @@ evidenced result, and NO ROW AT ALL is the thing that means the control did
 not run. Reachable only by the service role (RLS on, no policy, client-role
 grants revoked).
 
-Two entries deserve attention when reading a run:
+Three entries deserve attention when reading a run:
 
+- **`transaction_tax_snapshots_held_by_legal_hold`** is not a purge count
+  either. It is the number of tax snapshots the 7-year horizon has come due on
+  and that an active legal hold is deliberately withholding (counsel round 4
+  §7.4, Art. 17(3)(e)). Zero is the normal reading. A non-zero value is lawful
+  but it is an open obligation somebody owns: each held row needs its hold
+  reviewed and released once the dispute, audit or litigation that justified
+  it closes. It raises its own Sentry warning on a real purge, naming the ids.
+  See "Legal holds" below.
 - **`unstamped_cancelled_standalone_orders`** is not a purge count. It is the
   number of cancelled standalone orders with a NULL `cancelled_at`, which the
   D4 clock can never purge. It should always be 0; a non-zero value means some
@@ -104,6 +112,62 @@ Two entries deserve attention when reading a run:
   deletions already happened and flipping to 500 would invite a re-run of work
   that succeeded. The missing evidence is reported and captured to Sentry
   rather than swallowed.
+
+## Legal holds on tax snapshots
+
+Counsel round 4 §7.4 extended the tax-snapshot purge to LIVE accounts as well
+as deleted ones: the retention basis is the accounting obligation, which is
+time-bound at seven years from financial-year end and indifferent to whether
+the account still exists. The one carve-out is that rows "subject to an open
+dispute, audit, or litigation hold are excluded case-by-case (Art. 17(3)(e)),
+flagged rather than silently skipped."
+
+`retention_legal_holds` (migration `0150`) is that carve-out. It is
+service-role only, has no UI, and is meant to be used deliberately and rarely.
+
+**Place a hold** (one row per distinct reason; two holds on the same snapshot
+are fine and it stays held until the last is released):
+
+```sql
+insert into retention_legal_holds
+  (record_table, record_id, reason, case_reference, detail, opened_by)
+values
+  ('transaction_tax_snapshots', '<snapshot uuid>', 'dispute',
+   '<your case reference>', '<what this is about>', '<who authorised it>');
+```
+
+`reason` is one of `dispute`, `audit`, `litigation`. `record_table` is
+CHECK-restricted to `transaction_tax_snapshots`, because that is the only
+table whose purge consults this ledger. A hold recorded against a table nobody
+checks would do nothing while looking like protection, so the constraint
+refuses it rather than letting you believe otherwise.
+
+**Release a hold** once the matter closes. `released_by` is required: an
+unattributable release of a legal hold is not evidence of anything, and the
+CHECK constraint enforces it.
+
+```sql
+update retention_legal_holds
+   set released_at = now(),
+       released_by = '<who authorised the release>',
+       release_note = '<why it is closed>'
+ where id = '<hold uuid>';
+```
+
+Rows are never deleted from this table on release. The history is the point.
+
+**What a hold actually does.** Two independent things, which is deliberate:
+the purge function excludes the row and returns it in `held_ids`, and the
+append-only trigger on `transaction_tax_snapshots` refuses the DELETE outright
+even if some other path ever tries. The second is the one that matters, since
+a hold enforced only in the caller would be bypassed by the next tool anyone
+writes.
+
+A hold also pins anything the held row corrects: the `corrects_snapshot_id`
+foreign key is NO ACTION, so an original cannot be purged while a held
+correction still references it. Those pinned ancestors are reported as held
+too, so the count reflects the carve-out's real reach rather than only its
+direct targets.
 
 ## The production proof, step by step
 
