@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { publicDepositFeeAnswer } from "@inklee/shared/platform-fee";
+import {
+  publicDepositFeeAnswer,
+  publicDepositFeeFragment,
+} from "@inklee/shared/platform-fee";
 import {
   FEE_SCHEDULE_V1,
   FEE_SCHEDULE_V2,
@@ -84,6 +87,39 @@ describe("publicDepositFeeAnswer", () => {
     expect(publicDepositFeeAnswer(FEE_SCHEDULE_V1.version)).not.toBe(
       publicDepositFeeAnswer(FEE_SCHEDULE_V2.version),
     );
+  });
+
+  // The prose fragment, used by five OTHER public surfaces: the homepage twice,
+  // /tattoo-deposit-tool twice, and the deposits guide. Two of those are
+  // indexed, so the claim is published, not merely displayed.
+  describe("publicDepositFeeFragment", () => {
+    it("reproduces the previously hard-coded phrase EXACTLY under the active schedule", () => {
+      expect(publicDepositFeeFragment()).toBe(
+        "Inklee keeps a 3% fee that covers card processing",
+      );
+    });
+
+    it("carries no trailing punctuation, since callers embed it mid-sentence", () => {
+      for (const v of [FEE_SCHEDULE_V1.version, FEE_SCHEDULE_V2.version]) {
+        expect(publicDepositFeeFragment(v)).not.toMatch(/[.,;]$/);
+      }
+    });
+
+    it("under v2 drops both the 3% and the processing clause, and scopes to Plus", () => {
+      const f = publicDepositFeeFragment(FEE_SCHEDULE_V2.version);
+      expect(f).not.toContain("3%");
+      expect(f).not.toContain("covers card processing");
+      expect(f).toContain("0.5%");
+      expect(f).toContain("on Plus");
+    });
+
+    // DISTINCTION: v1 and v2 must differ, so neither assertion above can be
+    // satisfied by a constant string.
+    it("DISTINCTION: v1 and v2 fragments differ", () => {
+      expect(publicDepositFeeFragment(FEE_SCHEDULE_V1.version)).not.toBe(
+        publicDepositFeeFragment(FEE_SCHEDULE_V2.version),
+      );
+    });
   });
 
   // House copy rules apply: this is a public marketing string.

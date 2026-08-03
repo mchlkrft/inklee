@@ -41,6 +41,9 @@
 // active. The fee only applies to deposits collected THROUGH Inklee (active
 // Connect); manual deposits paid directly to the artist carry no fee.
 
+// Safe: fee-schedule.ts imports nothing, so this cannot form a cycle.
+import { appointmentFeeDisplay } from "./fee-schedule";
+
 /**
  * Platform fee in basis points (100 bps = 1%). 3% = 300 bps. This is BOTH the
  * artist's all-in deduction (the headline shown to the artist) AND the Stripe
@@ -48,9 +51,6 @@
  * under Custom Connect, Stripe's processing fee is billed to Inklee's platform
  * balance separately, so the full 3% is the application fee.
  */
-// Safe: fee-schedule.ts imports nothing, so this cannot form a cycle.
-import { appointmentFeeDisplay } from "./fee-schedule";
-
 export const PLATFORM_FEE_BPS = 300;
 
 /** Human percentage for copy, e.g. `3`. */
@@ -275,4 +275,57 @@ export function publicDepositFeeAnswer(version?: string): string {
     : "";
 
   return `${rateSentence}${payerSentence} Manual deposit tracking stays free.`;
+}
+
+/**
+ * The same claim as `publicDepositFeeAnswer`, as a PROSE FRAGMENT for surfaces
+ * that embed it mid-sentence rather than as a standalone answer.
+ *
+ * Five public surfaces carried this hard-coded, found by sweeping after the
+ * pricing page was fixed and finding that the pricing page was the least of it:
+ * the HOMEPAGE twice (an FAQ answer and a feature card), the
+ * /tattoo-deposit-tool landing page twice, and the
+ * /guides/how-to-take-tattoo-deposits-online guide. Two of those are indexed
+ * SEO landing pages, so the claim is not only shown to visitors, it is
+ * published.
+ *
+ * Same strictness rule as the long form: the processing clause appears only
+ * where the rate covers cost on its own, never on the strength of a per-artist
+ * approval row.
+ *
+ * NO TRAILING PUNCTUATION and no leading capital beyond the brand name: callers
+ * embed this inside their own sentence, frequently inside parentheses.
+ *
+ * KNOWN LIMITATION, deliberately not solved here. Under v2 this renders "Inklee
+ * keeps a 0.5% fee on Plus", but the prose AROUND it at every call site frames
+ * card collection as an option any artist can take ("connect Stripe and clients
+ * can pay by card"). That framing becomes wrong for Free artists at v2
+ * independently of the number, because their appointment rate is `null` -
+ * they cannot use the lane at all. Substituting the rate does not fix the
+ * sentence it sits in. Those five surfaces need a copy review before v2
+ * activates, and that is tracked rather than quietly half-done here.
+ */
+export function publicDepositFeeFragment(version?: string): string {
+  const free = appointmentFeeDisplay("free", version);
+  const plus = appointmentFeeDisplay("plus", version);
+
+  const covers = (bps: number) =>
+    CONNECT_FEE_PAYER_IS_APPLICATION && feeRateCoversProcessingCost(bps);
+
+  if (free && plus && free.bps === plus.bps) {
+    return covers(free.bps)
+      ? `Inklee keeps a ${free.percentLabel}% fee that covers card processing`
+      : `Inklee keeps a ${free.percentLabel}% fee`;
+  }
+  if (!free && plus) {
+    return covers(plus.bps)
+      ? `Inklee keeps a ${plus.percentLabel}% fee on Plus that covers card processing`
+      : `Inklee keeps a ${plus.percentLabel}% fee on Plus`;
+  }
+  if (free && plus) {
+    return `Inklee keeps ${free.percentLabel}% on Free and ${plus.percentLabel}% on Plus`;
+  }
+  // No tier can transact the lane. Say nothing about a rate rather than
+  // inventing one; callers render the fragment inside their own sentence.
+  return "card deposit collection is not available";
 }

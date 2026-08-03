@@ -4,6 +4,7 @@ import JsonLd from "@/components/seo/json-ld";
 import { faqPageSchema, webPageSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/seo";
 import { PillNav, SiteFooter } from "@/components/marketing-v2";
+import { publicDepositFeeFragment } from "@inklee/shared/platform-fee";
 
 const PAGE_PATH = "/tattoo-deposit-tool";
 const PAGE_TITLE = "Tattoo deposit software for artists · Inklee";
@@ -183,8 +184,7 @@ const DEPOSIT_FAQ: Faq[] = [
   },
   {
     question: "Do I need a separate payment tool for deposits?",
-    answer:
-      "Not for the booking workflow. Inklee keeps the deposit step on the request itself. Card collection is optional: connect Stripe and clients can pay the deposit by card into your own account (Inklee keeps a 3% fee that covers card processing), or you can track a deposit you collect manually. Either way, the paid and confirmed status stays on the booking.",
+    answer: `Not for the booking workflow. Inklee keeps the deposit step on the request itself. Card collection is optional: connect Stripe and clients can pay the deposit by card into your own account (${publicDepositFeeFragment()}), or you can track a deposit you collect manually. Either way, the paid and confirmed status stays on the booking.`,
   },
 ];
 
@@ -406,8 +406,8 @@ export default function TattooDepositToolPage() {
               </p>
               <p className="mt-4 max-w-xl text-base leading-relaxed text-brand-charcoal/75 md:text-lg">
                 Card collection is optional. Connect Stripe and the deposit
-                lands in your own account (Inklee keeps a 3% fee that covers
-                card processing), or track a deposit you collect manually.
+                lands in your own account ({publicDepositFeeFragment()}), or
+                track a deposit you collect manually.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
