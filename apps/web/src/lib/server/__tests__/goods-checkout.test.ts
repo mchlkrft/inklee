@@ -1392,6 +1392,63 @@ describe("settleStandaloneGoodsOrder", () => {
     );
   });
 
+  it("Q4: marks the custom-made line, and only that line, in the standalone receipt", async () => {
+    // Counsel Q4: "an exemption claimed against an unidentified item is
+    // claimed against no item". The receipt's mixed-order lead-in ("Some
+    // items in your order are custom-made") sat over an UNMARKED list, so the
+    // durable record claimed the exemption over an unidentified subset while
+    // its own seller block told the buyer to look for items marked
+    // "custom-made". Named failure mode: dropping `custom_made_snapshot` from
+    // `receiptItems` puts the blanket claim back. The negative assertion is
+    // the control: marking every line would satisfy the positive one and
+    // misstate the returnable item instead.
+    queue("orders:update", {
+      data: [
+        {
+          id: "o1",
+          artist_id: "a1",
+          client_email: "buyer@example.com",
+          discount_code_id: null,
+          discount_amount: 0,
+        },
+      ],
+    });
+    queue("order_items:select", {
+      data: [
+        {
+          product_id: "p1",
+          variant_id: null,
+          quantity: 1,
+          type: "product",
+          title_snapshot: "Print",
+          variant_snapshot: null,
+          total_amount: 20,
+          custom_made_snapshot: false,
+        },
+        {
+          product_id: "p2",
+          variant_id: null,
+          quantity: 1,
+          type: "product",
+          title_snapshot: "Portrait commission",
+          variant_snapshot: null,
+          total_amount: 40,
+          custom_made_snapshot: true,
+        },
+      ],
+    });
+    queue("profiles:select", { data: { display_name: "Mika Ink" } });
+
+    expect(await settleStandaloneGoodsOrder(makeIntent())).toBe("settled");
+    const receipt = (mockSendEmail.mock.calls.at(-1)?.[0] as { html: string })
+      .html;
+    expect(receipt).toContain(
+      "- Portrait commission x 1 · custom-made, no returns",
+    );
+    expect(receipt).toContain("- Print x 1");
+    expect(receipt).not.toContain("- Print x 1 · custom-made, no returns");
+  });
+
   it("redelivery loses the flip and reports ALREADY, doing nothing else (once-only)", async () => {
     queue("orders:update", { data: [] });
     const settled = await settleStandaloneGoodsOrder(makeIntent());

@@ -14,6 +14,8 @@ import { MAX_ADDON_QUANTITY } from "@/lib/orders";
 import { formatPrice } from "@/lib/goods";
 import {
   addonCheckoutDisclosureSections,
+  addonPayButtonLabel,
+  customMadeRowSuffix,
   type CompleteSellerData,
 } from "@inklee/shared/consumer-disclosures";
 
@@ -259,9 +261,19 @@ function CheckoutInner({
                         </span>
                       ) : null}
                     </p>
+                    {/* Q4: the PER-ROW custom-made marker. The aggregate
+                        "Some of your selected items are custom-made" line in
+                        the disclosure panel below is a lead-in to these, not a
+                        substitute: an exemption claimed against an
+                        unidentified item is claimed against no item, and the
+                        C1.1 seller block on the same screen already tells the
+                        buyer to look for items "marked custom-made". Same
+                        marker string and same muted metadata run the
+                        standalone shop's rows use, from the shared module. */}
                     <p className="text-xs text-muted-foreground">
                       {formatPrice(row.price, currency)}
                       {soldOut ? " · sold out" : ""}
+                      {customMadeRowSuffix(row.customMade)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -389,11 +401,17 @@ function CheckoutInner({
         disabled={!stripe || processing}
         className="w-full rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
+        {/* Q4: a goods-bearing basket concludes a distance contract that
+            includes goods, so it needs the Art. 8(2) label, not the
+            "arguably unambiguous" wording this button used to carry. The
+            branch and both labels come from the shared module so this surface
+            and the standalone shop cannot drift again. */}
         {processing
           ? "Processing…"
-          : goodsTotal > 0
-            ? "Pay deposit and selected items"
-            : "Pay deposit"}
+          : addonPayButtonLabel({
+              hasGoodsLines: goodsTotal > 0,
+              totalLabel: formatPrice(total, currency),
+            })}
       </button>
     </div>
   );

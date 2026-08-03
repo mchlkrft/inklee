@@ -15,6 +15,7 @@ import {
   type CompleteSellerData,
   type ReturnDisclosureItem,
 } from "@inklee/shared/consumer-disclosures";
+import { receiptTermsSection } from "@/lib/legal/receipt-terms";
 
 type EmailType =
   | "customer_booking_submitted"
@@ -198,17 +199,36 @@ export async function sendGoodsOrderConfirmation({
     const disclosure = summarizeReturnDisclosure(
       lines.map((l): ReturnDisclosureItem => ({ customMade: l.customMade })),
     );
+    const terms = receiptTermsSection();
+    if (terms.error) {
+      console.error(
+        "[email] goods order confirmation sent without inline Terms text:",
+        terms.error,
+      );
+    }
     const body = buildOrderReceiptBody({
       artistName,
       seller,
       supportEmail,
+      // Q4: the per-line custom-made snapshot travels into the receipt so the
+      // durable record MARKS the exempt lines. Without it the mixed-basket
+      // lead-in ("Some items in your order are custom-made") is a blanket
+      // claim over an unidentified subset, and the seller block's own
+      // 'Items marked "custom-made"' sentence points at marks that are not
+      // there.
       items: lines.map((l) => ({
         title: l.title,
         variant: l.variant,
         quantity: l.quantity,
+        customMade: l.customMade,
       })),
       totalLabel: `${code} ${total.toFixed(2)}`,
       disclosure,
+      // COUNSEL Q6(b), 2026-08-02: this receipt carried NO Terms text at all,
+      // which counsel calls "non-compliant on its face" and NOT cured by the
+      // buyer having accepted terms at checkout. Same helper the standalone
+      // shop's receipt reads, so the two lanes reproduce the same document.
+      termsSection: terms.section,
       fulfillmentNote:
         "Your goods will be waiting for you at your appointment.",
     });

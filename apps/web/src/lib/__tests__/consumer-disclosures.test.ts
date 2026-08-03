@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   ORDER_WITH_OBLIGATION_LABEL,
+  orderWithObligationButtonLabel,
+  addonPayButtonLabel,
+  CUSTOM_MADE_ROW_MARKER,
+  customMadeRowSuffix,
   sellerDataComplete,
   sellerDisclosureBlock,
   returnRightNotice,
@@ -83,20 +87,48 @@ describe("returnRightNotice", () => {
     expect(notice).toContain("within 14 days of your withdrawal");
   });
 
-  it("appends the model withdrawal form reference only when a link is given", () => {
+  // CORRECTED 2026-08-02 (counsel Q6 implementation). This previously read
+  // "appends the model withdrawal form reference ONLY when a link is given"
+  // and asserted the clause disappears without one. That is not counsel's
+  // text: C1.2 is one sentence, "...before the period ends; you may use the
+  // model withdrawal form [link/attached]. Send the goods back...", and only
+  // the BRACKET is optional. Because no receipt send site ever passed an
+  // href, the old behaviour deleted counsel's clause from every receipt and
+  // left "...before the period ends; Send the goods back...". The clause is
+  // unconditional now; the bracket varies.
+  it("always carries counsel's model-form clause, and fills the bracket from whichever pointer the surface has", () => {
     const withLink = returnRightNotice({
       sellerContact: SELLER.contact,
       supportEmail: SUPPORT_EMAIL,
       withdrawalFormHref: "https://inkl.ee/mika/shop/withdrawal-form",
     });
-    expect(withLink).toContain("model withdrawal form");
-    expect(withLink).toContain("https://inkl.ee/mika/shop/withdrawal-form");
+    expect(withLink).toContain(
+      "you may use the model withdrawal form (https://inkl.ee/mika/shop/withdrawal-form).",
+    );
 
-    const withoutLink = returnRightNotice({
+    // A durable record reproduces the form instead of linking it (Q6), and
+    // this reference wins over an href if a caller supplies both.
+    const reproduced = returnRightNotice({
+      sellerContact: SELLER.contact,
+      supportEmail: SUPPORT_EMAIL,
+      withdrawalFormHref: "https://inkl.ee/mika/shop/withdrawal-form",
+      withdrawalFormRef: "reproduced below",
+    });
+    expect(reproduced).toContain(
+      "you may use the model withdrawal form (reproduced below).",
+    );
+    expect(reproduced).not.toContain("https://");
+
+    // With no pointer at all the clause still stands as counsel wrote it, and
+    // the semicolon still governs something.
+    const bare = returnRightNotice({
       sellerContact: SELLER.contact,
       supportEmail: SUPPORT_EMAIL,
     });
-    expect(withoutLink).not.toContain("model withdrawal form");
+    expect(bare).toContain(
+      "before the period ends; you may use the model withdrawal form. Send the goods back",
+    );
+    expect(bare).not.toContain("period ends; Send the goods back");
   });
 });
 
@@ -127,6 +159,129 @@ describe("summarizeReturnDisclosure", () => {
 describe("ORDER_WITH_OBLIGATION_LABEL", () => {
   it("is the exact Art. 8(2) button phrase counsel specified", () => {
     expect(ORDER_WITH_OBLIGATION_LABEL).toBe("Order with obligation to pay");
+  });
+});
+
+// Counsel Q4 (2026-08-02). Two payable surfaces sell the same catalogue. The
+// standalone shop carried the approved label; the appointment add-on lane
+// carried "Pay deposit and selected items". Counsel: standardise on the
+// approved label WITH the total on both.
+describe("orderWithObligationButtonLabel (Q4)", () => {
+  it("leads with the approved phrase and carries the total and the detail", () => {
+    expect(
+      orderWithObligationButtonLabel({
+        totalLabel: "EUR 25.00",
+        detail: "to Mika Ink",
+      }),
+    ).toBe("Order with obligation to pay EUR 25.00 to Mika Ink");
+  });
+
+  it("reproduces the standalone shop's pre-Q4 button string byte-exactly", () => {
+    // Regression pin: the standalone shop's PayInner used to build this
+    // inline. Moving it into the shared module must not have changed a single
+    // character of what a buyer reads there — the point of Q4 is that the
+    // OTHER surface moves, not this one.
+    const artistName = "Mika Ink";
+    const inlineBefore = `${ORDER_WITH_OBLIGATION_LABEL} EUR 25.00 to ${artistName}`;
+    expect(
+      orderWithObligationButtonLabel({
+        totalLabel: "EUR 25.00",
+        detail: `to ${artistName}`,
+      }),
+    ).toBe(inlineBefore);
+  });
+
+  it("DISTINCTION: omits the detail cleanly rather than leaving a dangling separator", () => {
+    // A builder that always appended a separator would emit a trailing space
+    // (or a stray "for") on a caller that has no detail to give. This is the
+    // legitimate case that must keep working.
+    expect(orderWithObligationButtonLabel({ totalLabel: "EUR 25.00" })).toBe(
+      "Order with obligation to pay EUR 25.00",
+    );
+    expect(
+      orderWithObligationButtonLabel({ totalLabel: "EUR 25.00", detail: "  " }),
+    ).toBe("Order with obligation to pay EUR 25.00");
+    expect(
+      orderWithObligationButtonLabel({ totalLabel: "EUR 25.00", detail: null }),
+    ).toBe("Order with obligation to pay EUR 25.00");
+  });
+
+  it("has no em-dash, despite counsel's example using one as a separator", () => {
+    // Counsel's illustration was "Order with obligation to pay - [total]:
+    // deposit and selected items". The separator is not part of the approved
+    // wording, and the house copy rule forbids em-dashes in user-visible
+    // strings.
+    expect(
+      orderWithObligationButtonLabel({
+        totalLabel: "EUR 25.00",
+        detail: "to Mika Ink",
+      }),
+    ).not.toContain("—");
+  });
+});
+
+describe("addonPayButtonLabel (Q4)", () => {
+  it("carries the Art. 8(2) label, the total, and what the total covers once goods are selected", () => {
+    const label = addonPayButtonLabel({
+      hasGoodsLines: true,
+      totalLabel: "EUR 125.00",
+    });
+    expect(label).toBe(
+      "Order with obligation to pay EUR 125.00 for the deposit and selected items",
+    );
+    expect(label.startsWith(ORDER_WITH_OBLIGATION_LABEL)).toBe(true);
+  });
+
+  it("no longer reads 'Pay deposit and selected items' — the string counsel refused to spend risk on", () => {
+    expect(
+      addonPayButtonLabel({ hasGoodsLines: true, totalLabel: "EUR 125.00" }),
+    ).not.toBe("Pay deposit and selected items");
+  });
+
+  it("DISTINCTION: a deposit-only basket keeps the unchanged service-deposit label", () => {
+    // The control. A label function that emitted the obligation wording
+    // unconditionally would pass every assertion above while relabelling a
+    // deposit-only payment as a goods order — the same over-broad-guard
+    // failure `addonGoodsSellerGate` is scoped against. Counsel's answer is
+    // about a contract that INCLUDES GOODS; a deposit-only basket sells none.
+    expect(
+      addonPayButtonLabel({ hasGoodsLines: false, totalLabel: "EUR 50.00" }),
+    ).toBe("Pay deposit");
+  });
+
+  it("agrees with the standalone shop's builder on the label and the total, differing only in the detail", () => {
+    const addon = addonPayButtonLabel({
+      hasGoodsLines: true,
+      totalLabel: "EUR 125.00",
+    });
+    const standalone = orderWithObligationButtonLabel({
+      totalLabel: "EUR 125.00",
+      detail: "to Mika Ink",
+    });
+    const head = `${ORDER_WITH_OBLIGATION_LABEL} EUR 125.00`;
+    expect(addon.startsWith(head)).toBe(true);
+    expect(standalone.startsWith(head)).toBe(true);
+  });
+});
+
+describe("customMadeRowSuffix (Q4 per-row markers)", () => {
+  it("marks a custom-made row", () => {
+    expect(customMadeRowSuffix(true)).toBe(" · custom-made, no returns");
+    expect(customMadeRowSuffix(true)).toContain(CUSTOM_MADE_ROW_MARKER);
+  });
+
+  it("DISTINCTION: a returnable row gets no marker at all", () => {
+    // The control. A marker applied to every row would satisfy "the
+    // custom-made row is marked" while telling a buyer that returnable goods
+    // are non-returnable — a worse misstatement than the aggregate wording it
+    // replaces, and it would make a mixed basket unreadable.
+    expect(customMadeRowSuffix(false)).toBe("");
+  });
+
+  it("reproduces the standalone shop's pre-Q4 inline literal byte-exactly", () => {
+    // shop-checkout.tsx carried this literal three times (bundle row, product
+    // row, cart line). Extracting it must not change what those rows read.
+    expect(customMadeRowSuffix(true)).toBe(" · custom-made, no returns");
   });
 });
 
@@ -224,6 +379,51 @@ describe("buildOrderReceiptBody", () => {
       disclosure: "all_returnable",
     });
     expect(withoutNote).not.toContain("waiting for you");
+  });
+
+  it("Q4: marks the custom-made line and ONLY that line in a mixed order", () => {
+    // The distinction and the failure mode in one case. Before this, the
+    // receipt said "Some items in your order are custom-made" over an
+    // unmarked list, which is the blanket claim counsel prohibited; marking
+    // every line would be the opposite misstatement.
+    const body = buildOrderReceiptBody({
+      ...base,
+      items: [
+        { title: "Print", quantity: 1, customMade: false },
+        { title: "Portrait commission", quantity: 1, customMade: true },
+      ],
+      disclosure: "mixed",
+    });
+    expect(body).toContain(
+      "- Portrait commission x 1 · custom-made, no returns",
+    );
+    expect(body).toContain("- Print x 1\n");
+    expect(body).not.toContain("- Print x 1 · custom-made, no returns");
+  });
+
+  it("Q4: the marker survives the variant suffix rather than replacing it", () => {
+    const body = buildOrderReceiptBody({
+      ...base,
+      items: [{ title: "Tee", variant: "M", quantity: 2, customMade: true }],
+      disclosure: "all_custom_made",
+    });
+    expect(body).toContain("- Tee (M) x 2 · custom-made, no returns");
+  });
+
+  it("Q4: omitting customMade leaves the line byte-identical to before the field existed", () => {
+    const withoutField = buildOrderReceiptBody({
+      ...base,
+      items: [{ title: "Print", quantity: 2 }],
+      disclosure: "all_returnable",
+    });
+    const explicitlyFalse = buildOrderReceiptBody({
+      ...base,
+      items: [{ title: "Print", quantity: 2, customMade: false }],
+      disclosure: "all_returnable",
+    });
+    expect(withoutField).toBe(explicitlyFalse);
+    expect(withoutField).toContain("- Print x 2");
+    expect(withoutField).not.toContain(CUSTOM_MADE_ROW_MARKER);
   });
 
   it("inserts the fulfillment note, right after the total, when supplied (GOODS-DISC-001)", () => {

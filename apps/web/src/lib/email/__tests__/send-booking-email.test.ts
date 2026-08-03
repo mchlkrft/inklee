@@ -130,6 +130,44 @@ describe("sendGoodsOrderConfirmation", () => {
     expect(html()).toContain("Right of return.");
   });
 
+  it("Q4: marks the custom-made line, and only that line, in the durable record", async () => {
+    // The add-on lane's receipt is the second payable surface's durable
+    // record. Named failure mode: if `sendGoodsOrderConfirmation` stopped
+    // forwarding `customMade` into the receipt items, the mixed-basket
+    // lead-in above would go back to claiming the exemption over an
+    // unidentified subset while the standalone shop's receipt stayed marked.
+    // The negative half is the control: marking every line would pass the
+    // positive assertion and still misstate the returnable item.
+    await sendGoodsOrderConfirmation({
+      to: "buyer@example.com",
+      artistName: "Mika Ink",
+      lines: [
+        {
+          title: "Print",
+          variant: null,
+          quantity: 1,
+          total: 15,
+          customMade: false,
+        },
+        {
+          title: "Portrait commission",
+          variant: null,
+          quantity: 1,
+          total: 40,
+          customMade: true,
+        },
+      ],
+      total: 55,
+      currency: "eur",
+      seller: SELLER,
+      supportEmail: SUPPORT_EMAIL,
+    });
+    expect(html()).toContain(
+      "Portrait commission x 1 · custom-made, no returns",
+    );
+    expect(html()).not.toContain("Print x 1 · custom-made, no returns");
+  });
+
   it("includes the pickup fulfillment note (distinguishing this from the standalone shop's shipped/collected framing)", async () => {
     await sendGoodsOrderConfirmation({
       to: "buyer@example.com",

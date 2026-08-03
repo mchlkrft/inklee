@@ -10,7 +10,8 @@ import {
 } from "@stripe/react-stripe-js";
 import { formatPrice } from "@/lib/goods";
 import {
-  ORDER_WITH_OBLIGATION_LABEL,
+  orderWithObligationButtonLabel,
+  customMadeRowSuffix,
   CUSTOM_MADE_NOTICE,
   summarizeReturnDisclosure,
   type ReturnDisclosureSummary,
@@ -192,9 +193,15 @@ function PayInner({
         disabled={!stripe || processing}
         className="w-full rounded-full bg-brand-mustard px-5 py-2.5 text-sm font-medium text-brand-charcoal disabled:opacity-50"
       >
+        {/* Q4: same builder the add-on lane's button now uses. Output is
+            unchanged from the inline template this replaced; the point is that
+            there is one label shape, not two. */}
         {processing
           ? "Processing..."
-          : `${ORDER_WITH_OBLIGATION_LABEL} ${formatPrice(totalMinor / 100, "eur")} to ${artistName}`}
+          : orderWithObligationButtonLabel({
+              totalLabel: formatPrice(totalMinor / 100, "eur"),
+              detail: `to ${artistName}`,
+            })}
       </button>
     </div>
   );
@@ -577,7 +584,7 @@ export function ShopCheckout({
                         ? ` · save ${formatPrice(b.savingsAmount, b.currency)}`
                         : ""}
                       {b.available ? "" : " · unavailable"}
-                      {b.customMade ? " · custom-made, no returns" : ""}
+                      {customMadeRowSuffix(b.customMade === true)}
                     </p>
                     {b.componentSummary && (
                       <p className="mt-0.5 text-xs text-muted-foreground">
@@ -672,7 +679,7 @@ export function ShopCheckout({
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatPrice(unit, p.currency)}
                   {p.upcoming ? " · drops soon" : soldOut ? " · sold out" : ""}
-                  {p.customMade ? " · custom-made, no returns" : ""}
+                  {customMadeRowSuffix(p.customMade === true)}
                 </p>
                 {hasVariants && (
                   <select
@@ -759,7 +766,7 @@ export function ShopCheckout({
                       {line.available
                         ? ` = ${formatPrice(line.lineTotal, line.currency)}`
                         : ` · ${line.unavailableReason ?? "unavailable"}`}
-                      {line.customMade ? " · custom-made, no returns" : ""}
+                      {customMadeRowSuffix(line.customMade === true)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
