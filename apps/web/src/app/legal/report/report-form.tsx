@@ -3,21 +3,7 @@
 import { useActionState } from "react";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { submitReportAction, type ReportState } from "./actions";
-
-const CATEGORIES: { value: string; label: string }[] = [
-  { value: "illegal_content", label: "Illegal content" },
-  { value: "ip_infringement", label: "Intellectual property infringement" },
-  { value: "impersonation", label: "Impersonation" },
-  { value: "harassment", label: "Harassment or hate" },
-  { value: "spam_fraud", label: "Spam or fraud" },
-  // GDPR Art. 21 objection / delisting route for studios listed on the tattoo
-  // map from open data. Kept in sync with CATEGORY_LABELS in ./actions.ts.
-  {
-    value: "directory_listing",
-    label: "Remove or correct a studio listing on the tattoo map",
-  },
-  { value: "other", label: "Other" },
-];
+import { REPORT_CATEGORIES as CATEGORIES } from "@/lib/legal/report-categories";
 
 export function ReportForm() {
   const [state, action, pending] = useActionState<ReportState, FormData>(
