@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `61e0932844b9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `9c1ec2d0b61b`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -14,10 +14,10 @@
 
 ## Executive summary
 
-155 recorded finding(s), 4 structural pattern(s), across 111 mapped area(s).
-130 remain open by remediation status. 123 are reachable (directly or conditionally) rather than latent.
-127 have not passed independent verification.
-196 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+157 recorded finding(s), 4 structural pattern(s), across 112 mapped area(s).
+132 remain open by remediation status. 124 are reachable (directly or conditionally) rather than latent.
+129 have not passed independent verification.
+199 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -28,8 +28,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 37 |
 | medium | 70 |
-| low | 42 |
-| informational | 4 |
+| low | 43 |
+| informational | 5 |
 
 ## Findings by remediation status
 
@@ -37,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 68 |
+| fixed-unverified | 69 |
 | in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 52 |
+| open | 53 |
 | risk-accepted | 2 |
 | verified | 22 |
 
@@ -49,10 +49,10 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 120 |
+| not-started | 121 |
 | partially-verified | 4 |
 | passed | 28 |
-| pending | 3 |
+| pending | 4 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
 
@@ -168,11 +168,11 @@ The single most productive defect shape in this repository. A Supabase call is d
 | webhook | 14 |
 | web | 13 |
 | database | 12 |
-| testing | 8 |
+| testing | 9 |
 | migration | 7 |
 | data-retention | 6 |
+| public-surface | 6 |
 | authorization | 5 |
-| public-surface | 5 |
 | governance | 4 |
 | production-config | 3 |
 | analytics | 2 |
@@ -292,6 +292,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | DATA-ORPH-001 | low | conditionally-reachable | latent | createProductAction inserts the product row before processing images and returns the image error without deleting it, so every failed image upload leaves an untitled-to-the-artist orphan product that still consumes the plan's active-product cap |
 | DATA-RACE-002 | low | conditionally-reachable | latent | 0124's self-documented residual risks (timeout and deadlock) not recorded in the audit evidence register |
 | DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
+| DSA-QUE-001 | low | conditionally-reachable | latent | The DSA content_reports queue write is best-effort; on an insert failure the intake degrades to the email-only state counsel deemed insufficient for Q16 element 2 |
 | GAL-PATH-001 | low | conditionally-reachable | theoretical | ownedHubImagePath derives a storage path from a non-Inklee host that embeds the gallery marker, contradicting its docstring claim that an external URL returns null |
 | HUB-DST-001 | low | conditionally-reachable | latent | The FD8 destination formula called the standalone shop AVAILABLE while the platform park switch was off, so a brand-new goods block defaulted to a public link to a 404 with no editor warning, and the visibility summary reported the artist as published |
 | HUB-GAL-002 | low | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
@@ -376,6 +377,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | 45a44bee |
+| DSA-QUE-001 | low | fixed-unverified | pending | b9f89a23 |
 | GAL-PATH-001 | low | fixed-unverified | pending | 0a38126d |
 | HUB-DST-001 | low | fixed-unverified | not-started | b2da53c7 |
 | HUB-GAL-005 | low | fixed-unverified | not-started | 6bac9914 |
@@ -440,6 +442,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - No sweep was done for OTHER metadata keys that two features now share on one Stripe account. `artist_id` is on both the deposit intent and the P9 intent; `order_id` is on the combined deposit-plus-goods intent. Whether any consumer treats one of those as a discriminator was not checked.
 - Non-public schemas were not swept for orphans.
 - Orphan objects of other kinds in production were searched for only in the categories this diff covers (tables, views, sequences, functions, indexes, constraints, triggers, policies, enums, extensions, publications). Composite types, domains, operators, casts and collations were not enumerated.
+- Other 'drift' or 'single source of truth' guards in the suite that compare a module to a value derived from that same module were not swept.
 - Other Sentry-capture-then-continue sites across the money path were not enumerated by me. Commit 3fce7be (2026-07-30) shows the class was still being found nine days later: 'the lost-claim read-back discarded its error ... the code CANCELLED AN INTENT A TWIN WAS COLLECTING ON'.
 - Other audit_log event types that may also be written by only one of several equivalent action paths (refund marks, cancellation marks).
 - Other bearer/secret comparisons outside the cron and admin-seed surface were not enumerated.
@@ -489,6 +492,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The deposit webhook's own charge.refunded branch in apps/web/src/app/api/stripe/webhook/route.ts, which has no event-clock guard at all and is imported by no test.
 - The existing deposit flow in booking_requests also has no aggregate ceiling across bookings for the same client — the same pattern at a different layer.
 - The goods refund path and refundDepositCore: confirm no other route accepts a client-chosen fee/refund classification.
+- The in-product map report intake (map_reports, migration 0075) and its writer were NOT inspected for the same best-effort-on-insert posture.
 - The lifecycle email engine (runLifecycleEngine, 431 lines) has its own repeat-suppression logic which I did not read.
 - The lifecycle engine's own send limits were not inspected and could interact with the same per-artist volume.
 - The mobile app's copy was NOT swept.
@@ -511,6 +515,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The studio-media and welcome-pack-files buckets (already flagged in the storage coverage row as having zero policies) have no equivalent scheduled purge that I found.
 - The subject-scoped balance ceiling in the same quote uses `balanceExtrasFromLines(lines)` over the WHOLE frozen basket and was deliberately left alone: it answers a different question (what the appointment still owes) rather than what this charge takes. That reasoning was not independently reviewed.
 - The two mobile Connect routes named above — NOT inspected.
+- The two sendEmail calls in submitReportAction are themselves best-effort for the reporter acknowledgement (actions.ts:179-181); the operator email failure DOES surface an error, the ack failure does not — not separately assessed as a finding.
 - The ~20 unopened audit documents in docs/ would materially move this pattern's evidence base in either direction.
 - The ~45 migrations whose headers make correctness claims I did not test (0067, 0070, 0075, 0080, 0082, 0088, 0106 carry particularly long explanatory headers).
 - Triggers elsewhere in the migration set that read a parent row without FOR UPDATE/FOR SHARE were NOT scanned.

@@ -16913,6 +16913,135 @@ findings:
         actor: "inklee worker (author of the takedown)"
         action: "fix-committed"
         note: "Corrected the false docstring in commit 0a38126d rather than adding a host check (which would reject legitimate inklee.app-hosted operator URLs and break the takedown). Same commit also wrapped the takedown's per-bucket storage remove in try/catch so a thrown client fault cannot abort the Art. 17 statement + report-resolution legs (the verifier's other recommended_next_inspection item)."
+  - id: "DSA-QUE-001"
+    title: "The DSA content_reports queue write is best-effort; on an insert failure the intake degrades to the email-only state counsel deemed insufficient for Q16 element 2"
+    summary: "submitReportAction awaits queueContentReport but ignores its {id}|{error} return and proceeds to send both emails regardless (actions.ts:121). queueContentReport captures an insert failure to Sentry (level error) and console.error and returns {error} without throwing (content-reports.ts:41-49). So on a content_reports insert failure the reporter still receives {sent:true, reference} with NO durable queue row, and the only traces are the operator email and a Sentry event. The module's own docstring quotes counsel Q16 element 2 as requiring 'a queued item in the moderation workflow, which an email notification is not' (content-reports.ts:16-19) — which is exactly the state the system falls back to when the durable write fails. Logged loudly, not silent, so it is recoverable by an operator acting on the alert, but the durable-record guarantee counsel required is not unconditional."
+    classification:
+      domain: "public-surface"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent falsification verifier (read-only)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "145d6d48"
+      environment: "local"
+      discovery_context: "Independent verification of the #79/Q16 intake -> durable moderation queue: traced queueContentReport and the /legal/report action and judged whether best-effort is acceptable for a DSA durable-record obligation."
+    location:
+      files:
+        - "apps/web/src/app/legal/report/actions.ts"
+        - "apps/web/src/lib/server/content-reports.ts"
+      symbols:
+        - "submitReportAction"
+        - "queueContentReport"
+      database_objects:
+        - "public.content_reports"
+    evidence:
+      observed_facts:
+        - "actions.ts:121 awaits queueContentReport(...) but does not read its return value; execution then unconditionally reaches the operator email (actions.ts:144) and the reporter acknowledgement (actions.ts:173)."
+        - "content-reports.ts:41-49 on insert error calls Sentry.captureException (level error) and console.error, then returns {error: error.message}; it never throws."
+        - "On insert failure the reporter still receives {sent:true, reference} (actions.ts:183); no content_reports row exists, so the report never appears in /admin/content-reports."
+        - "The docstring at content-reports.ts:16-19 states counsel Q16 element 2 requires 'a queued item in the moderation workflow, which an email notification is not'."
+        - "There is no retry or outbox for content_reports; the only fallback traces on insert failure are the operator email (support@inklee.app) and the Sentry event."
+      references:
+        - "apps/web/src/app/legal/report/__tests__/actions.test.ts:114-119 (QUEUE is best-effort: a queue-write failure still returns success and still sends the ack) — proves the degradation is intended behaviour, executed 6/6 pass."
+      reproduction: "Mock queueContentReport to resolve {error}; submitReportAction still returns {sent:true} and calls sendEmail twice (actions.test.ts:114-119, green)."
+      contradictory_evidence: "The operator email lands in a monitored inbox (support@inklee.app) and the failure is logged to Sentry at error level, so a lost row is alerted and has a parallel human-readable trace. Insert failures against a healthy Postgres are rare, and no production /legal/report submission has occurred yet, so this has never triggered."
+      inspected_comparables_without_issue: []
+    assessment:
+      interpretation: "The system's designated record-of-record is best-effort against the exact failure it was built to survive (a DB insert failure), and on that failure it degrades to the email-only state counsel explicitly called insufficient for element 2. Because the failure is logged loudly and the operator email still lands, it is recoverable rather than silently lost, so this is a compliance-robustness gap, not a data-loss-without-trace defect."
+      root_cause_hypothesis: "The queue write was added with the same best-effort posture the two emails already used, without distinguishing that counsel treats the durable queue row (not the email) as the compliance artifact, so the fallback lands on the thing counsel rejected."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "Migration 0155 is applied to prod (content_reports present, RLS enabled, zero policies, verified read-only via the Management API). No /legal/report submission has occurred, so the queue path has never run in production and this has never triggered."
+      remaining_uncertainty: "Whether an operational runbook treats a 'queueContentReport queue write failed' Sentry event as a compliance incident (reconstruct from the operator email) was not verified; without that, the loud log is only as good as the humans watching it."
+    relationships:
+      related_findings: []
+      analogous_uninspected_areas:
+        - "The in-product map report intake (map_reports, migration 0075) and its writer were NOT inspected for the same best-effort-on-insert posture."
+        - "The two sendEmail calls in submitReportAction are themselves best-effort for the reporter acknowledgement (actions.ts:179-181); the operator email failure DOES surface an error, the ack failure does not — not separately assessed as a finding."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "b9f89a23"
+      proposed_action: "Chose the first option (surface a reporter error), which makes the durable row load-bearing rather than adding an outbox. submitReportAction now reads queueContentReport's return and, on {error}, returns a reporter-facing error ('We couldn't record your report right now. Please try again, or email support@inklee.app directly.') and sends NO emails, instead of reporting a false {sent:true}. This removes the fallback to the counsel-rejected email-only state entirely: no durable row means no success. The failure is still logged loudly (Sentry error + console) inside queueContentReport. The test that pinned the old best-effort degradation (actions.test.ts:114-119) was flipped to pin the new behaviour (error + zero emails on queue failure), 6/6 green. Both docstrings updated. NOT chosen: outbox/retry (heavier, unnecessary given retry-on-error is now surfaced) and the ops-runbook-only option (leaves the false-success in place). The ops-monitoring uncertainty in remaining_uncertainty is now moot for the reporter-facing guarantee, though a runbook is still worth having for the rare retry-also-fails case."
+    verification:
+      status: "pending"
+      independent: false
+      residual_risk: "Fix committed (b9f89a23) with a pinning unit test; awaiting independent confirmation that it closes the gap (the builder wrote the fix, so verification is routed to the independent verifier). Residual after the fix: a reporter whose insert fails now gets an error and must retry (an availability trade for the durable-record guarantee), and the rare retry-also-fails case still relies on the reporter using the support@ fallback."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-04"
+        actor: "independent falsification verifier (read-only)"
+        action: "opened"
+        note: "Raised while judging, at the lead's request, whether best-effort is acceptable for the DSA durable-record obligation; the intake degrades to the counsel-rejected email-only state on a content_reports insert failure, though loudly logged and with the operator email as a parallel trace."
+      - date: "2026-08-04"
+        actor: "inklee worker (builder of the intake path)"
+        action: "fix-committed"
+        note: "Fixed in b9f89a23 by making the durable row load-bearing: a queue-write failure now returns a reporter error and sends no emails, so the intake can no longer report success without a durable record. Founder chose fix-first over record-then-track specifically because dpia_r1 is a legal attestation and this was a hole in the exact property R1 guarantees. Verification routed to the independent verifier (builder does not verify own fix)."
+  - id: "TEST-VAC-009"
+    title: "The /legal/report 'DRIFT' test cannot fail on form-vs-action divergence, because both derive from one module; it guards a risk already eliminated by construction"
+    summary: "The test named 'DRIFT: the form's category values and the label map are the exact same set' (actions.test.ts:92-100) asserts REPORT_CATEGORIES.map(c=>c.value).sort() equals Object.keys(REPORT_CATEGORY_LABELS).sort(). But REPORT_CATEGORY_LABELS is DERIVED from REPORT_CATEGORIES (report-categories.ts:32-33), so its keys are definitionally the array's values; the two share one source and cannot diverge. The only way the assertion fails is a duplicate category value. Its name implies it guards form-vs-server-action divergence, but the form and the action both import the SAME module, so divergence is impossible and the assertion cannot fail on it. The actual drift protection is the single-source architecture, which is sound; the test is not what provides it."
+    classification:
+      domain: "testing"
+      category: "untestable-or-vacuous-test"
+      severity: "informational"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent falsification verifier (read-only)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "145d6d48"
+      discovery_context: "Independent verification of #79/Q16 category validation: the lead asked whether the drift test is real (would fail if the label map and array diverged)."
+      environment: "local"
+    location:
+      files:
+        - "apps/web/src/app/legal/report/__tests__/actions.test.ts"
+        - "apps/web/src/lib/legal/report-categories.ts"
+      symbols:
+        - "REPORT_CATEGORIES"
+        - "REPORT_CATEGORY_LABELS"
+      database_objects: []
+    evidence:
+      observed_facts:
+        - "actions.test.ts:92-100 asserts REPORT_CATEGORIES values equal Object.keys(REPORT_CATEGORY_LABELS)."
+        - "report-categories.ts:32-33 defines REPORT_CATEGORY_LABELS = Object.fromEntries(REPORT_CATEGORIES.map(c=>[c.value,c.label])), so Object.keys(labels) is the set of REPORT_CATEGORIES values by construction; the only divergence it can detect is a duplicate value."
+        - "report-form.tsx:6 and :61 render options by mapping REPORT_CATEGORIES; actions.ts:8 validates via REPORT_CATEGORY_LABELS[category] — both consume the one module, so form-vs-action divergence is impossible and the assertion cannot fail on it."
+      references:
+        - "actions.test.ts:97-99 (the SAME test also pins REPORT_CATEGORY_LABELS['image_without_consent'] to its label — that assertion IS a real regression guard)."
+      reproduction: "Read report-categories.ts:32-33: the label map is derived from the array; no independent second list exists for the assertion to catch drifting from."
+      contradictory_evidence: "The single-source design genuinely prevents form/action drift, so the risk the test appears to guard is already eliminated; and the file's other five tests are non-vacuous (reject unknown category, send both emails, queue called with the right fields, best-effort on queue failure) - all executed and green."
+      inspected_comparables_without_issue:
+        - "The other five tests in actions.test.ts were checked and are non-vacuous."
+    assessment:
+      interpretation: "The drift assertion proves less than its name claims. It is not harmful, but a later editor could believe drift is test-guarded when it is architecture-guarded, and could weaken the architecture (e.g. give the form its own hardcoded option list) without any test going red."
+      root_cause_hypothesis: "The test was written against the pre-refactor world where the form and the action each carried their own list; after both were unified onto one module the assertion was kept but no longer has two independent lists to compare."
+      reachability: "unknown"
+      impact_status: "theoretical"
+      production_exposure: "None. This is a test-quality observation with no runtime effect."
+      remaining_uncertainty: "None material; the mechanism is fully determined by reading report-categories.ts."
+    relationships:
+      related_findings: []
+      structural_patterns: []
+      analogous_uninspected_areas:
+        - "Other 'drift' or 'single source of truth' guards in the suite that compare a module to a value derived from that same module were not swept."
+    remediation:
+      status: "open"
+      proposed_action: "Either rename the assertion to what it actually checks (no duplicate category values) or make it a genuine guard by comparing the form's rendered option set against the server's accepted set from two independent reads. Low priority: the single-source architecture already prevents the drift the name promises."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "No fix; informational. The category validation itself is sound and independently confirmed."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-04"
+        actor: "independent falsification verifier (read-only)"
+        action: "opened"
+        note: "Answering the lead's question: the drift test would NOT fail if the label map and array diverged, because they cannot diverge (derived from one source). Recorded as informational; the real protection is the architecture."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -20412,3 +20541,17 @@ coverage:
       - "GAL-PATH-001"
     known_exclusions: "The /admin/content-reports LIST/queue UI is not built and was not exercised; the takedown was driven through the module directly (and the admin server action by read), never through a rendered admin page. A per-bucket storage REMOVAL failure was reasoned from code (a returned error is captured to Sentry and skipped, the loop continues) but NOT forced by execution; and a THROWN storage error (as opposed to a returned one) is not wrapped in try/catch in takedownGalleryImage, unlike removeDroppedHubImages, so a synchronous throw on remove would abort after the row-strip. Production apply of 0155 and the founder gate-key recording are out of scope. The takedown leaves moderation_statements.target_content_report_id null (only content_reports.statement_of_reasons_id is set); read, not flagged."
     recommended_next_inspection: "Force a per-bucket remove failure and a thrown storage error to confirm the takedown does not abort mid-way; verify behaviour through the built /admin/content-reports page once it exists; decide GAL-PATH-001 (doc fix vs host check vs sanitize the operator URL)."
+  - area: "#79 / Q16 intake -> durable moderation queue + operator admin surface: INDEPENDENT adversarial verification"
+    subsystem: "public-surface"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-04"
+    commit_inspected: "145d6d48"
+    reviewer: "independent falsification verifier (read-only; did NOT build this code)"
+    evidence: "Durable queue write traced: queueContentReport (content-reports.ts) inserts the correct fields (category, url, description, reporter_name, reporter_email, reference), status defaults to 'new', and it is called ROW-FIRST (actions.ts:121) before the operator email (144) and the reporter ack (173); an insert failure is captured to Sentry (level error) + console.error, NOT silently swallowed (recorded as DSA-QUE-001, best-effort degrades to the counsel-rejected email-only state). Category validation: the action rejects unknown categories via !REPORT_CATEGORY_LABELS[category] and accepts image_without_consent; the form (report-form.tsx:61), the action (actions.ts:8) and the label map all derive from ONE module (REPORT_CATEGORIES), so drift is structurally impossible (the 'DRIFT' test itself is near-vacuous for divergence, recorded TEST-VAC-009). Admin surface authz: page.tsx calls requireAdmin() before any load; takedownGalleryImageAction is gated by getAdminId(); both enforce an ADMIN_EMAILS allowlist plus a fail-closed MFA step-up (admin-guard.ts). content_reports is zero-policy RLS, so the only read path is the admin serviceClient behind requireAdmin. The UI offers takedown only when category==='image_without_consent' && status!=='actioned' (content-reports-client.tsx:139-140). Ran 4 suites, all green with named tests: legal/report actions.test.ts 6/6, content-reports-rls.test.ts 3/3 (authed insert 42501, service-role positive control, RLS hides the reporter's rows from an authed user), moderation-statements-gallery-target.test.ts 3/3 (gallery_image+removed accepted, 23514 for a bad target_type, pre-existing vocab survives), gallery-takedown-removes-storage-object.test.ts 2/2. Prod schema verified READ-ONLY via the Management API: content_reports carries all 13 columns the code expects with correct types (id, category, url, description, reporter_name, reporter_email, reference, status default 'new', target_artist_id, statement_of_reasons_id, reviewed_by, reviewed_at, created_at), RLS enabled, 0 policies, status check (new/reviewed/actioned/dismissed), FKs to profiles / moderation_statements / auth.users, moderation_statements_target_type_check includes 'gallery_image', target_content_report_id present. No writes to prod; no /legal/report submission; no emails triggered."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "DSA-QUE-001"
+      - "TEST-VAC-009"
+    known_exclusions: "takedownGalleryImageAction does NOT re-validate server-side that the reportId's category is image_without_consent, that its status is not already 'actioned', or that image_url belongs to the report; that category/status gate is CLIENT-ONLY (content-reports-client.tsx:139-140). An admin could therefore action an arbitrary (reportId, artistId, imageUrl) triple. It is admin-gated (getAdminId, MFA-stepped) and path-safe (ownedHubImagePath bounds deletion to the named artist's own namespace, verified in the prior takedown pass), so this is operator flexibility, not an authz gap, and is documented here rather than raised as a separate finding. NOT done: submitting a real /legal/report, triggering any email, or writing to prod. The report-form.tsx client validation surface, email deliverability, and the rate-limit / honeypot correctness were not exercised. The content-reports-rls read test asserts an empty result rather than an explicit error, so it would also pass if the SELECT errored (the 42501 insert assertion is the load-bearing one)."
+    recommended_next_inspection: "Decide DSA-QUE-001 (surface a reporter error, or an outbox/retry, or an ops runbook on a queue-insert failure); consider server-side re-validation of category+status in takedownGalleryImageAction so the UI gate is enforced where it matters; give TEST-VAC-009 a genuine form/action drift guard from two independent reads."

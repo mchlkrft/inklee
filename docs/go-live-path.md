@@ -17,6 +17,19 @@ uncommitted implementation/test halves. Positions in §1 are restated below
 the original block. Steps 2-3 (apply 0125-0153 to production, then push) are
 now the head of the path and both wait on the founder's go.
 
+**Updated 2026-08-04: #79 (Q16 gallery notice-and-action) is BUILT, PUSHED,
+and migration 0155 is APPLIED to production under explicit founder go.**
+Prod is now at **0155** (was 0154). The apply was atomic (DDL + ledger in one
+transaction) and post-apply verified object-by-object: `content_reports`
+exists with RLS on and zero policies (service-role-only), the
+`moderation_statements` target-type check now includes `gallery_image`,
+`target_content_report_id` FK present, PostgREST cache reloaded (live REST
+reads return 200). The takedown action is independently CONFIRMED
+(verify-takedown, local). REMAINING for #79: an independent-verify pass over
+the intake->durable-queue path, then the founder records
+`dpia_r1_notice_and_action_built` (§4). The DSA Section 4 threshold row (B2)
+is deliberately NOT in 0155 and stays blocked on counsel round-6 Q1.
+
 This file is the PATH. It is not a second source of truth for any decision:
 
 | Question | Authoritative file |
