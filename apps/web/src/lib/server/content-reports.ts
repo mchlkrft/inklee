@@ -17,11 +17,13 @@ export type ContentReportInput = {
  * notice-and-action: counsel's Q16 element (2) requires "a queued item in the
  * moderation workflow", which an email notification is not.
  *
- * Best-effort, by the same posture the emails already use: a write failure is
- * logged LOUDLY (a lost report is a compliance gap, not a nuisance) but must
- * NOT fail the reporter, whose acknowledgement and the operator email still go.
- * Written as `serviceClient`; `content_reports` is RLS-enabled with zero
- * policies, so no user-scoped client could write it.
+ * Does not throw: a write failure is logged LOUDLY (a lost report is a
+ * compliance gap, not a nuisance) and returned as `{ error }`. The caller
+ * (submitReportAction) treats that as a REPORTER-FACING error and asks them to
+ * retry, because the durable row is the record of record and we must not fall
+ * back to the email-only state Q16 element (2) rejects (DSA-QUE-001). Written as
+ * `serviceClient`; `content_reports` is RLS-enabled with zero policies, so no
+ * user-scoped client could write it.
  */
 export async function queueContentReport(
   input: ContentReportInput,

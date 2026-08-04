@@ -115,10 +115,13 @@ export async function submitReportAction(
 
   // Durable moderation queue (content_reports, 0155) — the record of record for
   // this notice-and-action, written row-first before the notifications. Q16
-  // element (2) requires a queued item, not just an email. Best-effort: a queue
-  // failure is logged loudly inside `queueContentReport` but never fails the
-  // reporter, whose acknowledgement and the operator email still go.
-  await queueContentReport({
+  // element (2) requires a queued item in the moderation workflow, which an
+  // email is NOT. So the durable row is LOAD-BEARING: if it fails to write we
+  // must not report success and fall back to the email-only state counsel
+  // rejected. Surface a reporter-facing error (the failure is already logged
+  // loudly inside queueContentReport) so they retry or use the direct fallback,
+  // exactly as the operator-email failure below does. (DSA-QUE-001.)
+  const queued = await queueContentReport({
     category,
     url,
     description,
@@ -126,6 +129,12 @@ export async function submitReportAction(
     reporterEmail,
     reference,
   });
+  if ("error" in queued) {
+    return {
+      error:
+        "We couldn't record your report right now. Please try again, or email support@inklee.app directly.",
+    };
+  }
 
   const operatorHtml = [
     `<p><strong>DSA notice-and-action report</strong></p>`,

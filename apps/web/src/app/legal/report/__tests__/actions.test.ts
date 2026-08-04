@@ -111,10 +111,14 @@ describe("submitReportAction: image_without_consent category (#79 Q16 e1/e4)", (
     );
   });
 
-  it("QUEUE is best-effort: a queue-write failure still returns success and still sends the ack", async () => {
+  it("QUEUE is load-bearing (DSA-QUE-001): a queue-write failure returns an error and sends NO emails, never a false success", async () => {
+    // Counsel's Q16 element (2) rejects the email-only state, so a failure to
+    // write the durable content_reports row must surface a reporter error and
+    // must NOT report success or fall through to the notifications.
     mockQueue.mockResolvedValue({ error: "boom" });
     const res = await submitReportAction(null, form("image_without_consent"));
-    expect(res).toMatchObject({ sent: true });
-    expect(mockSendEmail).toHaveBeenCalledTimes(2);
+    expect(res).toMatchObject({ error: expect.stringContaining("try again") });
+    expect(res).not.toMatchObject({ sent: true });
+    expect(mockSendEmail).not.toHaveBeenCalled();
   });
 });
