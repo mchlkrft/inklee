@@ -83,7 +83,7 @@ existing retention and deletion work and by counsel's C1.10 and Q1/Q12/Q13 rulin
 | Activity | Subject | Source | Location | Retention today |
 |---|---|---|---|---|
 | Booking reference images | The client, and anyone depicted | Uploaded by the client | Private `bookings` bucket, `projects/` prefix | 30-day purge after booking resolution |
-| Gallery images | The person tattooed | Uploaded or URL-imported by the artist | Public `logos` bucket; private `gallery-archive` on downgrade | Relocated on entitlement lapse; no deletion horizon |
+| Gallery images | The person tattooed | Uploaded by the artist | Private `gallery` bucket, signed-URL access only (factual correction 2026-08-04: R4/migration 0151 moved these from the public `logos` bucket named at signature; the correction does not change any assessment in this DPIA); `gallery-archive` on downgrade | Relocated on entitlement lapse; deleted on an Art. 16/17 takedown (R1) or account deletion |
 | Intake images | The enquirer, and anyone depicted | Public form | Private bucket | **None — the 90-day purge is designed and not built** |
 | Guest checkout | The buyer | Checkout form | `orders`, `shop_carts` | Purges built and boundary-tested; never yet expired anything |
 | Seeded studios | Studio operators | Public sources | `studios` and related | **None** |
