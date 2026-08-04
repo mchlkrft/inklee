@@ -24,11 +24,20 @@ transaction) and post-apply verified object-by-object: `content_reports`
 exists with RLS on and zero policies (service-role-only), the
 `moderation_statements` target-type check now includes `gallery_image`,
 `target_content_report_id` FK present, PostgREST cache reloaded (live REST
-reads return 200). The takedown action is independently CONFIRMED
-(verify-takedown, local). REMAINING for #79: an independent-verify pass over
-the intake->durable-queue path, then the founder records
-`dpia_r1_notice_and_action_built` (§4). The DSA Section 4 threshold row (B2)
-is deliberately NOT in 0155 and stays blocked on counsel round-6 Q1.
+reads return 200).
+
+**#79 is COMPLETE as of 2026-08-04.** Both independent-verify passes are done
+(takedown CONFIRMED; intake->queue->admin SOUND), the one compliance finding
+they raised (DSA-QUE-001, the best-effort queue write) was fixed load-bearing
+in `b9f89a23` and independently verified closed by red-then-green (register
+`verification.status: passed`, `independent: true`), and the gate key
+`dpia_r1_notice_and_action_built` is RECORDED in prod
+`billing_activation_approvals` (approved by "Management board (M. Kraeft)",
+2026-08-04, verified read-back). Recording it opened NO gate: it is one of the
+four gallery-gate keys and R3/R4/R6 remain absent (§4), with the capability
+grant separate. The DSA Section 4 threshold row (B2) is deliberately NOT in
+0155 and stays blocked on counsel round-6 Q1. Non-blocking follow-up: an ops
+runbook for the rare content_reports insert-and-retry-both-fail case.
 
 This file is the PATH. It is not a second source of truth for any decision:
 
@@ -185,7 +194,12 @@ is BUILT and merged; no key is recorded, deliberately:**
 | `dpia_r3_direct_upload_attestation_built` | BUILT + merged (attestation on all three ingest paths, web and native) | #74 ✅ |
 | `dpia_r4_signed_gallery_urls_built` | BUILT + merged (private bucket 0151, signed 15-min URLs, real-stack tested) | #75 ✅ |
 | `dpia_r6_intake_retention_purge_built` | BUILT + merged (0152, rows AND storage objects, event-anchored) | #75 ✅ |
-| `dpia_r1_notice_and_action_built` | ADDED per round-5 §4.2 (R1 had no key); the Q16 work behind it is UNBUILT (#79) | #79 ⬜ |
+| `dpia_r1_notice_and_action_built` | BUILT + **RECORDED in prod 2026-08-04** (approved_by "Management board (M. Kraeft)", both independent-verify passes done, DSA-QUE-001 fixed+verified) | #79 ✅ |
+
+**Update 2026-08-04: dpia_r1 is now RECORDED (the first of the four).** R3/R4/R6
+remain BUILT-but-unrecorded. Recording R1 opened no gate: the gallery gate needs
+all four keys **and** the capability grant. So the remaining DPIA-key work is
+recording R3/R4/R6.
 
 Enforced by `apps/web/src/lib/server/billing/dpia-gate-preconditions.ts`, which
 throws while a key is absent and is deliberately NOT a test-mode no-op. Founder

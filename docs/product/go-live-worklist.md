@@ -222,21 +222,26 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
       Terms notice.
 - [ ] **FA12** Un-park `GOODS_COMMERCE_ENABLED` — only after GS1-GS4 + GA1-GA2
       are answered, FA2 has passed, and Gate 1's structural items are in.
-- [~] **Q16-R1** Notice-and-action for gallery images (counsel round-2 Q16,
-      DPIA mitigation R1; task #79). **All four elements BUILT 2026-08-04**
-      (unpushed, dark): (1) the "image of me without consent" report category
+- [x] **Q16-R1** Notice-and-action for gallery images (counsel round-2 Q16,
+      DPIA mitigation R1; task #79). **COMPLETE 2026-08-04**: all four elements
+      built + pushed, migration 0155 applied+verified in prod, both independent
+      passes done, DSA-QUE-001 fixed+verified, gate key
+      `dpia_r1_notice_and_action_built` RECORDED in prod. (1) the "image of me
+      without consent" report category
       (shared `report-categories.ts`) + a "Report content" link on the public
       Hub; (2) the durable `content_reports` queue (migration 0155) and the
       `gallery-takedown.ts` removal action that deletes the storage object from
       both private gallery buckets, with a real-storage db test; (3) the DSA
       procedure §2b (v3); (4) the Art. 16(5) acknowledgement, which fires for
       the new category with no branch. Discharges the second condition of the
-      C1.6 hosting grant. **REMAINING before the gate key is recorded:** an
-      independent verification pass (do not record a key for work you did
-      yourself), and the small operator-facing `/admin/content-reports` LIST
-      page (the takedown ACTION shipped; the queue UI is a follow-up). Gate key
-      `dpia_r1_notice_and_action_built` stays UNRECORDED (founder's act) and
-      guards the gallery gate beside R3/R4/R6.
+      C1.6 hosting grant. The `/admin/content-reports` LIST page shipped
+      (`2131d3fe`), both independent-verify passes are done, DSA-QUE-001 (the
+      best-effort queue write) was fixed load-bearing (`b9f89a23`) and
+      independently verified, and gate key `dpia_r1_notice_and_action_built` is
+      RECORDED in prod (2026-08-04, approved_by "Management board (M. Kraeft)").
+      It guards the gallery gate beside R3/R4/R6, which remain UNRECORDED, so the
+      gallery gate stays closed. Non-blocking follow-up: an ops runbook for the
+      rare content_reports insert-and-retry-both-fail case.
 - [ ] **B2 / Q20-DSA-§4** The DSA Section 4 trader-traceability threshold
       (counsel round-2 Q20 second half). Add a `dsa_micro_small_2003_361` row to
       `tax_thresholds` (alongside the VAT thresholds so one quarterly check
