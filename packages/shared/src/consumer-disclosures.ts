@@ -354,6 +354,53 @@ export function summarizeReturnDisclosure(
 }
 
 /**
+ * R5 Q1 (counsel 2026-08-04, master-package §6.2, option (c)): the shop-level
+ * wording for a mixed CATALOGUE shown on an empty basket, where "Some items in
+ * your order are custom-made" (the basket-mixed line) would be false.
+ *
+ * The words are counsel's; the em-dash in their draft ("...all other items —
+ * details at checkout") is normalized to a period per the house copy rule (no
+ * em-dashes in user-visible strings), which is disclosed in the C1 cover note
+ * so sign-off is against this rendered form.
+ */
+export const SHOP_CATALOGUE_MIXED_NOTICE =
+  "Some items in this shop are custom-made and cannot be returned. The 14-day right of return applies to all other items. Details at checkout.";
+
+/**
+ * The disclosure paragraphs the shop's browse (pick) step shows for an EMPTY
+ * basket, derived from the CATALOGUE's composition rather than the (empty)
+ * selection — R5 Q1 option (c). An all-custom shop must not headline-promise a
+ * return that applies to nothing on sale (counsel: a misleading commercial
+ * practice, not a cosmetic one), so the empty state describes the shop:
+ * - all returnable  -> the standard 14-day return notice
+ * - all custom-made -> the Art. 16(c) custom-made notice
+ * - mixed           -> the shop-level mixed notice above
+ * - empty catalogue -> no return paragraph (nothing is on sale to return)
+ *
+ * Pure so it is testable without a DOM harness (none exists for this surface).
+ * The caller derives `catalogueSummary` from the current catalogue at render;
+ * the checkout page is a dynamic server component with no ISR, so its product
+ * props are re-queried each request — this must never be cached across a
+ * catalogue change. The seller block always renders above these paragraphs, so
+ * its "(see below)" reference is satisfied in every non-empty-catalogue state.
+ */
+export function shopEmptyBasketDisclosure(
+  catalogueSummary: ReturnDisclosureSummary,
+  returnNotice: string,
+): string[] {
+  switch (catalogueSummary) {
+    case "all_returnable":
+      return [returnNotice];
+    case "all_custom_made":
+      return [CUSTOM_MADE_NOTICE];
+    case "mixed":
+      return [SHOP_CATALOGUE_MIXED_NOTICE];
+    case "empty":
+      return [];
+  }
+}
+
+/**
  * GOODS-DISC-001: the return-right disclosure sections for the appointment
  * ADD-ON checkout SCREEN — the seller block plus whichever notice(s) the
  * CURRENT SELECTION needs, empty when nothing is selected. Distinct from

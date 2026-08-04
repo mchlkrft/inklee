@@ -11,6 +11,8 @@ import {
   CUSTOM_MADE_NOTICE,
   RECEIPT_DURABLE_CLOSING_LINE,
   summarizeReturnDisclosure,
+  shopEmptyBasketDisclosure,
+  SHOP_CATALOGUE_MIXED_NOTICE,
   buildOrderReceiptBody,
   addonGoodsSellerGate,
   addonCheckoutDisclosureSections,
@@ -153,6 +155,43 @@ describe("summarizeReturnDisclosure", () => {
 
   it("reports empty for no items, without throwing", () => {
     expect(summarizeReturnDisclosure([])).toBe("empty");
+  });
+});
+
+describe("shopEmptyBasketDisclosure (R5 Q1 (c): empty basket describes the catalogue)", () => {
+  const RETURN = "RETURN-NOTICE-STANDIN";
+
+  it("an all-custom shop shows the custom-made notice, NOT a return promise", () => {
+    // The whole point of the ruling: an all-custom shop must not
+    // headline-promise a 14-day return on an empty basket.
+    const out = shopEmptyBasketDisclosure("all_custom_made", RETURN);
+    expect(out).toEqual([CUSTOM_MADE_NOTICE]);
+    expect(out).not.toContain(RETURN);
+  });
+
+  it("a fully-returnable shop shows the standard return notice", () => {
+    expect(shopEmptyBasketDisclosure("all_returnable", RETURN)).toEqual([
+      RETURN,
+    ]);
+  });
+
+  it("a mixed shop shows the shop-level mixed notice, not the basket-mixed line", () => {
+    const out = shopEmptyBasketDisclosure("mixed", RETURN);
+    expect(out).toEqual([SHOP_CATALOGUE_MIXED_NOTICE]);
+    // It must talk about the SHOP, not "your order" (which is empty here).
+    expect(out[0]).toContain("in this shop");
+    expect(out[0]).not.toContain("your order");
+  });
+
+  it("an empty catalogue promises nothing (nothing is on sale to return)", () => {
+    expect(shopEmptyBasketDisclosure("empty", RETURN)).toEqual([]);
+  });
+
+  it("the shop-level mixed notice carries counsel's words and no em-dash (house copy rule)", () => {
+    expect(SHOP_CATALOGUE_MIXED_NOTICE).toBe(
+      "Some items in this shop are custom-made and cannot be returned. The 14-day right of return applies to all other items. Details at checkout.",
+    );
+    expect(SHOP_CATALOGUE_MIXED_NOTICE).not.toContain("—");
   });
 });
 

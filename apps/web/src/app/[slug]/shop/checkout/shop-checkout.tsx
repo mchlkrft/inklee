@@ -14,6 +14,7 @@ import {
   customMadeRowSuffix,
   CUSTOM_MADE_NOTICE,
   summarizeReturnDisclosure,
+  shopEmptyBasketDisclosure,
   type ReturnDisclosureSummary,
   type ReturnDisclosureItem,
 } from "@inklee/shared/consumer-disclosures";
@@ -125,10 +126,15 @@ function DisclosurePanel({
   sellerDisclosureBlock,
   returnNotice,
   disclosure,
+  emptyBasketParagraphs,
 }: {
   sellerDisclosureBlock: string;
   returnNotice: string;
   disclosure: ReturnDisclosureSummary;
+  // R5 Q1 (c): what the empty-basket pick state shows, derived from the
+  // CATALOGUE's composition (never a blanket return promise). Unused on the
+  // pay screen, whose disclosure is a fixed non-empty basket.
+  emptyBasketParagraphs: string[];
 }) {
   return (
     <div className="space-y-3 rounded-[14px] border border-border p-4 text-sm text-foreground">
@@ -146,9 +152,15 @@ function DisclosurePanel({
           <p className="whitespace-pre-line">{returnNotice}</p>
         </div>
       )}
-      {(disclosure === "all_returnable" || disclosure === "empty") && (
+      {disclosure === "all_returnable" && (
         <p className="whitespace-pre-line">{returnNotice}</p>
       )}
+      {disclosure === "empty" &&
+        emptyBasketParagraphs.map((paragraph, i) => (
+          <p key={i} className="whitespace-pre-line">
+            {paragraph}
+          </p>
+        ))}
     </div>
   );
 }
@@ -491,6 +503,24 @@ export function ShopCheckout({
     ...cartDisclosureItems,
   ]);
 
+  // R5 Q1 (c): on an empty basket the pick panel describes the CATALOGUE, not
+  // an empty selection, so an all-custom shop never headline-promises a return
+  // that applies to nothing. Derived from every visible catalogue row
+  // (products + bundles, incl. sold-out/upcoming rows, which are still on
+  // display) and recomputed per render — the checkout page is dynamic with no
+  // ISR, so these props are re-queried each request; do not cache across a
+  // catalogue change.
+  const emptyBasketParagraphs = useMemo(() => {
+    const catalogueItems: ReturnDisclosureItem[] = [
+      ...products.map((p) => ({ customMade: p.customMade === true })),
+      ...bundles.map((b) => ({ customMade: b.customMade === true })),
+    ];
+    return shopEmptyBasketDisclosure(
+      summarizeReturnDisclosure(catalogueItems),
+      returnNotice,
+    );
+  }, [products, bundles, returnNotice]);
+
   const startCheckout = () => {
     setError(null);
     startTransition(async () => {
@@ -540,6 +570,7 @@ export function ShopCheckout({
           sellerDisclosureBlock={sellerDisclosureBlock}
           returnNotice={returnNotice}
           disclosure={phase.disclosure}
+          emptyBasketParagraphs={emptyBasketParagraphs}
         />
         <Elements
           stripe={stripePromise}
@@ -863,6 +894,7 @@ export function ShopCheckout({
         sellerDisclosureBlock={sellerDisclosureBlock}
         returnNotice={returnNotice}
         disclosure={pickDisclosure}
+        emptyBasketParagraphs={emptyBasketParagraphs}
       />
 
       <button
