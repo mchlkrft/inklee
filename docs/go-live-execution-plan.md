@@ -41,8 +41,24 @@ Phase H is largely done and pushed; the rest of the plan is unchanged.
   are single-row and logged), so the 1,363-row removal was direct unlogged SQL,
   actor unrecoverable; recorded as "mechanism undetermined" and paired with
   CRON-SEC-001's credential remediation (risk-accepted). Does not stay open.
-- **REMAINING in H:** H5 (teardown §1E "persistent unreadable balance → Stripe
-  support incident" wording), H8 (round-3 Art. 33(5) records). Then Phases I → O.
+- **H5 — DONE** (`4ac9631d`): teardown §1E persistent-unreadable-balance wording.
+- **Phase I — DONE** (`ce89f313`, reviewed by the lead + pushed): C1.9 Terms +
+  privacy bumped to version 2026-08-04, all 10 riders, privacy hash-bound
+  (`privacy_notice_approved`, binding-not-gating), snapshots frozen,
+  integrity tests 21/21. terms_approved auto-re-closed vs the new hash
+  (expected; re-records at M3). **DECISION 2026-08-04 (founder): C1.7
+  (deposit fee-refund retained-cost clause) is DEFERRED to the O8
+  refund-policy pass**, not this bump — so O8 now carries its own small Terms
+  re-roll (its precondition list in Phase O is unchanged).
+- **Cover-note items for M** (flag to counsel, do not silently ship): the
+  Rider-1 withdrawal sentence ("available from your account settings") reads as
+  a current-availability claim while consumer sales are still dark — accurate at
+  launch, forward-looking before it; counsel confirms the phrasing at M.
+- **Minor follow-up (parking lot):** pricing/page.tsx:79,222 still say "your
+  plan settings" (marketing copy, dark behind the launch flag) — inconsistent
+  with the X2 Terms fix; 2-word fix when convenient.
+- **REMAINING in H:** H8 (round-3 Art. 33(5) records) — off the go-live path.
+  Then Phases J → O.
 
 ---
 
