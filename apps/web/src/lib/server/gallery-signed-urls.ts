@@ -156,6 +156,31 @@ export async function signGalleryImageUrls(
   }
   if (pathByUrl.size === 0) return out;
 
+  // R6 Q3 (counsel §6.4; DSA procedure §2b/§4): interim disable. Drop any
+  // gallery URL that has an OPEN "image of me without consent" report so it is
+  // not rendered while a moderation decision is pending; it returns to the
+  // signable set if the report is dismissed, and a founded report proceeds to
+  // the object-deleting takedown. FAIL-CLOSED, like the storage step below: a
+  // query error THROWS rather than risk rendering a reported image (the caller
+  // already treats a throw as "show no gallery images", never an unsigned one).
+  // The category value matches report-categories.ts ('image_without_consent').
+  const candidateUrls = [...pathByUrl.keys()];
+  const { data: openReports, error: reportError } = await serviceClient
+    .from("content_reports")
+    .select("url")
+    .eq("category", "image_without_consent")
+    .in("status", ["new", "reviewed"])
+    .in("url", candidateUrls);
+  if (reportError) {
+    throw new Error(
+      `signGalleryImageUrls: could not check content_reports for interim suppression: ${reportError.message}`,
+    );
+  }
+  for (const row of openReports ?? []) {
+    pathByUrl.delete((row as { url: string }).url);
+  }
+  if (pathByUrl.size === 0) return out;
+
   const paths = [...new Set(pathByUrl.values())];
   const { data, error } = await serviceClient.storage
     .from(GALLERY_LIVE_BUCKET)

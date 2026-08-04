@@ -1,12 +1,14 @@
 # DSA Notice-and-Action Internal Procedure
 
-**Status:** v3, 2026-08-04 (v2 2026-07-26, v1 2026-05-20). Owned by founder. Not user-facing.
+**Status:** v4, 2026-08-04 (v3 2026-08-04, v2 2026-07-26, v1 2026-05-20). Owned by founder. Not user-facing.
 **Counterparts:** `/legal/report` form (`src/app/legal/report/`) and its shared category list (`lib/legal/report-categories.ts`), Acceptable Use Policy (`content/legal/acceptable-use.md` §6 "Reporting abuse"), in-product map reports (`map_reports`, `submitMapCorrection`), the durable report queue (`content_reports`, migration 0155), the gallery takedown (`lib/server/gallery-takedown.ts`), statements of reasons (`moderation_statements`, `lib/server/moderation-statements.ts`), and the DPIA R1 gate key `dpia_r1_notice_and_action_built` (`lib/server/billing/dpia-gate-preconditions.ts`), which stays unrecorded until this procedure and its build are complete.
 **Scope:** All notices alleging unlawful content or AUP violations on `inklee.app`, public artist pages on the same domain, content uploaded via the booking workflow, **the tattoo directory: map location entries, studio profile pages, shop entries, and temporary studio signals** (added in v2), and **hosted portfolio/gallery images on an artist's public hub** (added in v3).
 
 **v2 changes (counsel answer to Q14, 2026-07-24; recorded in `docs/product/inklee-2-open-questions.md`):** scope extended to the directory; the two-channel mapping in §2a added; the micro-enterprise position in §6 firmed up from "tentatively applies" to a stated exclusion; the Art. 17 recipient distinction in §3a added.
 
 **v3 changes (counsel round-2 Q16, adopted as DPIA mitigation R1; #79, 2026-08-04):** scope extended to hosted gallery images; the "image of me without consent" route added in §2b; a durable `content_reports` queue now backs intake; a gallery takedown that deletes the storage object was built; the §3a recipient distinction extended to the gallery case; and the DSA Section 4 trader-traceability trigger noted in §6 (its figure and citation pending counsel round-6).
+
+**v4 changes (counsel round-6 answers, 2026-08-04, master-package §6.4):** the "image of me without consent" category gets a stated 72-hour decision aim and an interim-disable-on-receipt rule for manifestly intimate or facially-credible reports (§4); the DSA Section 4 trigger row is seeded with the counsel-confirmed figures (migration 0156) and its Art. 29 / Section 4 citation confirmed while the Art. 19 / Section 3 line stays separate (§6); the stale gallery-bucket cross-reference in §2b is removed (the DPIA was corrected 2026-08-04).
 
 The form at `/legal/report` is the preferred intake. Reports may also arrive as free-form emails to `support@inklee.app` (DSA Art. 11/12 single point of contact, see imprint). Both channels feed the same procedure.
 
@@ -95,11 +97,18 @@ Because the reporter is the depicted third party, contact details are required
   storage object from **both private gallery buckets**: `gallery` (the live
   bucket since migration 0151) and `gallery-archive` (a downgraded artist's
   copy, since 0144). It does not touch the public `logos` bucket, which holds
-  goods images out of this scope. (NOTE: `docs/legal/lo-5-dpia.md` still names
-  the old `logos` bucket for gallery objects; that reference predates 0151 and
-  is stale, tracked for correction.) Deleting the object is load-bearing on its
+  goods images out of this scope. Deleting the object is load-bearing on its
   own: gallery objects are private and served only through short-lived signed
   URLs, so a deleted object can no longer be signed and the render drops it.
+- **Interim disable pending the decision (v4, counsel round-6 Q3).** Where the
+  reported image is manifestly intimate or the report is credible on its face,
+  the image is temporarily disabled on receipt, before the human decision (§4).
+  This is a render-time suppression keyed to the open `content_reports` row: the
+  image stops rendering while its report is open (`new`/`reviewed`) and returns
+  if the report is dismissed, WITHOUT deleting the object. A founded report then
+  proceeds to the object-deleting takedown above. Already-minted signed URLs can
+  survive up to their 15-minute TTL, which bounds how fast the disable takes
+  effect.
 - **Statement of reasons.** The **artist** hosts the image and is the recipient
   of the service, so the full Art. 17 statement is owed to the artist,
   delivered per §3 (see §3a). The reporter is notified of the outcome under §4
@@ -153,7 +162,16 @@ possibly-closed admin actions. Delivery to the affected party is not yet automat
 - **Decide and act:** within 14 days for typical reports; shorter for serious illegal content; immediately for §2 escalations.
 - **Notify reporter and affected user of the outcome:** within 3 days of the decision.
 
-## 5. Records and retention
+**Category-specific target: "image of me without consent" (v4, counsel round-6 Q3).**
+For this category only, in addition to the 24-hour acknowledgement: we **aim to
+decide within 72 hours.** This is a stated aim, not a firm contractual SLA. DSA
+Art. 16 requires timely, diligent, non-arbitrary handling; a stated target meets
+that without manufacturing a breach claim from every miss. **Interim measure:**
+where the reported image is manifestly intimate, or the report is credible on
+its face, temporarily disable the image on receipt, pending the decision (interim
+removal is the lower-risk error in both directions). The 72-hour aim is mirrored
+in the automatic acknowledgement copy for this category; the interim-disable rule
+is operational only and is not stated in public copy. Mechanism: §2b.
 
 - Keep report records, decisions, and notifications for at least 24 months (aligns with the Privacy Policy audit-log retention).
 - Statement-of-reasons records: keep for at least 5 years to support trend analysis. Not published in a public transparency report (see §6).
@@ -180,13 +198,21 @@ traders, and the Section 4 duties (Arts. 30-32) are likewise excluded while
 Inklee is micro **or small** (Art. 29, as Section 3 is by Art. 19 above). This
 is to be MONITORED alongside the VAT thresholds so one quarterly check covers
 both: a `dsa_micro_small_2003_361` row in `tax_thresholds` that alerts if Inklee
-crosses the small-enterprise ceiling under Recommendation 2003/361. TWO things
-are pending counsel before it is seeded (round-6 Q1/Q2, 2026-08-04): the exact
-ceiling figure (the trigger is the SMALL ceiling, since the exemption survives
-while either micro or small), and confirmation of the Section 3/Art. 19 vs
-Section 4/Art. 29 citation for this specific trigger. The row is deliberately
-NOT built with a figure until counsel confirms it, because a statutory figure is
-never invented in engineering.
+crosses the small-enterprise ceiling under Recommendation 2003/361.
+
+**Counsel confirmed both points (round-6, 2026-08-04, master-package §6.4), and
+the row is now seeded (migration 0156).** The trigger is the SMALL-enterprise
+ceiling: fewer than 50 staff AND annual turnover or balance-sheet total
+<= EUR 10,000,000. Status is lost when EITHER limb is exceeded, so headcount
+(< 50) is monitored too; per Rec. 2003/361 Annex Art. 4(2) an alert fires only
+after the ceiling is exceeded over two consecutive accounting periods, so an
+alert is a review trigger, not automatic loss. The row alerts at EUR 8,000,000
+(80%). Citation (Q2): this trigger row cites **DSA Article 29 / Section 4**
+(trader traceability); the **Article 19 / Section 3** exclusion above is a
+separate matter (Section 3 platform duties) and is unchanged. The 50-staff limb
+and the two-period rule have no column on the money-only `tax_thresholds` table,
+so they live in the row's `notes` plus this section; `current_minor` is
+maintained by the quarterly manual check.
 
 ## 7. Updates to this procedure
 

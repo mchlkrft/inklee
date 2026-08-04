@@ -232,8 +232,12 @@ export async function recordDurableConfirmation(input: {
   // checkout, so the version comes from there (scoped to this artist's latest
   // acceptance; there is exactly one live contract per artist by design).
   // Fail-soft to null rather than blocking a statutory confirmation: the
-  // consent row itself remains the primary evidence, and check 11 of the
-  // legal-artifact validator reports null stamps as a gap.
+  // consent row itself remains the primary evidence. A null stamp (or an
+  // unreadable snapshot) is a BILL-CONF-001 degraded send: the Sentry warning
+  // below fires and the corrective resend is per
+  // docs/runbooks/billing-confirmation-resend.md. (An earlier version of this
+  // comment cited a "check 11 of the legal-artifact validator"; no such check
+  // exists in scripts/legal/verify-legal-artifacts.cjs.)
   let termsVersion: string | null = null;
   try {
     const { data: consent } = await serviceClient
