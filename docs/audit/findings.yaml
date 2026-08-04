@@ -17741,6 +17741,174 @@ findings:
         note: "Surfaced in the same production read as BILL-TAX-001, verifying Inklee's first live
           consumer Plus purchase + withdrawal. Related to BILL-TAX-001: both are tax-snapshot
           behaviour observed on the same live consumer transaction."
+  - id: "AUTH-EML-001"
+    title: "The Supabase Send Email Hook never sent the new-address confirmation on a secure email
+      change, so no user could complete an email change"
+    summary: "apps/web/src/app/api/auth/email-hook/route.ts is the SOLE auth email sender in
+      production. With secure (double-confirm) email change enabled, Supabase fires this hook ONCE
+      carrying a confirmation token for BOTH addresses and requires both to be confirmed. Before the
+      fix the email_change case sent exactly one email, to user.email (the CURRENT address), and the
+      HookPayload type had no new_email / token_hash_new field, so the new address never received its
+      link. Every email change stalled at email_change_confirm_status=1 and could never complete, for
+      all users. Fixed forward in 4833b923, which adds the guarded new-address send. This entry adds
+      the regression test the route never had (which is why the defect shipped) and records its
+      red-green verification."
+    classification:
+      domain: "auth"
+      category: "silent-failure"
+      severity: "high"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "auth email-change failure observed via a demo-account change that never
+        arrived; regression test authored and red-green verified by the test-integrity engineer
+        (inklee-test-integrity)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "4833b923"
+      environment: "production"
+      discovery_context: "The symptom (a demo-account email change to a role inbox that never
+        arrived, leaving the change stuck) was a production observation recorded in the fix commit
+        4833b923. The code-level evidence and the red-green reproduction below were run locally
+        against HEAD (4833b923); this pass did not itself re-query the production auth
+        configuration."
+    location:
+      files:
+        - "apps/web/src/app/api/auth/email-hook/route.ts"
+        - "apps/web/src/app/api/auth/email-hook/__tests__/route.test.ts"
+      symbols:
+        - "POST"
+        - "buildConfirmUrl"
+      routes:
+        - "/api/auth/email-hook"
+      clients:
+        - "web"
+        - "mobile"
+      services:
+        - "Supabase Auth"
+        - "Resend"
+    evidence:
+      observed_facts:
+        - "route.ts (HEAD 4833b923) lines 178-191: the email_change case now sends a SECOND email
+          guarded by `if (user.new_email && email_data.token_hash_new)` to user.new_email, carrying
+          buildConfirmUrl(appUrl, email_data.token_hash_new, email_change, next). Lines 171-177 send
+          the current-address email to user.email with token_hash."
+        - "git show 4833b923 --stat: the fix changed exactly ONE file, route.ts (31 insertions, 9
+          deletions), and added no test. The commit body states the hook only ever sent to
+          user.email and its payload type had no new_email / token_hash_new before the fix; the diff
+          adds both the new_email/token_hash_new type fields (route.ts:49,56) and the second
+          sendEmail call. There was no test for this route prior to this entry, which is why the
+          defect shipped."
+        - "Red-green reproduction run locally at HEAD by the test-integrity engineer: with the
+          new-address send block (route.ts:178-191) present, the new test file reports 4/4 pass
+          including secure email change sends BOTH the current- and new-address confirmations
+          (asserts sendEmail called twice: once to old@example.com with token_hash=CUR, once to
+          new@example.com with token_hash=NEW, both type=email_change). Deleting only that block
+          drops that test to a single sendEmail call and fails with AssertionError expected 2 calls
+          got 1, while the signup single-email guard, the legacy-email_change single-email guard,
+          and the bad-signature 401 positive control stay green. Restoring the block returns 4/4."
+        - "route.ts:3 imports sendEmail from @/lib/email/send and every switch case awaits it;
+          @/lib/email/send throws on a delivery error so a real send failure returns 500 and
+          Supabase retries. A MISSING send therefore produces no error at all, which is why the
+          absent new-address email was silent rather than a visible failure."
+      references:
+        - "apps/web/src/app/api/auth/email-hook/route.ts"
+        - "apps/web/src/app/api/auth/email-hook/__tests__/route.test.ts"
+        - "commit 4833b923 (fix: send the new-address confirmation on a secure email change)"
+      reproduction: "Run pnpm exec vitest run --reporter=verbose
+        src/app/api/auth/email-hook/__tests__/route.test.ts from apps/web (4/4 green at HEAD). To see
+        the pre-fix red: delete the `if (user.new_email && email_data.token_hash_new)` block
+        (route.ts:178-191) and re-run; the two-email test fails expected-2-got-1 while the other
+        three stay green; restore the block."
+      contradictory_evidence: "None against the code-level defect. The production auth-config facts
+        that establish the blast radius (mailer_secure_email_change_enabled=true, smtp_host=null,
+        this hook being the sole sender) are reported by the auth work and the fix commit, not
+        re-queried by this proving pass; they are treated as context, not as this pass's own
+        observed facts."
+      inspected_comparables_without_issue:
+        - "The signup/invite, recovery and magiclink branches of the same route each send a single
+          email to user.email, which is correct for them (those flows have one recipient). The
+          signup branch is now covered by an explicit single-email guard assertion in the new test
+          file; it was inspected and found to have the right recipient and token."
+    assessment:
+      interpretation: "Secure double-confirm email change is a two-recipient operation: the hook
+        must send a confirmation to the current address (token_hash) AND to the new address
+        (token_hash_new). Sending only the current one leaves email_change_confirm_status at 1
+        permanently because the new address is never asked to confirm, so the change can never
+        complete."
+      root_cause_hypothesis: "The route was written for the single-recipient action types
+        (signup/recovery/magiclink) and email_change was modelled the same way; the double-confirm
+        semantics of mailer_secure_email_change_enabled, which require a token per address, were not
+        reflected in the HookPayload type or the send logic."
+      reachability: "directly-reachable"
+      impact_status: "historically-impacting"
+      affected_users_or_systems: "Every user who attempted an email change while the pre-fix code
+        was live: the change could not complete for any of them. Confirmed at least for the
+        demo-account change recorded in 4833b923."
+      production_exposure: "This route is the sole auth email sender in production per the auth work
+        and the fix commit; a real demo-account email change never received its new-address link.
+        The production auth configuration was not independently re-queried by this pass."
+      remaining_uncertainty: "The regression test verifies the ROUTE handler's behaviour with a
+        hand-signed hook payload and a mocked mailer: it proves two correctly-addressed,
+        correctly-tokened emails are sent. It does NOT verify end-to-end that Supabase's live hook
+        actually populates token_hash_new, nor that /auth/confirm consuming both tokens completes
+        the change against real Supabase Auth. Whether any real (non-demo) user hit this in
+        production is not established from repository evidence."
+    relationships:
+      analogous_uninspected_areas:
+        - "The recovery, magiclink and invite branches of this same route send a single email to
+          user.email and have NO dedicated assertion (only signup is asserted among the
+          single-recipient flows). They are believed correct but were not proven by test."
+        - "apps/web/src/app/api/email/webhook/route.ts and other Standard-Webhooks HMAC verifiers in
+          the repo share the signature pattern this route uses; their signature and payload handling
+          were not re-audited here."
+        - "The consuming side, /auth/confirm, which must accept both the current- and new-address
+          tokens to actually complete a secure email change, was not exercised."
+    remediation:
+      status: "verified"
+      fix_commit: "4833b923"
+      fixed_at: "2026-08-04"
+      proposed_action: "Fix already landed in 4833b923 (guarded new-address send). This entry adds
+        the missing regression test so the two-email behaviour cannot silently regress."
+    verification:
+      status: "passed"
+      independent: true
+      verified_by: "test-integrity engineer (inklee-test-integrity), a different process than the
+        author of fix commit 4833b923"
+      verified_at: "2026-08-04"
+      verification_method: "Red-green regression test at
+        apps/web/src/app/api/auth/email-hook/__tests__/route.test.ts, which was shown to FAIL
+        without the fix. GREEN at HEAD (4833b923): 4/4 pass. RED proof: deleting only the
+        `if (user.new_email && email_data.token_hash_new)` new-address send block (route.ts:178-191)
+        drops the two-email test to a single sendEmail call (AssertionError expected 2 got 1) while
+        the signup guard, the legacy-email_change guard and the bad-signature 401 positive control
+        stay green; restoring returns 4/4. The test signs a genuine Standard-Webhooks HMAC over
+        webhook-id.webhook-timestamp.body with a fresh timestamp and does not weaken the route's
+        real signature check."
+      residual_risk: "Unit-level only. The test mocks @/lib/email/send and drives the route handler
+        directly. It does not exercise Supabase's live hook firing, the actual population of
+        token_hash_new by Supabase, or /auth/confirm consuming both tokens end to end. The prod
+        auth-config facts that set the blast radius were reported by the auth work, not re-queried
+        here."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "The demo address involved is a role inbox already present in the public
+        commit message of 4833b923; no personal data is added by this entry."
+    history:
+      - date: "2026-08-04"
+        actor: "test-integrity engineer (inklee-test-integrity)"
+        action: "opened"
+        note: "Recorded after the forward fix (4833b923) had already landed. The defect: the
+          email_change branch sent one email to the current address only, so secure email changes
+          never completed. A regression test was authored because the route had none."
+      - date: "2026-08-04"
+        actor: "test-integrity engineer (inklee-test-integrity)"
+        action: "verified"
+        note: "Independent red-green proof: the new two-email test fails (expected 2 sendEmail
+          calls, got 1) when the new-address send block is removed and passes with it, while three
+          guard/control cases stay green in both states. Independent of the fix author because the
+          fix was implemented in 4833b923 by a separate process; this test-integrity engineer did
+          not write that fix."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -21480,3 +21648,27 @@ coverage:
       was actually null (BILL-TAX-002), rather than inferring from the nullable column definition.
       Read docs/legal/vat-and-oss-architecture.md section 4.2 to settle whether snapshotting only
       on correction is intended design."
+  - area: "auth"
+    subsystem: "Supabase Send Email Hook route (/api/auth/email-hook)"
+    coverage: "partial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-04"
+    commit_inspected: "4833b923"
+    reviewer: "test-integrity engineer (inklee-test-integrity)"
+    evidence: "apps/web/src/app/api/auth/email-hook/__tests__/route.test.ts (new, added with
+      AUTH-EML-001) exercises the email_change branch on its secure two-email path (red-green proven:
+      fails expected-2-got-1 without the new-address send), plus a signup single-email guard, a
+      legacy-email_change backward-compat guard, and a bad-signature 401 positive control. The test
+      signs a real Standard-Webhooks HMAC rather than weakening the route's signature check."
+    changed_since_inspection: "none"
+    findings_produced:
+      - "AUTH-EML-001"
+    known_exclusions: "The recovery, magiclink and invite branches have no dedicated recipient/token
+      assertion (only signup is asserted among the single-recipient flows). No end-to-end test drives
+      a real Supabase Auth hook firing or /auth/confirm consuming both tokens. The stale/future
+      webhook-timestamp rejection (the 300s replay window) and the missing-secret 500 path are not
+      exercised."
+    recommended_next_inspection: "Add recipient+token assertions for the recovery, magiclink and
+      invite branches; add a stale-timestamp rejection case and a missing-SUPABASE_AUTH_HOOK_SECRET
+      500 case; consider an e2e that drives a real secure email change end to end through
+      /auth/confirm."
