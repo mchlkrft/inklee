@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `21a11d243fd7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `8107cea62b89`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (54)
+## Open (53)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -58,7 +58,6 @@ Operational view. Generated from the ledger; do not edit.
 | OPS-ERR-001 | low | api | directly-reachable | actively-impacting | Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile JSON API and 31 in web server actions |
 | PAY-AUD-001 | low | payment | directly-reachable | reachable-no-known-impact | audit_log counts paid deposits 5x under booking_requests: only the webhook path writes deposit_paid audit rows, the manual-mark path does not |
 | PAY-FEE-003 | low | payment | conditionally-reachable | theoretical | The fee-actuals write is the only write on the settlement path with no ordering guard and no derivation from stored state, so a later delivery overwrites it from whatever its payload says |
-| SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
 | SHOP-VIS-002 | low | public-surface | conditionally-reachable | latent | A product hidden from the public shop is still sellable through the appointment add-on checkout, which contradicts the decision already settled for the shop reads |
 | WHK-CUR-001 | low | webhook | conditionally-reachable | theoretical | The currency anti-tamper backstop is switched off for the combined deposit-plus-goods lane |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |
@@ -165,11 +164,12 @@ _None._
 | --- | --- | --- | --- | --- | --- |
 | PAY-BAL-001 | high | payment | conditionally-reachable | latent | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |
 
-## Risk accepted (2)
+## Risk accepted (3)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
 | HUB-GAL-002 | low | web | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
+| SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
 | SHOP-MIG-002 | low | database | currently-unreachable | latent | order_items.bundle_id is a single-column FK, not the composite artist-scoped FK the repo convention uses to make cross-artist rows unstorable |
 
 ## Mitigated but not fixed (3)
