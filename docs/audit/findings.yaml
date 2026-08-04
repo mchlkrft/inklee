@@ -16963,13 +16963,16 @@ findings:
         - "The in-product map report intake (map_reports, migration 0075) and its writer were NOT inspected for the same best-effort-on-insert posture."
         - "The two sendEmail calls in submitReportAction are themselves best-effort for the reporter acknowledgement (actions.ts:179-181); the operator email failure DOES surface an error, the ack failure does not — not separately assessed as a finding."
     remediation:
-      status: "fixed-unverified"
+      status: "verified"
       fix_commit: "b9f89a23"
       proposed_action: "Chose the first option (surface a reporter error), which makes the durable row load-bearing rather than adding an outbox. submitReportAction now reads queueContentReport's return and, on {error}, returns a reporter-facing error ('We couldn't record your report right now. Please try again, or email support@inklee.app directly.') and sends NO emails, instead of reporting a false {sent:true}. This removes the fallback to the counsel-rejected email-only state entirely: no durable row means no success. The failure is still logged loudly (Sentry error + console) inside queueContentReport. The test that pinned the old best-effort degradation (actions.test.ts:114-119) was flipped to pin the new behaviour (error + zero emails on queue failure), 6/6 green. Both docstrings updated. NOT chosen: outbox/retry (heavier, unnecessary given retry-on-error is now surfaced) and the ops-runbook-only option (leaves the false-success in place). The ops-monitoring uncertainty in remaining_uncertainty is now moot for the reporter-facing guarantee, though a runbook is still worth having for the rare retry-also-fails case."
     verification:
-      status: "pending"
-      independent: false
-      residual_risk: "Fix committed (b9f89a23) with a pinning unit test; awaiting independent confirmation that it closes the gap (the builder wrote the fix, so verification is routed to the independent verifier). Residual after the fix: a reporter whose insert fails now gets an error and must retry (an availability trade for the durable-record guarantee), and the rare retry-also-fails case still relies on the reporter using the support@ fallback."
+      status: "passed"
+      independent: true
+      verified_by: "independent falsification verifier (read-only; did not write the fix)"
+      verified_at: "2026-08-04"
+      verification_method: "Red-then-green by execution, by the independent verifier who did NOT write the fix. Extracted the pre-fix action with git show b9f89a23^:apps/web/src/app/legal/report/actions.ts and ran the CURRENT flipped test against it: the 'QUEUE is load-bearing' test FAILED for the predicted reason (res was {sent:true} where the test requires an error string containing 'try again'), while the other 5 tests passed; against the fixed code the same file is 6/6 green. So the guard is real (red without the fix) and the fix changes exactly the claimed behaviour: on a queue-write failure submitReportAction returns a reporter error and calls sendEmail zero times (actions.ts:132-137), never {sent:true}. Confirmed by read that the happy path (queued returns {id}) still sends both emails and returns {sent:true}, that queueContentReport still returns {error} without throwing (only its docstring changed in b9f89a23), and by grep that submitReportAction is its sole caller."
+      residual_risk: "The durable-record guarantee now holds on the reporter-facing path. Remaining: a reporter whose insert fails gets an error and must retry (an availability trade for the durable-record guarantee), and the rare retry-also-fails case still relies on the support@ fallback (an ops runbook for that case is worth having, not a blocker). Verified against local execution and the applied prod schema; a real induced prod insert failure was not exercised."
     disclosure:
       public_repo_safe: true
     history:
@@ -16981,6 +16984,10 @@ findings:
         actor: "inklee worker (builder of the intake path)"
         action: "fix-committed"
         note: "Fixed in b9f89a23 by making the durable row load-bearing: a queue-write failure now returns a reporter error and sends no emails, so the intake can no longer report success without a durable record. Founder chose fix-first over record-then-track specifically because dpia_r1 is a legal attestation and this was a hole in the exact property R1 guarantees. Verification routed to the independent verifier (builder does not verify own fix)."
+      - date: "2026-08-04"
+        actor: "independent falsification verifier (read-only)"
+        action: "verified"
+        note: "CONFIRMED b9f89a23 closes the gap. Ran the current test against the pre-fix action extracted from git: the flipped load-bearing test went RED for the predicted reason (old code returned {sent:true} and sent 2 emails on queue failure) and is GREEN against the fix; 6/6 with the fix. Sole caller confirmed by grep; content-reports.ts body unchanged (docstring only). Register delta left in the working tree for the lead to commit; the independent verifier does not change git state."
   - id: "TEST-VAC-009"
     title: "The /legal/report 'DRIFT' test cannot fail on form-vs-action divergence, because both derive from one module; it guards a risk already eliminated by construction"
     summary: "The test named 'DRIFT: the form's category values and the label map are the exact same set' (actions.test.ts:92-100) asserts REPORT_CATEGORIES.map(c=>c.value).sort() equals Object.keys(REPORT_CATEGORY_LABELS).sort(). But REPORT_CATEGORY_LABELS is DERIVED from REPORT_CATEGORIES (report-categories.ts:32-33), so its keys are definitionally the array's values; the two share one source and cannot diverge. The only way the assertion fails is a duplicate category value. Its name implies it guards form-vs-server-action divergence, but the form and the action both import the SAME module, so divergence is impossible and the assertion cannot fail on it. The actual drift protection is the single-source architecture, which is sound; the test is not what provides it."

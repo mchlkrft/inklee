@@ -5,7 +5,7 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `9c1ec2d0b61b`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `b21bbd94a7e7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
@@ -76,7 +76,7 @@ Operational view. Generated from the ledger; do not edit.
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (69)
+## Fixed but NOT verified (68)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -139,7 +139,6 @@ A commit exists. Nothing independent has confirmed it works.
 | TEST-VAC-007 | medium | testing | currently-unreachable | latent | The webhook deposit fee-schedule/tier stamp, the flagship FEE-STP-001 site, has no route-level coverage: reverting it to the settlement-time ACTIVE read survives |
 | BILL-UI-003 | low | billing | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | web | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
-| DSA-QUE-001 | low | public-surface | conditionally-reachable | latent | The DSA content_reports queue write is best-effort; on an insert failure the intake degrades to the email-only state counsel deemed insufficient for Q16 element 2 |
 | GAL-PATH-001 | low | storage | conditionally-reachable | theoretical | ownedHubImagePath derives a storage path from a non-Inklee host that embeds the gallery marker, contradicting its docstring claim that an external URL returns null |
 | HUB-DST-001 | low | web | conditionally-reachable | latent | The FD8 destination formula called the standalone shop AVAILABLE while the platform park switch was off, so a brand-new goods block defaulted to a public link to a 404 with no editor warning, and the visibility summary reported the artist as published |
 | HUB-GAL-005 | low | web | conditionally-reachable | latent | URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted to the third-party host while the SSRF guard sees only the clean hostname |
