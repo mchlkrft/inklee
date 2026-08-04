@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `ce5ce2919096`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `21a11d243fd7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (55)
+## Open (54)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -30,7 +30,6 @@ Operational view. Generated from the ledger; do not edit.
 | CRON-SEC-001 | medium | secrets | conditionally-reachable | latent | One CRON_SECRET authorises eleven endpoints including bulk deletion and customer email, and doubles as the Instagram OAuth state signing key |
 | CRON-TOK-001 | medium | jobs | conditionally-reachable | latent | Reconfirmation rotates the customer's magic-link token before sending the email, so a crash between the two permanently locks the customer out |
 | DATA-MIG-003 | medium | migration | conditionally-reachable | theoretical | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
-| DPIA-GAL-001 | medium | entitlement | directly-reachable | reachable-no-known-impact | LO-5 DPIA §2/§10 and migration 0151 assert the gallery capability 'has never been granted to any artist'; a comp-Plus account has held the live entitlement since 2026-06-05 |
 | DPIA-GAL-002 | medium | governance | unknown | latent | assertDpiaPreconditionsMet('gallery') has no callers anywhere in the live gallery path; recording the R3/R4/R6 gate keys enforces nothing on artist access |
 | DRIFT-ACT-001 | medium | web | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | database | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
@@ -77,7 +76,7 @@ Operational view. Generated from the ledger; do not edit.
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (69)
+## Fixed but NOT verified (70)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -114,6 +113,7 @@ A commit exists. Nothing independent has confirmed it works.
 | DATA-MIG-002 | medium | migration | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
 | DATA-MIG-004 | medium | migration | conditionally-reachable | latent | 0148's purge self-reference exclusion is one level deep, so a 3-link correction chain aborts the whole retention step with FK 23503 every cycle |
 | DISC-FORM-001 | medium | email | currently-unreachable | latent | Withdrawal-form suppression trusted the order-level claim alone, so a mis-flagged line still lost the form — the exact Art. 10 case counsel's §7.2 condition 1 refuses |
+| DPIA-GAL-001 | medium | entitlement | directly-reachable | reachable-no-known-impact | LO-5 DPIA §2/§10 and migration 0151 assert the gallery capability 'has never been granted to any artist'; a comp-Plus account has held the live entitlement since 2026-06-05 |
 | FEE-DSP-002 | medium | analytics | directly-reachable | actively-impacting | The artist fee-savings goods lane has been dead since it shipped: a column that does not exist, an error nobody read, and a double-count hiding underneath it |
 | FEE-STP-001 | medium | billing | conditionally-reachable | latent | Settlement stamps the fee schedule VERSION but not the resolved TIER, so under v2 a stored (version, base) pair cannot reproduce the charged fee; the appointment-payment lane stamps the version only into the audit log, and the deposit lane stamps it at settlement time rather than from the intent |
 | GOODS-DISC-001 | medium | payment | directly-reachable | latent | The C1.1/C1.2/C1.3 checkout disclosures (seller identity, custom-made return exemption, durable-record receipt) were built ONLY for the standalone shop checkout; the appointment add-on checkout (booking-deposit flow) can sell the exact same custom-made product with none of them |

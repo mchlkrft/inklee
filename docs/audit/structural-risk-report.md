@@ -5,9 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `ce5ce2919096`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
-
-> The ledger has uncommitted changes, so this report may describe data not yet in git.
+**Ledger content hash:** `21a11d243fd7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
@@ -37,11 +35,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 69 |
+| fixed-unverified | 70 |
 | in-progress | 3 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 55 |
+| open | 54 |
 | risk-accepted | 2 |
 | verified | 23 |
 
@@ -352,6 +350,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | DATA-MIG-002 | medium | fixed-unverified | not-started | 201fbfc |
 | DATA-MIG-004 | medium | fixed-unverified | partially-verified | a28dcf3d |
 | DISC-FORM-001 | medium | fixed-unverified | partially-verified | 162415ae |
+| DPIA-GAL-001 | medium | fixed-unverified | not-started | - |
 | FEE-DSP-002 | medium | fixed-unverified | not-started | 1b8671fc |
 | FEE-STP-001 | medium | fixed-unverified | partially-verified | 0adf56ca |
 | GOODS-DISC-001 | medium | fixed-unverified | not-started | b036075e |

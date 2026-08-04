@@ -71,8 +71,9 @@ than a late one.
    `richContentBlocksAllowed` evaluates true for it today. The verified fact is narrower and still
    holds: the capability has never been **exercised**. Independently re-queried 2026-08-04 —
    0 objects in the `gallery`/`gallery-archive` buckets, 0 `image_gallery` blocks in any profile's
-   settings. Whether the comp account is internal/test and whether its grant should carry this
-   capability pre-launch is an open founder decision (see the register entry).
+   settings. The founder confirmed 2026-08-04 that this comp account is internal/test, so no real
+   or external artist has ever held the capability; whether its grant should carry
+   `rich_content_blocks` pre-launch remains a founder call. See the register entry (DPIA-GAL-001).
 3. **Project-intake images.** Up to 12 files per submission through a public, unauthenticated form.
    **Zero submissions in production, ever.**
 4. **Guest checkout data.** Buyer identity and contact details without an account.

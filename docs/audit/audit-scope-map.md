@@ -5,7 +5,7 @@
 
 # Audit scope map
 
-**Ledger content hash:** `ce5ce2919096`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `21a11d243fd7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **Coverage `none` means the area has NOT been inspected. It does not mean the area is safe.**
 > "No findings recorded" and "reviewed and found sound" are different statements, and this map exists to keep them apart.

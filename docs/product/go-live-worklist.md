@@ -239,8 +239,11 @@ Full text in `docs/product/plus-consolidated-review-handoff.md`.
       best-effort queue write) was fixed load-bearing (`b9f89a23`) and
       independently verified, and gate key `dpia_r1_notice_and_action_built` is
       RECORDED in prod (2026-08-04, approved_by "Management board (M. Kraeft)").
-      It guards the gallery gate beside R3/R4/R6, which remain UNRECORDED, so the
-      gallery gate stays closed. Non-blocking follow-up: an ops runbook for the
+      It guards the gallery gate beside R3/R4/R6, which are ALSO now RECORDED in
+      prod (2026-08-04, each independently verified first; see go-live-path §4 and
+      register DPIA-GAL-001/002). So all four DPIA keys are recorded; the gallery
+      gate still does not open on the live path (the guard is unwired, DPIA-GAL-002)
+      and additionally needs the capability grant. Non-blocking follow-up: an ops runbook for the
       rare content_reports insert-and-retry-both-fail case.
 - [ ] **B2 / Q20-DSA-§4** The DSA Section 4 trader-traceability threshold
       (counsel round-2 Q20 second half). Add a `dsa_micro_small_2003_361` row to

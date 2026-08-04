@@ -191,15 +191,19 @@ is BUILT and merged; no key is recorded, deliberately:**
 
 | Key | State | Task |
 | --- | --- | --- |
-| `dpia_r3_direct_upload_attestation_built` | BUILT + merged (attestation on all three ingest paths, web and native) | #74 ✅ |
-| `dpia_r4_signed_gallery_urls_built` | BUILT + merged (private bucket 0151, signed 15-min URLs, real-stack tested) | #75 ✅ |
-| `dpia_r6_intake_retention_purge_built` | BUILT + merged (0152, rows AND storage objects, event-anchored) | #75 ✅ |
+| `dpia_r3_direct_upload_attestation_built` | BUILT + **RECORDED in prod 2026-08-04** (independent falsification: 60/60 attestation tests, web+native parity) | #74 ✅ |
+| `dpia_r4_signed_gallery_urls_built` | BUILT + **RECORDED in prod 2026-08-04** (independent: prod bucket private, real-stack bucket-flip red-then-green) | #75 ✅ |
+| `dpia_r6_intake_retention_purge_built` | BUILT + **RECORDED in prod 2026-08-04** (independent: 0152 objects prod-catalog-verified, 30/30 + 11/11) | #75 ✅ |
 | `dpia_r1_notice_and_action_built` | BUILT + **RECORDED in prod 2026-08-04** (approved_by "Management board (M. Kraeft)", both independent-verify passes done, DSA-QUE-001 fixed+verified) | #79 ✅ |
 
-**Update 2026-08-04: dpia_r1 is now RECORDED (the first of the four).** R3/R4/R6
-remain BUILT-but-unrecorded. Recording R1 opened no gate: the gallery gate needs
-all four keys **and** the capability grant. So the remaining DPIA-key work is
-recording R3/R4/R6.
+**Update 2026-08-04: ALL FOUR DPIA keys (R1, R3, R4, R6) are now RECORDED in
+prod** `billing_activation_approvals`, approved_by "Management board
+(M. Kraeft)", each independently verified before recording. Recording them
+opened no gate: the guard is not yet wired to the live gallery path
+(`DPIA-GAL-002`), and the gallery gate additionally needs the capability grant.
+So the DPIA-key recording work is COMPLETE; what stays open is the DPIA-GAL-002
+wiring decision (wire the guard, or accept attestation-only and correct the
+prose) and the capability grant itself.
 
 `apps/web/src/lib/server/billing/dpia-gate-preconditions.ts` throws while a
 key is absent and is deliberately NOT a test-mode no-op — but as of 2026-08-04
@@ -218,9 +222,10 @@ evaluates true for it today. The narrower claim the DPIA's cost reasoning
 actually needs — that the capability has never been **exercised** — is
 independently confirmed: 0 gallery/gallery-archive objects, 0 `image_gallery`
 blocks, re-queried directly against production. Recorded as `DPIA-GAL-001`.
-Before recording R3/R4, the founder still needs to decide whether the comp
-account (internal/test vs external artist) should carry `rich_content_blocks`
-pre-launch.
+The founder confirmed 2026-08-04 the comp account is internal/test (no real
+artist holds the capability) and authorized recording R3/R4/R6 on that basis;
+all three are now recorded. Whether the comp account's grant should carry
+`rich_content_blocks` pre-launch remains a founder call.
 
 ### Step 5 — Build the answered-but-unbuilt counsel items (precondition: none)
 

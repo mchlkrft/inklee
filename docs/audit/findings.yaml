@@ -17239,14 +17239,16 @@ findings:
         - "The goods DpiaGate ('goods' in DPIA_GATE_PRECONDITIONS) shares the same unwired-guard
           shape as the gallery gate (see DPIA-GAL-002) and was not separately re-verified here."
     remediation:
-      status: "open"
-      proposed_action: "Founder decision, not engineering's to make: (1) correct lo-5-dpia.md §2/§10
-        (done 2026-08-04, inline correction preserving the original text) and decide whether the
-        0151 migration comment is worth touching given the checksum risk of editing an
-        already-applied migration file (left as-is; the correction lives in the DPIA and this
-        register entry instead); (2) determine whether account 90f7500c is internal/test or an
-        external artist, and whether its comp grant should carry rich_content_blocks pre-launch, or
-        should be scoped down before the gallery gate is opened generally."
+      status: "fixed-unverified"
+      proposed_action: "(1) DPIA wording CORRECTED 2026-08-04 (inline dated corrections in
+        lo-5-dpia.md §2 and §8, preserving the original text); the already-applied 0151 migration
+        comment is left as-is (editing an applied migration file risks a checksum mismatch), the
+        correction lives in the DPIA and this register entry instead. (2) Founder DETERMINED
+        2026-08-04 that account 90f7500c is INTERNAL/TEST, so no real or external artist has ever
+        held the gallery capability; the substantive 'never granted to a real artist' claim holds,
+        and R3/R4/R6 were recorded on that basis. RESIDUAL founder call (not a defect): whether the
+        comp/test grant should carry rich_content_blocks, or be scoped down, when the gallery gate
+        is opened generally."
       owner: "founder"
     verification:
       status: "not-started"
