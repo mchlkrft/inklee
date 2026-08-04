@@ -46,9 +46,14 @@ function verifyHookSignature(
 }
 
 type HookPayload = {
-  user: { email: string };
+  user: { email: string; new_email?: string };
   email_data: {
     token_hash: string;
+    // Present only for a secure (double-confirm) email change: the confirmation
+    // token for the NEW address. Supabase fires this hook ONCE with a token for
+    // each address and requires BOTH to be confirmed, so the hook must send two
+    // emails.
+    token_hash_new?: string;
     redirect_to: string;
     email_action_type:
       | "signup"
@@ -156,17 +161,34 @@ export async function POST(request: NextRequest) {
       }
 
       case "email_change": {
-        const confirmUrl = buildConfirmUrl(
-          appUrl,
-          token_hash,
-          "email_change",
-          redirect_to || "/settings/profile",
-        );
+        // Secure email change (mailer_secure_email_change_enabled=true) fires
+        // this hook ONCE with a token for EACH address and requires BOTH to be
+        // confirmed. Send the current-address confirmation (token_hash) AND the
+        // new-address confirmation (token_hash_new -> user.new_email). Sending
+        // only the current one stalls the change at confirm_status=1 forever,
+        // because the new address never receives its link.
+        const next = redirect_to || "/settings/profile";
         await sendEmail({
           to,
-          subject: "confirm your new email address",
-          html: confirmationEmail(confirmUrl),
+          subject: "confirm the email change on your inklee account",
+          html: confirmationEmail(
+            buildConfirmUrl(appUrl, token_hash, "email_change", next),
+          ),
         });
+        if (user.new_email && email_data.token_hash_new) {
+          await sendEmail({
+            to: user.new_email,
+            subject: "confirm your new email address",
+            html: confirmationEmail(
+              buildConfirmUrl(
+                appUrl,
+                email_data.token_hash_new,
+                "email_change",
+                next,
+              ),
+            ),
+          });
+        }
         break;
       }
 
