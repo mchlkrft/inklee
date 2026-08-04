@@ -1377,6 +1377,7 @@ _Claude Code adds entries here when implementation evidence suggests a strategic
 - **Pages affected:** `/pricing` (new); footer link set; possibly `/tattoo-booking-software` (a "what it costs" contextual link).
 - **Cannibalization risk:** low. No existing URL owns pricing intent; the nearest page (`/tattoo-booking-software`) targets category intent and does not mention prices. Wording-variation risk none (no sibling pages).
 - **Recommended next step:** ChatGPT confirms ownership + indexation timing (suggested: at or shortly after the consumer launch flip, once the page is publicly reachable), then Claude Code flips robots to index, adds the `MARKETING_ROUTES` entry (sitemap + IndexNow), and logs the slice.
+- **IMPLEMENTED 2026-08-04** (Claude Code, on founder approval at the consumer launch flip, commit 7bf3e1be): robots flipped to `index: true`; `/pricing` added to `MARKETING_ROUTES` (priority 0.6, monthly → sitemap + IndexNow); "Pricing" links added to the marketing nav (`pill-nav.tsx`) and the footer Company group. The proposal was executed as written. The ownership assignment (brand-pricing + product-pricing intent) is applied in implementation and **awaits ChatGPT ratification into the canonical ownership map**. See `seo-implementation-log.md` (2026-08-04 entry).
 
 ---
 

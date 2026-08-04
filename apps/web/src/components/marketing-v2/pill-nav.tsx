@@ -74,6 +74,12 @@ export default function PillNav() {
             About
           </Link>
           <Link
+            href="/pricing"
+            className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
+          >
+            Pricing
+          </Link>
+          <Link
             href="/login"
             className="hidden rounded-full px-3 py-1.5 text-sm text-shell-fg-dim transition-colors hover:bg-shell-hover hover:text-shell-fg sm:inline-block"
           >

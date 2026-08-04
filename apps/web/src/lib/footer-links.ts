@@ -159,6 +159,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
     items: [
       { label: "Home", href: "/", active: true },
       { label: "About", href: "/about", active: true },
+      { label: "Pricing", href: "/pricing", active: true },
       { label: "Help", href: "/help", active: true },
       { label: "Start", href: "/start", active: true },
     ],

@@ -480,3 +480,32 @@ Analytics: four new `cta` values on `marketing_cta_click` (`home-map-signup`, `h
 - Implementation of the P3 pilot (public routes, `/studios/{slug}` quality gate, sitemap segment) is a future Claude Code slice, logged here when built. Nothing public is indexable today.
 
 **Commit:** _(added on commit; see the SEO strategy ratification commit)_
+
+---
+
+### 2026-08-04 — /pricing indexation + discovery links live (consumer launch)
+
+**Implemented by:** Claude Code (executing the 2026-07-25 proposal, on founder approval at the consumer Plus launch flip)
+
+**Related strategy section:** "Proposal 2026-07-25: index `/pricing` and assign it pricing-intent ownership" in `inklee-seo-strategy.md` (now marked IMPLEMENTED).
+
+**Trigger:** `PLUS_CONSUMER_LAUNCH_ENABLED` flipped to `true` (commit 7bf3e1be, 2026-08-04), making `/pricing` publicly reachable (it 404s while the flag is off). The founder directed the full go-live; the proposal's stated condition ("at or shortly after the flip, once the page is publicly reachable") is met.
+
+**Files changed:**
+
+- `apps/web/src/app/pricing/page.tsx` — `robots` flipped `index: false` to `index: true` (still `follow: true`; self-canonical unchanged); header comment updated.
+- `apps/web/src/lib/marketing-routes.ts` — added `{ path: "/pricing", changeFrequency: "monthly", priority: 0.6 }`, which feeds both the XML sitemap (`app/sitemap.ts`) and IndexNow.
+- `apps/web/src/lib/footer-links.ts` — added "Pricing" to `/pricing` (active) in the Company footer group.
+- `apps/web/src/components/marketing-v2/pill-nav.tsx` — added a "Pricing" link to the marketing top nav (desktop), between About and Log in.
+
+**Implementation:** `/pricing` is now indexable, in the sitemap (priority 0.6, monthly), submitted via IndexNow on deploy, and reachable from the marketing nav + footer. Copy unchanged (counsel-approved price display). The optional `/tattoo-booking-software` contextual "what it costs" link is deferred.
+
+**Validation performed:**
+
+- `/pricing` returns HTTP 200 live with the flag on; metadata now `index: true`.
+- Sitemap + IndexNow both derive from `MARKETING_ROUTES`, so the new entry propagates to both automatically.
+- Copy rule: no em-dashes in the changed strings/labels.
+
+**Remaining / handoff to ChatGPT (strategy owner):** ratify `/pricing`'s ownership of brand-pricing + product-pricing intent into the canonical ownership map (implementation applied it on founder approval; formalizing the ownership-map entry is ChatGPT's). Optional follow-up: the `/tattoo-booking-software` contextual pricing link.
+
+**Commit:** _(added on commit)_

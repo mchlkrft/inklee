@@ -85,6 +85,7 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     changeFrequency: "monthly",
     priority: 0.6,
   },
+  { path: "/pricing", changeFrequency: "monthly", priority: 0.6 },
   { path: "/about", changeFrequency: "monthly", priority: 0.6 },
   { path: "/help", changeFrequency: "monthly", priority: 0.6 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },

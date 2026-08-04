@@ -12,11 +12,11 @@ import { publicDepositFeeAnswer } from "@inklee/shared/platform-fee";
 import CheckBadge from "@/components/check-badge";
 import PlusPriceToggle from "./plus-price-toggle";
 
-// Public pricing page. SEO posture (fail-closed per docs/seo/inklee-seo-strategy.md):
-// noindex + follow, self-referencing canonical, NOT in marketing-routes/sitemap.
-// Pricing intent has no owner URL in the canonical strategy; indexation is filed
-// as a proposal in the strategy's Proposed-changes section and stays with ChatGPT.
-// The page itself is gated on the consumer launch flag so it cannot show paid
+// Public pricing page. SEO posture (docs/seo/inklee-seo-strategy.md): INDEXABLE
+// since the consumer launch (2026-08-04), executing the founder-approved
+// 2026-07-25 proposal: /pricing owns pricing intent, is in marketing-routes/sitemap,
+// and is linked from the marketing nav + footer (see seo-implementation-log.md).
+// The page is still gated on the consumer launch flag so it cannot show paid
 // plans before Plus is purchasable (it 404s while the flag is off).
 //
 // Copy sources (approved wording only): the founder's own pricing-page draft
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
   title: PAGE_TITLE,
   description: PAGE_DESCRIPTION,
   alternates: { canonical: PAGE_PATH },
-  // Fail-closed: pricing intent has no owner in the canonical SEO strategy yet.
-  // Indexation is proposed, not assumed (strategy Proposed-changes section).
-  robots: { index: false, follow: true },
+  // Indexable at the consumer launch: the 2026-07-25 proposal was founder-approved
+  // at flip (2026-08-04); /pricing now owns pricing intent (seo-implementation-log.md).
+  robots: { index: true, follow: true },
   openGraph: {
     title: OG_TITLE,
     description: OG_DESCRIPTION,
