@@ -17421,6 +17421,326 @@ findings:
           dpia-gate-preconditions.ts and every richContentBlocksAllowed call site directly.
           docs/legal/lo-5-dpia.md §7, docs/go-live-path.md §4, and the dpia-gate-preconditions.ts
           docstring corrected in the same pass with inline notes preserving the original text."
+  - id: "BILL-TAX-001"
+    title: "No invoice.paid writer exists for a sale-side (kind='charge') tax snapshot; the first
+      live consumer Plus sale produced zero charge-kind rows in transaction_tax_snapshots"
+    summary: "transaction_tax_snapshots is written by exactly one function in the codebase,
+      writeWithdrawalCreditNote (tax-snapshot.ts), which only ever inserts kind='credit_note' rows
+      on a withdrawal refund. The invoice.paid handler in the subscription billing webhook
+      (billing-webhook/route.ts) calls only reconcileSubscriptionById and
+      recordDurableConfirmation; neither touches transaction_tax_snapshots. On Inklee's first live
+      consumer Plus purchase (2026-08-04, go-live commit 7bf3e1be), an independent verifier
+      confirmed against production that transaction_tax_snapshots holds zero kind='charge' rows,
+      and that the linked withdrawal's credit-note snapshot has corrects_snapshot_id=NULL, i.e. it
+      took tax-snapshot.ts's derive-from-current-policy fallback branch (no sale snapshot existed
+      to correct). Whether a sale-side snapshot was ever meant to be written on invoice.paid, or
+      whether snapshotting-only-on-correction is the intended design, is not settled by the code."
+    classification:
+      domain: "billing"
+      category: "money-correctness"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent-verifier-agent (inklee-verifier), live-money verification of
+        Inklee's first live consumer Plus purchase + withdrawal against production; code-path
+        corroboration by the docs-integrity editor consolidating this register entry"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "7bf3e1be"
+      environment: "production"
+      discovery_context: "Consumer Plus sales went live 2026-08-04 (commit 7bf3e1be,
+        PLUS_CONSUMER_LAUNCH_ENABLED flipped true). The founder made the first live purchase and
+        withdrawal from their own test/internal account. An independent inklee-verifier confirmed
+        the money path against production (Supabase project llmzzsmppaqwecbrowlp): subscription
+        62c4d525-b328-4294-ba36-76831567ed82 / sub_1U0iBkHkG0exykzFE8bymn99 (mode=live), withdrawal
+        completed (refund_minor=300, stripe_refund_id re_3U0i9AHkG0exykzF0kH3iCM4), credit-note
+        snapshot 9ee2b03f-b0e0-4251-8d00-82007030cace (kind='credit_note', -300 minor, linked and
+        internally consistent). The money movement itself is correct; while confirming it, the
+        verifier found transaction_tax_snapshots empty of any kind='charge' row anywhere in the
+        table. This entry records that as a records-completeness finding, distinct from the
+        (passing) money-path verification."
+    location:
+      files:
+        - "apps/web/src/lib/server/billing/tax-snapshot.ts"
+        - "apps/web/src/app/api/stripe/billing-webhook/route.ts"
+        - "apps/web/src/lib/server/billing/withdrawal.ts"
+      symbols:
+        - "writeWithdrawalCreditNote"
+      database_objects:
+        - "transaction_tax_snapshots"
+      routes:
+        - "/api/stripe/billing-webhook"
+      clients:
+        - "web"
+      services:
+        - "Stripe"
+        - "Supabase"
+    evidence:
+      observed_facts:
+        - "Production (Supabase project llmzzsmppaqwecbrowlp), per the independent verifier:
+          transaction_tax_snapshots has zero rows with kind='charge' in the whole table, confirmed
+          after the founder's first live-mode consumer Plus purchase (subscription
+          62c4d525-b328-4294-ba36-76831567ed82 / sub_1U0iBkHkG0exykzFE8bymn99)."
+        - "Same production read: the credit-note snapshot written for the linked withdrawal (id
+          9ee2b03f-b0e0-4251-8d00-82007030cace, kind='credit_note', -300 minor) has
+          corrects_snapshot_id=NULL."
+        - "apps/web/src/lib/server/billing/tax-snapshot.ts:135-144 queries for the most recent
+          kind='charge' row matching the billing_subscription_id; :146-166 is the `if (charge)`
+          branch that copies it; :167-214 is the `else` branch (its own comment reads: no charge
+          snapshot yet, derive the treatment) taken when none exists. corrects_snapshot_id=NULL on
+          the observed row is consistent only with the else branch having run."
+        - "apps/web/src/app/api/stripe/billing-webhook/route.ts:60-141, the invoice.paid /
+          invoice.payment_failed case, calls only reconcileSubscriptionById (:78) and, on the first
+          paid invoice, recordDurableConfirmation (:121); neither references
+          transaction_tax_snapshots."
+        - "A repository-wide search for writes to transaction_tax_snapshots
+          (\\.from(\"transaction_tax_snapshots\") across apps/web/src) returns exactly one file,
+          tax-snapshot.ts, at lines 102, 136, 285 and 294 - all four calls sit inside
+          writeWithdrawalCreditNote, whose only insert path (:223-254) hard-codes kind:
+          'credit_note' (not 'charge'). No function in the codebase inserts a kind='charge' row."
+        - "tax-snapshot.ts:22 (module comment, unchanged since first recorded by BDEL-TTS-001 on
+          2026-07-30): the invoice.paid CHARGE-snapshot writer is described as a separate (b2b tax)
+          workstream. Confirmed still true against current HEAD 33d8350d (2026-08-04), i.e. after
+          the consumer launch commit 7bf3e1be."
+      references:
+        - "apps/web/src/lib/server/billing/tax-snapshot.ts"
+        - "apps/web/src/app/api/stripe/billing-webhook/route.ts"
+        - "BDEL-TTS-001 (recorded the same 'charge-snapshot writer is unbuilt' fact on 2026-07-30,
+          before consumer billing went live)"
+      reproduction: "Search apps/web/src for writes to transaction_tax_snapshots and confirm every
+        site sits inside writeWithdrawalCreditNote (kind='credit_note' only); read the invoice.paid
+        case in billing-webhook/route.ts and confirm it calls only reconcileSubscriptionById and
+        recordDurableConfirmation. The production row count for kind='charge' requires Supabase
+        Management API access to project llmzzsmppaqwecbrowlp; this pass did not independently
+        re-run that query and relays the verifier's reported count."
+      contradictory_evidence: "The credit-note fallback path is itself correct and resilient: it
+        derives an equivalent treatment rather than failing, so the withdrawal was unaffected by
+        the missing charge snapshot. This finding is about the missing sale-side RECORD, not about
+        any wrong amount having been charged or refunded."
+    assessment:
+      interpretation: "The fallback path fired on the very first live transaction, which means the
+        primary path (copy fields from an existing charge snapshot) has never once executed in
+        production. tax-snapshot.ts:22 frames the missing writer as a scheduling fact (a separate
+        workstream), not as a defect, but nothing in the code or in this pass's reading confirms
+        whether shipping consumer billing without it was a deliberate sequencing call or an
+        oversight."
+      root_cause_hypothesis: "HYPOTHESIS: the withdrawal credit-note writer (P7,
+        docs/legal/vat-and-oss-architecture.md section 4.2, cited tax-snapshot.ts:11) and an
+        invoice.paid charge writer look like two halves of one tax-record design; only the
+        credit-note half was built before PLUS_CONSUMER_LAUNCH_ENABLED flipped. If so, every
+        settled Plus sale until the charge writer ships has no point-of-sale tax record, only a
+        derive-on-correction fallback. Not confirmed against the architecture doc itself, which
+        this pass did not read."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      affected_users_or_systems: "Every live consumer Plus subscription purchase since commit
+        7bf3e1be (2026-08-04); directly confirmed for the one purchase verified so far (the
+        founder's own test/internal account)."
+      production_exposure: "Confirmed by the independent verifier's production query: zero
+        kind='charge' rows in transaction_tax_snapshots after a real live-mode invoice.paid event.
+        Not independently re-queried by this pass (no production DB access in this session); this
+        pass corroborates the mechanism by code inspection only, which shows no writer exists that
+        could have produced such a row regardless of what the query would show today."
+      remaining_uncertainty: "Whether the missing charge-side snapshot is an intentional deferral or
+        an oversight relative to what docs/legal/vat-and-oss-architecture.md section 4.2 actually
+        specifies was not settled: that document was not read in this pass. Also open: whether the
+        deposit/appointment-settlement and goods-checkout money paths were ever meant to write
+        their own tax snapshots (see analogous_uninspected_areas) - if they were, this may be one
+        instance of a broader missing-writer pattern rather than an isolated gap in the Plus path."
+    relationships:
+      related_findings:
+        - "BDEL-TTS-001"
+        - "BILL-TAX-002"
+      analogous_uninspected_areas:
+        - "apps/web/src/lib/server/appointment-payment-settlement.ts and
+          apps/web/src/lib/server/goods-checkout.ts: a grep confirms neither references
+          tax_snapshot, tax_treatment or tax_policy, so neither writes to transaction_tax_snapshots
+          either. Whether either path SHOULD have its own sale-side tax snapshot (a parallel
+          obligation, or none at all if Inklee's own tax posture only concerns Plus subscription
+          revenue) was not investigated."
+        - "docs/legal/vat-and-oss-architecture.md section 4.2 (P7), the design source cited by
+          tax-snapshot.ts:11, was not read in this pass to confirm the charge writer's intended
+          scope and timeline."
+    remediation:
+      status: "open"
+      proposed_action: "Founder/engineering decision: either build the invoice.paid charge-snapshot
+        writer (kind='charge') so every settled Plus sale gets a point-of-sale tax record, or
+        record in docs/legal/vat-and-oss-architecture.md and the tax-snapshot.ts comment that
+        snapshotting only on correction is the intended design, so this stops reading as an unbuilt
+        gap."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed. Every live consumer Plus sale since go-live continues to write no
+        sale-side tax snapshot; the derive-from-policy fallback keeps a later correction
+        consistent, but there is still no charge-time record for a tax/accountant export to
+        reconcile a sale against."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "The founder's test-purchase email address is omitted; referred to only
+        as the founder's test/internal account. Subscription, Stripe and credit-note identifiers
+        are internal object ids for this single test transaction, not customer PII, and are cited
+        for reproducibility consistent with this register's existing practice (e.g. the G-5
+        coverage entry's PaymentIntent id)."
+    history:
+      - date: "2026-08-04"
+        actor: "independent-verifier-agent (inklee-verifier), consolidated by docs-integrity
+          editor"
+        action: "opened"
+        note: "Surfaced while independently verifying the money path for Inklee's first live
+          consumer Plus purchase + withdrawal against production. The verified money movement
+          (subscription, withdrawal, refund, linked credit note) is correct; this finding is a
+          records-completeness gap the verification surfaced, not a defect in the money movement
+          itself."
+  - id: "BILL-TAX-002"
+    title: "The first live consumer credit-note tax snapshot resolved to tax_treatment='manual_review'
+      instead of a determinate zero-VAT class"
+    summary: "The withdrawal credit-note snapshot for the founder's first live consumer Plus
+      withdrawal has tax_treatment='manual_review' and vat_minor=0. Zero VAT is the expected
+      outcome for Inklee's EE-unregistered, outside-VAT posture, but the treatment did not resolve
+      to a determinate zero-VAT class (e.g. cross_border_sme_exemption or
+      place_of_supply_outside_estonia); it fell to the manual_review catch-all instead. Code
+      inspection shows the mechanism: taxClassFor (packages/shared/src/billing.ts:117) returns
+      manual_review whenever the customer's country is unknown, and tax-snapshot.ts's
+      derive-from-policy fallback (the branch BILL-TAX-001 shows this withdrawal took) resolves its
+      country from account_billing_profiles.billing_country, a nullable column with no other
+      fallback. Whether that column was actually unpopulated for this account is not directly
+      confirmed; it is inferred from the schema and the observed treatment."
+    classification:
+      domain: "billing"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent-verifier-agent (inklee-verifier), live-money verification of
+        Inklee's first live consumer Plus purchase + withdrawal against production; code-path
+        corroboration by the docs-integrity editor consolidating this register entry"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "7bf3e1be"
+      environment: "production"
+      discovery_context: "Found in the same production read that produced BILL-TAX-001, verifying
+        the founder's first live consumer Plus purchase + withdrawal (2026-08-04, go-live commit
+        7bf3e1be). The refund/withdrawal itself completed correctly (refund_minor=300,
+        stripe_refund_id re_3U0i9AHkG0exykzF0kH3iCM4); this finding is about the tax_treatment
+        classification recorded on its credit-note snapshot, not about the refund amount."
+    location:
+      files:
+        - "apps/web/src/lib/server/billing/tax-snapshot.ts"
+        - "packages/shared/src/billing.ts"
+        - "apps/web/supabase/migrations/0106_billing_core.sql"
+      symbols:
+        - "taxClassFor"
+        - "writeWithdrawalCreditNote"
+        - "deriveTaxTreatment"
+      database_objects:
+        - "transaction_tax_snapshots"
+        - "account_billing_profiles"
+      clients:
+        - "web"
+      services:
+        - "Stripe"
+        - "Supabase"
+    evidence:
+      observed_facts:
+        - "Production (Supabase project llmzzsmppaqwecbrowlp), per the independent verifier: the
+          withdrawal credit-note snapshot (kind='credit_note', id
+          9ee2b03f-b0e0-4251-8d00-82007030cace) has tax_treatment='manual_review' and vat_minor=0."
+        - "packages/shared/src/billing.ts:104-117 (taxClassFor): line 117 returns the literal
+          manual_review class whenever the country code is empty (the code's own comment: country
+          unknown, never guess EU vs non-EU) - the only branch that reaches manual_review purely
+          from a missing country, independent of business vs consumer status."
+        - "apps/web/src/lib/server/billing/tax-snapshot.ts:167-186, the fallback branch this
+          withdrawal took (per BILL-TAX-001's corrects_snapshot_id=NULL observation): :170-174
+          reads billing_country from account_billing_profiles for the artistId, :181 passes it
+          straight to taxClassFor's countryCode with no other source or fallback if it is null."
+        - "apps/web/supabase/migrations/0106_billing_core.sql:145 declares
+          account_billing_profiles.billing_country as a plain text column with no NOT NULL and no
+          default - an unpopulated row for an account reads back null."
+        - "tax-snapshot.ts's fallback (:187-194) computes its own rule lookup (indexing
+          policy.treatment_rules by tax class, defaulting to manual_review) rather than calling the
+          codebase's other, more complete resolver, deriveTaxTreatment
+          (packages/shared/src/billing.ts:375-434), which additionally gates on
+          policy.approval.managementBoardApproved and returns a distinct blocked treatment (not
+          manual_review) when a class has no rule at all. The two resolvers can diverge in which
+          treatment string they emit for the same inputs; not exercised side by side against this
+          account's actual data by this pass."
+      references:
+        - "packages/shared/src/billing.ts"
+        - "apps/web/src/lib/server/billing/tax-snapshot.ts"
+        - "BILL-TAX-001 (same production read; establishes that the fallback branch, not the
+          copy-from-charge branch, produced this row)"
+      reproduction: "Read taxClassFor (packages/shared/src/billing.ts:104-128) and confirm the
+        empty-country branch is the only country-driven route to manual_review. Read
+        tax-snapshot.ts:167-214 and confirm billing_country is the sole input and has no fallback.
+        The account's actual billing_country value was not read by this pass; that requires a
+        direct account_billing_profiles query against production."
+      contradictory_evidence: "vat_minor=0 is the correct number regardless of which zero-VAT class
+        the treatment should have resolved to, so no money was miscalculated. manual_review is also
+        the designed-safe default (never guess EU vs non-EU), not a code defect in taxClassFor
+        itself."
+    assessment:
+      interpretation: "The classification engine did exactly what it is designed to do when it
+        cannot determine a customer's country: refuse to guess and fall to manual_review. The
+        question this finding raises is upstream of that function, about whether the consumer
+        purchase/withdrawal flow was expected to have already captured billing_country for this
+        account by the time a credit note is written."
+      root_cause_hypothesis: "HYPOTHESIS: consumer Plus purchases may not currently populate
+        account_billing_profiles.billing_country at checkout time (unlike a B2B artist's onboarding
+        flow, which this pass did not compare against), so the first consumer withdrawal is the
+        first time anything reads that column, and finds it empty. Not confirmed: this pass did not
+        trace the consumer checkout write path for account_billing_profiles, and did not read the
+        account's actual billing_country value."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      affected_users_or_systems: "Any consumer withdrawal whose account_billing_profiles's
+        billing_country is unset at the time the credit note is written; directly confirmed for the
+        one purchase verified so far (the founder's own test/internal account)."
+      production_exposure: "Confirmed by the independent verifier's production query: the one
+        credit-note row produced so far carries tax_treatment='manual_review'. Not independently
+        re-queried by this pass."
+      remaining_uncertainty: "Whether billing_country is ever populated for a consumer account
+        before a withdrawal (at signup, at checkout, or never for this account tier) was not
+        traced. A manual_review treatment nets to the correct amount on a full refund, but at scale
+        it means a human has to resolve each such credit note's tax class by hand; how many future
+        withdrawals would hit the same gap depends on that unanswered question."
+    relationships:
+      related_findings:
+        - "BILL-TAX-001"
+      analogous_uninspected_areas:
+        - "The consumer checkout / account-creation path was not traced to confirm whether
+          billing_country is meant to be captured before a withdrawal can occur."
+        - "deriveTaxTreatment (packages/shared/src/billing.ts:375-434) versus tax-snapshot.ts's
+          inline fallback resolver: the two can emit different treatment strings (blocked vs
+          manual_review) for a class with no policy rule. Not exercised side by side against the
+          same inputs."
+    remediation:
+      status: "open"
+      proposed_action: "Trace whether the consumer Plus purchase flow should capture
+        billing_country before checkout completes; if it should and does not, that is the fix. If
+        billing_country is intentionally deferred for consumers, decide whether the withdrawal path
+        should have another source (e.g. the Stripe customer's address) rather than falling to
+        manual_review by default."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Not fixed. Nets to zero on a full refund, so no immediate accounting harm; the
+        residual risk is operational (manual review load) if this recurs across future consumer
+        withdrawals at any scale."
+    disclosure:
+      public_repo_safe: true
+      redactions_applied: "The founder's test-purchase email address is omitted; referred to only
+        as the founder's test/internal account."
+    history:
+      - date: "2026-08-04"
+        actor: "independent-verifier-agent (inklee-verifier), consolidated by docs-integrity
+          editor"
+        action: "opened"
+        note: "Surfaced in the same production read as BILL-TAX-001, verifying Inklee's first live
+          consumer Plus purchase + withdrawal. Related to BILL-TAX-001: both are tax-snapshot
+          behaviour observed on the same live consumer transaction."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -21113,3 +21433,50 @@ coverage:
       consumer-subscription path (checkout -> subscription -> webhook -> reconcile ->
       confirmation) via the founder's flip-verification purchase, which is what these mocked
       suites cannot substitute for."
+  - area: "First live consumer Plus purchase + withdrawal (2026-08-04, go-live commit 7bf3e1be):
+      the money path (subscription, withdrawal, refund) and the transaction_tax_snapshots ledger
+      it produced"
+    subsystem: "billing / tax-snapshot ledger"
+    coverage: "partial"
+    review_type: "mixed"
+    last_inspected: "2026-08-04"
+    commit_inspected: "33d8350d"
+    reviewer: "independent-verifier-agent (inklee-verifier) for the production query; docs-integrity
+      editor for code-path corroboration and this register entry"
+    evidence: "EXECUTED by the independent verifier (relayed to this pass, not re-run by it): a
+      production query against Supabase project llmzzsmppaqwecbrowlp confirmed subscription
+      62c4d525-b328-4294-ba36-76831567ed82 / sub_1U0iBkHkG0exykzFE8bymn99 (mode=live), a completed
+      withdrawal (refund_minor=300, stripe_refund_id re_3U0i9AHkG0exykzF0kH3iCM4), and a linked,
+      internally consistent credit-note snapshot (9ee2b03f-b0e0-4251-8d00-82007030cace, -300
+      minor). The verifier also found transaction_tax_snapshots has zero kind='charge' rows in the
+      whole table, and that the credit note's corrects_snapshot_id is NULL and its tax_treatment is
+      manual_review. READ by this pass (not executed against production; this session has no
+      production DB access): apps/web/src/lib/server/billing/tax-snapshot.ts,
+      apps/web/src/app/api/stripe/billing-webhook/route.ts, packages/shared/src/billing.ts, and
+      apps/web/supabase/migrations/0106_billing_core.sql, to corroborate the mechanism behind both
+      observations by grep and direct reading rather than accepting the verifier's interpretation
+      unchecked. Two findings opened: BILL-TAX-001 (no invoice.paid charge-snapshot writer exists)
+      and BILL-TAX-002 (the credit note's treatment fell to manual_review)."
+    changed_since_inspection: "unknown"
+    findings_produced:
+      - "BILL-TAX-001"
+      - "BILL-TAX-002"
+    known_exclusions: "The money movement itself (subscription creation, webhook reconcile,
+      refund, credit-note linkage) is the part independently confirmed correct and is NOT
+      re-litigated here; this row covers only the tax-snapshot ledger's completeness and
+      classification, which is where the two findings sit. Not covered: a second live purchase
+      (this is a sample of one); the goods-checkout and appointment/deposit-settlement money
+      paths' own tax-snapshot behaviour (see BILL-TAX-001's analogous_uninspected_areas); the
+      DB-bound half of scripts/legal/verify-legal-artifacts.cjs; a direct read of this account's
+      account_billing_profiles.billing_country value (inferred from the schema, not read); whether
+      docs/legal/vat-and-oss-architecture.md section 4.2 actually specifies the charge-writer's
+      scope; and this session did not itself execute any production query - the production facts
+      above are relayed from the independent verifier's session, not independently re-run."
+    recommended_next_inspection: "Build or explicitly document intent for the invoice.paid
+      charge-snapshot writer (BILL-TAX-001), then re-run this same check on a subsequent
+      transaction to confirm a kind='charge' row appears and that a later withdrawal's credit note
+      links to it via corrects_snapshot_id. Directly query
+      account_billing_profiles.billing_country for the account under test to confirm whether it
+      was actually null (BILL-TAX-002), rather than inferring from the nullable column definition.
+      Read docs/legal/vat-and-oss-architecture.md section 4.2 to settle whether snapshotting only
+      on correction is intended design."
