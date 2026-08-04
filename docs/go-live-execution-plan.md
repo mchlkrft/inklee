@@ -36,9 +36,13 @@ Phase H is largely done and pushed; the rest of the plan is unchanged.
   image (5 db tests). The DSA procedure's interim-disable claim is now real.
 - **H6 — DONE** (`b19cf2bb`): BILL-CONF-001 resend runbook +
   the false "check 11" comment fix. Founder TODO remains: the Sentry alert rule.
+- **H7 — DONE** (register, 2026-08-04): SEED-DEL-001 investigated per §6.7. No
+  repository bulk-delete path exists (ghost-detect flags only; studios.ts deletes
+  are single-row and logged), so the 1,363-row removal was direct unlogged SQL,
+  actor unrecoverable; recorded as "mechanism undetermined" and paired with
+  CRON-SEC-001's credential remediation (risk-accepted). Does not stay open.
 - **REMAINING in H:** H5 (teardown §1E "persistent unreadable balance → Stripe
-  support incident" wording), H7 (SEED-DEL-001 investigation, due 2026-08-11),
-  H8 (round-3 Art. 33(5) records). Then Phases I → O as written.
+  support incident" wording), H8 (round-3 Art. 33(5) records). Then Phases I → O.
 
 ---
 

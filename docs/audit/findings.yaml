@@ -10381,10 +10381,13 @@ findings:
       impact_status: "historically-impacting"
       remaining_uncertainty: "The deletion mechanism (manual SQL vs script) is unidentified; the 752/232/379 composition rests on the roadmap record alone and cannot be re-verified from the database."
     relationships:
+      related_findings: ["CRON-SEC-001"]
       analogous_uninspected_areas:
         - "Other bulk data operations performed via direct SQL without a logged trail (the migration-bookkeeping incidents in AGENTS.md are the same class)."
     remediation:
-      status: "open"
+      status: "risk-accepted"
+      owner: "founder"
+      proposed_action: "Investigated 2026-08-04 (counsel master-package §6.7, one-pass). The deletion mechanism is NOT a repository code path: ghost-detect.cjs only FLAGS likely-closed listings into map_reports ('it never deletes or hides anything', scripts/ghost-detect.cjs:10-11); the only map_locations deletes in the codebase are single-row-by-id in studios.ts:283/314 (studio claim/conversion), which route through admin surfaces that DO write admin_action_log (admin/map/actions.ts, admin/map/seeding/actions.ts), and this wave did not; no bulk-delete-by-category path exists in scripts/ or apps/web/src. So the 1,363-row removal on 2026-07-21 was direct privileged SQL (service-role key via the SQL editor / Management API), outside any logged path, leaving no trail; the specific actor/session is unrecoverable from production. Recorded formally as counsel anticipated: 'unexplained privileged write access, mechanism undetermined'. The paired compensating control is the credential remediation for CRON-SEC-001 (scope or rotate the eleven-endpoint credential and add audit logging for direct bulk writes), recorded together per counsel's instruction. The deletion itself was intentional and the live dataset is internally consistent (71,191 approved + 52 removed), so the residual is record-keeping, closed by this dated record plus the CRON-SEC-001 go-forward control."
     verification:
       status: "not-started"
       independent: false
@@ -10392,6 +10395,10 @@ findings:
       - date: "2026-08-01"
         actor: "market-analysis research wave"
         action: "opened"
+      - date: "2026-08-04"
+        actor: "inklee worker (H7 investigation, execution-plan)"
+        action: "risk-accepted"
+        note: "Counsel §6.7 one-pass investigation: no repository bulk-delete path exists (ghost-detect flags only; studios.ts deletes are single-row and logged). Mechanism determined to be direct privileged unlogged SQL, specific actor unrecoverable; recorded as 'unexplained privileged write access, mechanism undetermined' and paired with CRON-SEC-001's credential remediation, per counsel's instruction to record the two together. Does not stay open/not-started a third round."
 
   - id: "OBS-MAP-001"
     title: "Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence"
