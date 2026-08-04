@@ -21051,3 +21051,65 @@ coverage:
       form_custom, large_projects, goods_discounts/scheduling/collections/bundles); none of those
       were checked for the same 'never granted' framing elsewhere in the docs. The goods DpiaGate
       shares DPIA-GAL-002's unwired-guard shape and was not separately traced."
+  - area: "Pre-activation re-verification of the 4 billing REQUIRED_APPROVAL_KEYS technical-group
+      evidence (schema_deployed, webhook_tested, reconciliation_tested, isolation_tested) and the
+      legal-artifact integrity attestation, at the consumer-billing release candidate"
+    subsystem: "billing/activation gate + legal artifact integrity"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-04"
+    commit_inspected: "389fe924"
+    reviewer: "docs-integrity editor, routing and independently re-executing a read-only
+      inklee-verifier pass (the verifier itself cannot write to this register)"
+    evidence: "EXECUTED by this pass, not merely relayed: `npx vitest run --config
+      vitest.config.ts` restricted to the 7 files the verifier named
+      (src/lib/__tests__/billing.test.ts;
+      src/lib/server/billing/__tests__/{reconcile,billing-webhook,withdrawal,tax-snapshot,
+      dpia-gate-preconditions}.test.ts; src/lib/legal/__tests__/legal-artifact-integrity.test.ts),
+      at HEAD confirmed via `git log -1` to be 389fe924600ba0e81567512e2c4e2128c3f4fd3f (master,
+      2026-08-04 18:12:49 +0700, 'docs(go-live): C1 counsel-signed + J2 screenshot done; J1
+      deferred to M3 (founder B)'). Result: 'Test Files 7 passed (7)', 'Tests 125 passed (125)',
+      0 failed, 0 skipped -- matches the verifier's reported count exactly under independent
+      re-execution. Grepped the same 7 files for `\\.(only|skip|todo)\\(`: zero matches, so none
+      of the 125 were narrowed. READ (not executed) by this pass:
+      apps/web/src/lib/server/billing/config.ts:31-37, confirming schema_deployed is 1 of the 4
+      REQUIRED_APPROVAL_KEYS.technical entries alongside webhook_tested, reconciliation_tested,
+      isolation_tested. docs/go-live-execution-plan.md:34 ('prod now at 0156') and :92 ('next free
+      number is 0156, verified 2026-08-04') as documentary corroboration that production has
+      passed migration 0156 and therefore 0105-0108 -- a documentary read, NOT a live production
+      query executed by this pass. docs/go-live-execution-plan.md:431-434 (Phase K3), which
+      records the 4 technical keys were dated 2026-07-23, eleven days before the RC, and flags
+      exactly this re-verification as the precondition this pass now supplies for the
+      automated-test-backed 3 of the 4 (webhook_tested, reconciliation_tested, isolation_tested)
+      plus the unit-test half of schema_deployed's sibling legal-integrity attestation.
+      scripts/legal/verify-legal-artifacts.cjs:1-27 read directly: its own header states the
+      filesystem half 'also runs in CI on every commit' via legal-artifact-integrity.test.ts,
+      while the DB half (bound_artifact hash in billing_activation_approvals against the live doc
+      hash) is a separate script. Grepped .github/workflows/*.yml and package.json /
+      apps/web/package.json for 'verify-legal-artifacts': zero references, confirming it has no
+      CI runner. Confirmed all 4 mock-backed suites (reconcile, billing-webhook, withdrawal,
+      tax-snapshot) contain `vi.mock` by direct grep, so they attest branching logic against a
+      simulated Stripe/Supabase, not live wiring."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "(1) schema_deployed's PRODUCTION migration-state component is not
+      exercised by any of the 7 unit suites; this pass corroborates it only via
+      docs/go-live-execution-plan.md's documentary claim that prod is at 0156, not via a live
+      production query executed by this pass -- confirmed-by-separate-means, not by these suites.
+      (2) The DB-bound half of legal-artifact integrity (recorded bound_artifact hash in
+      billing_activation_approvals == production live-doc hash) is checked only by
+      scripts/legal/verify-legal-artifacts.cjs, confirmed to have no CI runner and to be a manual
+      pre-launch-only script; it was read, not run, by this pass and is NOT closed by this pass.
+      (3) The reconcile/billing-webhook/withdrawal/tax-snapshot suites mock Stripe and Supabase
+      (vi.mock confirmed present in all 4), so this pass attests logic/branching, not live
+      end-to-end Stripe wiring. (4) dpia-gate-preconditions.test.ts and
+      legal-artifact-integrity.test.ts were executed and confirmed green/unnarrowed but their
+      assertions were not individually re-traced against source by this pass."
+    recommended_next_inspection: "Run scripts/legal/verify-legal-artifacts.cjs against production
+      before the consumer-billing flip -- it is the only check of the DB-bound legal-artifact
+      half and is not wired to run automatically. Independently query production migration state
+      directly (rather than relying on docs/go-live-execution-plan.md's documentary claim) to
+      close schema_deployed's production component. Exercise the live end-to-end Stripe
+      consumer-subscription path (checkout -> subscription -> webhook -> reconcile ->
+      confirmation) via the founder's flip-verification purchase, which is what these mocked
+      suites cannot substitute for."
