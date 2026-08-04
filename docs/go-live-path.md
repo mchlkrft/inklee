@@ -39,14 +39,28 @@ grant separate. The DSA Section 4 threshold row (B2) is deliberately NOT in
 0155 and stays blocked on counsel round-6 Q1. Non-blocking follow-up: an ops
 runbook for the rare content_reports insert-and-retry-both-fail case.
 
+**Updated 2026-08-04, evening: counsel rounds 5-6 are ANSWERED, and the go-live
+runbook is rewritten.** Counsel returned every open ruling (master-package §6:
+R5 Q1-Q7, R6 Q1-Q3, both independent-review items, SEED-DEL-001). The build
+backlog is cleared (#79 was the last answered-but-unbuilt item). The remaining
+path is no longer "steps 5-8 wait on counsel" — it is a sequenced
+implementation + evidence + activation runbook. **`docs/go-live-execution-plan.md`
+(v2) is now the runbook; §2 steps 5-8 below are SUPERSEDED by its Phases H-O.**
+Also corrected here by verification 2026-08-04: §4's "#91: the 3% fee has never
+been produced by live code" is FALSE — a live charge with `application_fee_amount=3`
+exists (`ch_3U0H4fHkG0exykzF1tTcZvJZ`, 2026-08-03 08:19Z, unrefunded); closure
+(refund + record) is execution-plan L5, not an open build question.
+
 This file is the PATH. It is not a second source of truth for any decision:
 
 | Question | Authoritative file |
 | --- | --- |
+| The step-by-step to execute (v2 runbook) | `docs/go-live-execution-plan.md` |
+| Counsel's answers to rounds 5-6 (rulings SoT) | `docs/legal/counsel-master-package-2026-08-04.md` §6 |
 | Is a gate open, what does it need | `docs/launch-gate.md` |
 | Who must decide what, and has it been answered | `docs/product/plus-open-decisions-handoff.md` |
 | What was decided and why (FD1-FD14, CR4-x) | `docs/product/plus-build-time-decisions.md` |
-| What counsel was asked, this round | `docs/legal/counsel-handoff-round-5-2026-08-03.md` |
+| What counsel was asked, this round | `docs/legal/counsel-handoff-round-6-2026-08-04.md` |
 | What has been inspected, and what has not | `docs/audit/findings.yaml` |
 | Web vs native parity | `docs/web-native-parity.md` |
 
