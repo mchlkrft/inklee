@@ -111,6 +111,47 @@ are surfaced so the sign-off is against a complete and honest record.
 
 ---
 
+## 3A. Counsel confirmations (2026-08-04)
+
+The confirm-or-correct points in the legal documents are resolved here, so the
+two artifacts stand as final.
+
+1. **Deletion during an active paid subscription (Terms Section 11).** Confirmed:
+   account deletion ends the subscription immediately and refunds the unused
+   portion of the current period pro rata (within the 14-day window, processed as
+   a withdrawal on the same arithmetic). This is carried in the Section 11
+   deletion provisions alongside the refund-completion sentence, so the consumer
+   is told, before the irreversible act, what happens to the paid period.
+
+2. **Rider-1 withdrawal-availability phrasing (§3(9)) — approved as a statement,
+   not an open item.** "The online withdrawal function is available from your
+   account settings" is accurate: a consumer encounters it only once subscribed,
+   at which point the function is live. Approved as phrased; no correction.
+
+3. **P2B notice wording (Terms Section 13).** Confirmed: the 30-day prior-notice
+   obligation attaches to **termination** of an artist's shop; suspension and
+   restriction carry a statement of reasons but not the 30-day period. The clause
+   states the 30-day notice against termination specifically, so Inklee does not
+   overstate its own obligation. The 15-day Terms-change notice, the
+   statement-of-reasons requirement, and the no-cross-artist-ranking /
+   no-Inklee-own-goods positions stand as drafted.
+
+4. **Privacy Policy §3.5 retention wording.** Confirmed: the cancelled-order-email
+   and abandoned-cart rows read "**within** 30 days" rather than a fixed "30
+   days," so the stated period is never exceeded. The completed-order (7 years)
+   and wishlist (12 months) rows stand as drafted. **APPLIED 2026-08-04**: both
+   rows now read "within 30 days"; the privacy snapshot was re-frozen and the
+   integrity test is green. This was the only text change of the four; points
+   1-3 confirmed existing wording unchanged.
+
+With these confirmations the Terms (version 2026-08-04) and Privacy Policy
+(version 2026-08-04) read as **final and counsel-confirmed**. What remains before
+consumer sales activate: the founder records the approval keys against these
+final hashes (Section 4), attaches the two evidence captures (Section 2 #2, #4),
+the accountant signs off the v2 fee, and the 30-day goods-fee notice period runs.
+
+---
+
 ## 4. After approval (the founder's acts, for reference — not counsel's)
 
 Once counsel confirms against the final deployed artifacts: the founder records
