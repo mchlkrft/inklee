@@ -124,7 +124,7 @@ export const UNREADABLE_BALANCE_REASON: EscalationReason = {
   reason:
     "The connected account's balance could not be read, so the zero-balance precondition cannot be evaluated and the account cannot be deleted.",
   resolutionRequires:
-    "Restore platform access to the connected account at Stripe (the account may be restricted, or the platform key may no longer reach it). The balance check reruns on every retention cycle and needs no manual step once access is back.",
+    "Restore platform access to the connected account at Stripe (the account may be restricted, or the platform key may no longer reach it). The balance check reruns on every retention cycle and needs no manual step once access is back. If the balance stays unreadable across retention cycles (persistently, beyond the retry window), raise it as an operational incident with Stripe support at escalation time: an unreadable balance is an evidentiary failure, not a legal claim (unlike a real outstanding balance), and must not be carried silently into annual review (counsel round-6 §1E).",
 };
 
 export function deletionRefusedReason(message: string): EscalationReason {

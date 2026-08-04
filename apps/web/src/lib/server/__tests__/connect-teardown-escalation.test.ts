@@ -112,6 +112,7 @@ import {
   balanceBlockReason,
   openOrRefreshEscalation,
   recordEscalationReview,
+  UNREADABLE_BALANCE_REASON,
 } from "@/lib/server/connect-teardown-escalation";
 import { runConnectAccountTeardown } from "@/lib/server/connect-account-teardown";
 
@@ -209,6 +210,24 @@ describe("the amount counsel requires the case to record", () => {
     expect(reason).toContain("2500 EUR");
     expect(reason).toContain("700 EUR");
     expect(resolutionRequires).toContain("zero");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+describe("unreadable balance escalates as an incident, not a legal claim (R6 §1E)", () => {
+  it("distinguishes an unreadable balance from a real balance: restore access first", () => {
+    expect(UNREADABLE_BALANCE_REASON.reason).toContain("could not be read");
+    expect(UNREADABLE_BALANCE_REASON.resolutionRequires).toContain(
+      "Restore platform access",
+    );
+  });
+
+  it("carries counsel's §1E addition: persistent unreadability is a Stripe-support incident, not a silent annual-review state", () => {
+    const r = UNREADABLE_BALANCE_REASON.resolutionRequires;
+    expect(r).toContain("Stripe support");
+    expect(r).toContain("evidentiary failure");
+    expect(r).toContain("not a legal claim");
+    expect(r).toContain("annual review");
   });
 });
 
