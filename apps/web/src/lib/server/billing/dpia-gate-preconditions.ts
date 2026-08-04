@@ -25,6 +25,18 @@ import { getActivationApprovals } from "./activation";
  * WHAT THIS IS NOT. It does not decide whether a mitigation is built - a human
  * records the key once the work is done and verified. It makes the gate refuse
  * to open while the key is absent, which is the property prose lacked.
+ *
+ * CORRECTION, 2026-08-04 (register DPIA-GAL-002): the sentence above describes
+ * this module's behaviour for whatever calls it, not a fact about the gallery
+ * feature today. As of this date NOTHING calls assertDpiaPreconditionsMet or
+ * missingDpiaPreconditions outside this file and its own test - the gallery
+ * grant/render/save/upload paths all read richContentBlocksAllowed
+ * (entitlement-gates.ts) instead, which does not consult these keys. So today,
+ * recording dpia_r3/r4/r6 here is an ATTESTATION that the mitigations exist; it
+ * is not yet load-bearing on artist access. Either wire a call to
+ * assertDpiaPreconditionsMet('gallery') into the actual grant path, or treat
+ * this module as attestation-only and say so wherever "gate keys do not drift"
+ * is claimed.
  */
 
 /** DPIA §7 mitigations that must be recorded before a gate may open. The key

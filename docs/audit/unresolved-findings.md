@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `b21bbd94a7e7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `ce5ce2919096`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (53)
+## Open (55)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -30,6 +30,8 @@ Operational view. Generated from the ledger; do not edit.
 | CRON-SEC-001 | medium | secrets | conditionally-reachable | latent | One CRON_SECRET authorises eleven endpoints including bulk deletion and customer email, and doubles as the Instagram OAuth state signing key |
 | CRON-TOK-001 | medium | jobs | conditionally-reachable | latent | Reconfirmation rotates the customer's magic-link token before sending the email, so a crash between the two permanently locks the customer out |
 | DATA-MIG-003 | medium | migration | conditionally-reachable | theoretical | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
+| DPIA-GAL-001 | medium | entitlement | directly-reachable | reachable-no-known-impact | LO-5 DPIA §2/§10 and migration 0151 assert the gallery capability 'has never been granted to any artist'; a comp-Plus account has held the live entitlement since 2026-06-05 |
+| DPIA-GAL-002 | medium | governance | unknown | latent | assertDpiaPreconditionsMet('gallery') has no callers anywhere in the live gallery path; recording the R3/R4/R6 gate keys enforces nothing on artist access |
 | DRIFT-ACT-001 | medium | web | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | database | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | DRIFT-POL-001 | medium | database | currently-unreachable | latent | Production's booking_interests RLS policy name contains an embedded CRLF, so the house `drop policy if exists` repair pattern silently cannot address it |
@@ -67,16 +69,15 @@ Operational view. Generated from the ledger; do not edit.
 | OPS-DOC-001 | informational | tooling | directly-reachable | reachable-no-known-impact | Twelve tracked docs still instruct the reader to cd into a machine-absolute path that exists on one computer |
 | TEST-VAC-009 | informational | testing | unknown | theoretical | The /legal/report 'DRIFT' test cannot fail on form-vs-action divergence, because both derive from one module; it guards a risk already eliminated by construction |
 
-## In progress (4)
+## In progress (3)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
-| GAL-REL-001 | high | storage | conditionally-reachable | latent | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
 | GOODS-SET-001 | high | web | directly-reachable | latent | A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and being a write it does not self-heal |
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (68)
+## Fixed but NOT verified (69)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -93,6 +94,7 @@ A commit exists. Nothing independent has confirmed it works.
 | CRON-CLN-001 | high | jobs | conditionally-reachable | latent | cleanup discards the error from the 7-year financial-retention lookup, so a transient failure deletes bookings carrying financial records |
 | CRON-RMD-001 | high | jobs | directly-reachable | actively-impacting | Deposit-overdue reminder re-sends to the same customer every day forever; one production recipient has received 46 |
 | DATA-MIG-001 | high | migration | directly-reachable | historically-impacting | `migration repair --status applied` on 2026-04-20 marked 0001_rls_policies.sql applied without running it, leaving 6 core tables with RLS disabled in production for ~3 weeks |
+| GAL-REL-001 | high | storage | conditionally-reachable | latent | The C1.5 gallery relocation control silently and PERMANENTLY self-disables on a transient read failure, leaving client photographs public |
 | PAY-AUTHZ-001 | high | payment | conditionally-reachable | latent | refundDepositCore refunded whatever PaymentIntent the booking row named, without ever checking the intent belonged to the caller - and the pattern is LIVE ON PRODUCTION |
 | PAY-AUTHZ-002 | high | payment | conditionally-reachable | latent | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-CONN-001 | high | payment | directly-reachable | historically-impacting | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
@@ -182,12 +184,13 @@ _None._
 
 _None._
 
-## Production reachability UNKNOWN (5)
+## Production reachability UNKNOWN (6)
 
 Reachability was not established. These need production-state confirmation before they can be prioritized honestly.
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
+| DPIA-GAL-002 | medium | governance | unknown | latent | assertDpiaPreconditionsMet('gallery') has no callers anywhere in the live gallery path; recording the R3/R4/R6 gate keys enforces nothing on artist access |
 | WHK-DSP-001 | medium | webhook | unknown | unknown | The charge.dispute.* handler exists in code but no artifact in the repository subscribes the endpoint to it, and the commit that added the handler changed no runbook |
 | SEED-DEL-001 | low | database | unknown | historically-impacting | Map dataset cleanup hard-deleted 1,363 rows while the roadmap records the wave as soft-delete, and no deletion audit trail exists |
 | WHK-EVT-001 | low | webhook | unknown | theoretical | event.account is asserted on one branch of five, event.livemode on none, and the one branch with no compensating check writes a caller-named booking_id straight into audit_log |

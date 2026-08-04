@@ -201,12 +201,26 @@ remain BUILT-but-unrecorded. Recording R1 opened no gate: the gallery gate needs
 all four keys **and** the capability grant. So the remaining DPIA-key work is
 recording R3/R4/R6.
 
-Enforced by `apps/web/src/lib/server/billing/dpia-gate-preconditions.ts`, which
-throws while a key is absent and is deliberately NOT a test-mode no-op. Founder
-target: **Wednesday 2026-08-05**. Do not record a key for work you did
-yourself; re-verify "the capability was never granted" against production
-immediately before recording R3/R4 (the merges relied on the DPIA's statement
-of it).
+`apps/web/src/lib/server/billing/dpia-gate-preconditions.ts` throws while a
+key is absent and is deliberately NOT a test-mode no-op — but as of 2026-08-04
+it has no caller anywhere in the live gallery path (register `DPIA-GAL-002`),
+so recording a key is an attestation, not yet a technical gate on artist
+access. The real enforcement for R3/R4 is the upload-path rights attestation
+and the private gallery bucket + signed URLs, both independently verified.
+Founder target: **Wednesday 2026-08-05**. Do not record a key for work you did
+yourself.
+
+**Re-verification done, 2026-08-04.** "The capability was never granted"
+(the premise the R3/R4 merges relied on) is FALSE as literally worded: a
+comp-Plus `account_overrides` grant (created 2026-06-05, before either merge)
+holds the live `rich_content_blocks` entitlement, and `richContentBlocksAllowed`
+evaluates true for it today. The narrower claim the DPIA's cost reasoning
+actually needs — that the capability has never been **exercised** — is
+independently confirmed: 0 gallery/gallery-archive objects, 0 `image_gallery`
+blocks, re-queried directly against production. Recorded as `DPIA-GAL-001`.
+Before recording R3/R4, the founder still needs to decide whether the comp
+account (internal/test vs external artist) should carry `rich_content_blocks`
+pre-launch.
 
 ### Step 5 — Build the answered-but-unbuilt counsel items (precondition: none)
 

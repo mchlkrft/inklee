@@ -64,7 +64,15 @@ than a late one.
 1. **Booking reference images.** Client-supplied photographs attached to a booking request. Private
    bucket. **Live today: 25 objects.**
 2. **Gallery images.** Artist-uploaded portfolio images, including photographs of client work.
-   Capability has never been granted to any artist; nothing has been uploaded through it.
+   **Correction, 2026-08-04 (DPIA-GAL-001):** this previously read "Capability has never been
+   granted to any artist; nothing has been uploaded through it." That is false as worded: a
+   comp-Plus `account_overrides` grant (created 2026-06-05, no expiry) has held the live
+   `rich_content_blocks` entitlement since before this document existed, and
+   `richContentBlocksAllowed` evaluates true for it today. The verified fact is narrower and still
+   holds: the capability has never been **exercised**. Independently re-queried 2026-08-04 —
+   0 objects in the `gallery`/`gallery-archive` buckets, 0 `image_gallery` blocks in any profile's
+   settings. Whether the comp account is internal/test and whether its grant should carry this
+   capability pre-launch is an open founder decision (see the register entry).
 3. **Project-intake images.** Up to 12 files per submission through a public, unauthenticated form.
    **Zero submissions in production, ever.**
 4. **Guest checkout data.** Buyer identity and contact details without an account.
@@ -205,6 +213,19 @@ Per activity:
 the activation-gate ledger for the gallery and goods gates — not as document conditions. This
 project's own record shows prose conditions drift; gate keys do not.
 
+**Correction, 2026-08-04 (DPIA-GAL-002).** That last sentence overstates what is built today.
+`assertDpiaPreconditionsMet('gallery')` (the throwing guard `dpia-gate-preconditions.ts`
+describes) has no caller anywhere in the live gallery path — not the hub render, not the editor,
+not save, not either upload route. Recording `dpia_r3`/`dpia_r4`/`dpia_r6` in
+`billing_activation_approvals` is therefore an attestation that the mitigations exist, not a
+technical gate on artist access: nothing reads those rows before a gallery block renders, saves,
+or uploads. The actual enforcement for R3 and R4 lives where the code was built to enforce it —
+the upload-path rights attestation (`gallery-rights-attestation.ts`) and the private
+`gallery`/`gallery-archive` buckets with signed, expiring URLs (migration 0151,
+`gallery-signed-urls.ts`) — both independently verified. Wiring the guard into the live path, or
+correcting this paragraph permanently instead of appending to it, is an open engineering decision;
+see `DPIA-GAL-002` in the audit register.
+
 ## 8. Outcome and sign-off
 
 **Outcome.** With the §7 mitigations adopted as gate preconditions and the two recorded
@@ -245,6 +266,12 @@ Sections 1-5 were prepared by engineering on 2026-08-02 from the audit register,
 handoffs of 2026-08-02, and direct queries against the production database for the figures given.
 The 25 booking objects, the zero intake submissions, and the never-granted gallery capability were
 each verified rather than assumed.
+
+**Correction, 2026-08-04 (DPIA-GAL-001).** "Never-granted" was itself not correctly verified: a
+comp-Plus `account_overrides` grant predating this document (created 2026-06-05) holds the live
+`rich_content_blocks` entitlement. What was independently re-verified against production on
+2026-08-04 is the narrower, still-true claim: the capability has never been exercised (0 gallery
+objects, 0 `image_gallery` blocks). See §2 and `DPIA-GAL-001` in the audit register.
 
 Where a number could not be verified it is marked as such. Where a control's verification rests on
 reading rather than execution, the audit register says so and this document does not upgrade it.

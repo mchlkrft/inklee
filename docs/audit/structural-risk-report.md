@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `b21bbd94a7e7`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `ce5ce2919096`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-157 recorded finding(s), 4 structural pattern(s), across 112 mapped area(s).
-131 remain open by remediation status. 124 are reachable (directly or conditionally) rather than latent.
-128 have not passed independent verification.
-199 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+159 recorded finding(s), 4 structural pattern(s), across 116 mapped area(s).
+133 remain open by remediation status. 125 are reachable (directly or conditionally) rather than latent.
+130 have not passed independent verification.
+202 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -25,7 +27,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 37 |
-| medium | 70 |
+| medium | 72 |
 | low | 43 |
 | informational | 5 |
 
@@ -35,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 68 |
-| in-progress | 4 |
+| fixed-unverified | 69 |
+| in-progress | 3 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 53 |
+| open | 55 |
 | risk-accepted | 2 |
 | verified | 23 |
 
@@ -47,8 +49,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 121 |
-| partially-verified | 4 |
+| not-started | 122 |
+| partially-verified | 5 |
 | passed | 29 |
 | pending | 3 |
 
@@ -171,17 +173,17 @@ The single most productive defect shape in this repository. A Supabase call is d
 | data-retention | 6 |
 | public-surface | 6 |
 | authorization | 5 |
-| governance | 4 |
+| governance | 5 |
 | production-config | 3 |
 | analytics | 2 |
 | ci-cd | 2 |
+| entitlement | 2 |
 | secrets | 2 |
 | storage | 2 |
 | tooling | 2 |
 | api | 1 |
 | auth | 1 |
 | email | 1 |
-| entitlement | 1 |
 | logging | 1 |
 
 ## Findings with production reachability
@@ -239,6 +241,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | DATA-MIG-002 | medium | conditionally-reachable | latent | 68 `create table if not exists` blocks declare constraints inline, so the documented non-convergence footgun is systemic — and the 0122 remediation that produced the footgun entry is itself partial |
 | DATA-MIG-003 | medium | conditionally-reachable | theoretical | Two migrations state that Supabase default privileges grant service_role EXECUTE; measured, the privilege comes from PUBLIC, so `revoke ... from public` silently removes it in production |
 | DATA-MIG-004 | medium | conditionally-reachable | latent | 0148's purge self-reference exclusion is one level deep, so a 3-link correction chain aborts the whole retention step with FK 23503 every cycle |
+| DPIA-GAL-001 | medium | directly-reachable | reachable-no-known-impact | LO-5 DPIA §2/§10 and migration 0151 assert the gallery capability 'has never been granted to any artist'; a comp-Plus account has held the live entitlement since 2026-06-05 |
 | DRIFT-ACT-001 | medium | directly-reachable | actively-impacting | Two independent implementations of saveBooksSettingsAction are both wired to live forms, and they disagree about whether opening or closing the books is audited |
 | DRIFT-NN-001 | medium | conditionally-reachable | latent | Production's founding_artist_applications lacks 5 NOT NULL constraints that migration 0056 declares, because 0056 was written retroactively to describe a table production already had |
 | FEE-DSP-001 | medium | conditionally-reachable | latent | The artist-facing fee DISPLAY path is tier-blind: four surfaces render PLATFORM_FEE_BPS (flat 3%) while the charged rate is tier-resolved, diverging for two of three tiers the moment fee schedule v2 activates |
@@ -328,6 +331,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | CRON-CLN-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | CRON-RMD-001 | high | fixed-unverified | not-started | 9a7c3536 |
 | DATA-MIG-001 | high | fixed-unverified | not-started | 31f320c |
+| GAL-REL-001 | high | fixed-unverified | not-started | 86145b02 |
 | PAY-AUTHZ-001 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-AUTHZ-002 | high | fixed-unverified | not-started | 8db7b2dc |
 | PAY-CONN-001 | high | fixed-unverified | not-started | 7e59c79 |
@@ -355,7 +359,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | HUB-GAL-001 | medium | fixed-unverified | not-started | cb8ec83 |
 | HUB-GAL-004 | medium | fixed-unverified | not-started | 6bac9914 |
 | HUB-GAL-008 | medium | fixed-unverified | not-started | c3d7ae49 |
-| HUB-GAL-009 | medium | fixed-unverified | not-started | a56548ce |
+| HUB-GAL-009 | medium | fixed-unverified | partially-verified | a56548ce |
 | MAP-SSRF-001 | medium | fixed-unverified | not-started | c3d7ae49 |
 | MIG-DROP-001 | medium | fixed-unverified | not-started | 573d742a |
 | OPS-TOOL-001 | medium | fixed-unverified | not-started | 45a44bee |
@@ -488,6 +492,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The deposit refund path (refundDepositCore) hardcodes refund_application_fee: true and is not wired into fee-refund-policy at all; whether artist-cancellation deposit refunds should retain a non-recoverable cost under v1 was not decided.
 - The deposit webhook's own charge.refunded branch in apps/web/src/app/api/stripe/webhook/route.ts, which has no event-clock guard at all and is imported by no test.
 - The existing deposit flow in booking_requests also has no aggregate ceiling across bookings for the same client — the same pattern at a different layer.
+- The goods DpiaGate ('goods' in DPIA_GATE_PRECONDITIONS) shares the same unwired-guard shape as the gallery gate (see DPIA-GAL-002) and was not separately re-verified here.
 - The goods refund path and refundDepositCore: confirm no other route accepts a client-chosen fee/refund classification.
 - The in-product map report intake (map_reports, migration 0075) and its writer were NOT inspected for the same best-effort-on-insert posture.
 - The lifecycle email engine (runLifecycleEngine, 431 lines) has its own repeat-suppression logic which I did not read.
@@ -506,6 +511,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The refund path's payment_collections read, recorded separately as PAY-RFD-011.
 - The remaining discarded-error reads in account-deletion.ts itself: the profiles select (~line 92) and the auth.admin.getUserById call (~line 101). Same shape, deliberately not widened into during a fee-scoped sweep, now assigned.
 - The same collision shape could exist between any future append-only guard and any cascading FK. No lint or test exists to catch it.
+- The same comp-Plus account also holds every OTHER Plus capability not listed in DISABLED_CAPABILITIES today (branding, appearance_custom, form_conditional, form_custom, large_projects, goods_discounts/scheduling/collections/bundles) - none of those were checked for whether their own 'nothing has been exercised' framing elsewhere in the docs holds up the same way this one did not.
 - The same composite invariant on the deposit path: a booking whose deposit PaymentIntent succeeded after a payment_failed. apps/web/src/app/api/stripe/webhook/route.ts is imported by no test.
 - The same question for SEQUENCES and for `revoke ... from public` on tables was not asked.
 - The same reasoning applies to REFERENCES and TRIGGER privileges, which are also in the blanket grant and also not gated by RLS; neither was assessed.
@@ -564,6 +570,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - apps/web/src/lib/server/discounts.ts recordDiscountRedemption
 - apps/web/src/lib/server/storage-purge.ts was NOT inspected for the same retention conflict.
 - apps/web/tests/db/appointment-payments-rls.test.ts: inspected 2026-07-29 for N1/N2 shapes and found clean (no bare not.toBeNull, no undestructured setup writes). Moved to inspected_comparables_without_issue.
+- assertDpiaPreconditionsMet('goods') has the same zero-caller shape (same grep result) and was not traced through GOODS_COMMERCE_ENABLED/assertSalesLaunchApproved in this pass.
 - billing_subscriptions.last_event_created (0107) and its caller in apps/web/src/app/api/stripe/billing-webhook/route.ts: the same guard shape, never probed for the equal-timestamp case.
 - charge.dispute.* for appointment payments, which A4 deliberately defers to A5 and which has to move BOTH the allocations' status and the request's. It will meet exactly this seam.
 - cleanup's overdueWindow (route.ts:92-94) also builds a date key from a UTC instant and compares it to a DATE column (deposit_due_at is DATE per 0006_deposit_fields.sql:3); I read it and found the comparison type-consistent but did not analyse its timezone edges.

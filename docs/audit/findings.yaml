@@ -13989,7 +13989,11 @@ findings:
       impact_status: "latent"
       affected_users_or_systems: "Storage footprint only."
       production_exposure: "None today: the gallery capability has never been granted, so no
-        artist can reach either upload surface."
+        artist can reach either upload surface. CORRECTION 2026-08-04 (DPIA-GAL-001): false as
+        worded - a comp-Plus account (artist_id prefix 90f7500c, granted 2026-06-05) passes
+        richContentBlocksAllowed live today and CAN reach both upload surfaces. The narrower fact
+        still holds: 0 objects exist in the gallery/gallery-archive buckets, so this orphan-upload
+        mechanism has never actually fired, independently re-confirmed 2026-08-04."
       exploit_preconditions: "An entitled artist abandoning uploads repeatedly; not
         attacker-interesting since it is their own namespace and rate-limited on the import path."
       remaining_uncertainty: "No measurement of real abandonment rates exists (feature unreleased)."
@@ -15090,13 +15094,19 @@ findings:
       impact_status: "latent"
       affected_users_or_systems: "Clients photographed by any artist who lapses from Plus."
       production_exposure: "None in practice: the gallery capability has never been granted to
-        anyone, so no artist has ever uploaded through it."
+        anyone, so no artist has ever uploaded through it. CORRECTION 2026-08-04 (DPIA-GAL-001):
+        false as worded - a comp-Plus account (artist_id prefix 90f7500c, granted 2026-06-05)
+        passes richContentBlocksAllowed live today. The narrower fact still holds and was
+        independently re-confirmed: 0 gallery objects and 0 image_gallery blocks exist anywhere in
+        production, so no artist has actually uploaded through it."
       exploit_preconditions: "Possession of a previously-valid image URL - which every past
         visitor to the page had."
       remaining_uncertainty: "None on the mechanism."
     relationships:
       related_findings:
         - "HUB-GAL-002"
+        - "GAL-REL-001"
+        - "DPIA-GAL-001"
     remediation:
       status: "fixed-unverified"
       fix_commit: "a56548ce"
@@ -15110,19 +15120,29 @@ findings:
         half-failures are covered by a STATE-driven nightly sweep comparing physical location
         against current entitlement, which catches paths nobody hooked. STILL OWED, per counsel:
         signed expiring URLs as a dated fast-follow before any gallery marketing push, and the
-        gallery folded into the LO-5 DPIA."
+        gallery folded into the LO-5 DPIA. UPDATE 2026-08-03: the still-owed signed-URL work was
+        built in 69f54d53 (migration 0151, private `gallery` bucket + 15-minute signed URLs),
+        independently verified 2026-08-04 - see verification below."
     verification:
-      status: "not-started"
+      status: "partially-verified"
       independent: true
-      verified_by: "queued"
-      verified_at: "2026-08-02"
-      verification_commit: "a56548ce"
-      verification_method: "40 unit tests written by the implementing worker; supervisor re-ran
-        them and checked the prompt-relocation reading against counsel's actual sentence. NOT
-        executed against real storage: the cross-bucket move is exercised against a mocked
-        storage client, and migration 0144 has not been applied to any database."
-      residual_risk: "The storage behaviour itself is unproven against a real bucket, and 0144 is
-        unapplied pending an isolated db pass."
+      verified_by: "independent verifier (R4 adversarial-verification pass)"
+      verified_at: "2026-08-04"
+      verification_commit: "69f54d53"
+      verification_method: "The original 40 unit tests (a56548ce) were re-run by the supervisor,
+        not executed against real storage (unchanged from the prior entry). SEPARATELY, the
+        'STILL OWED' signed-URL/private-bucket half of this finding's remediation was built
+        (69f54d53, migration 0151) and independently verified 2026-08-04: PROD read-only confirms
+        storage.buckets gallery/gallery-archive both public=false with zero storage.objects
+        policies; real-stack DB tests 10/10; a pre-registered falsification (flip the bucket to
+        public=true) reds exactly the 5 predicted tests and restores green on revert. The
+        cross-bucket MOVE mechanism itself (relocateArtistGallery/moveAll, a56548ce) is still NOT
+        executed against real storage and was not in scope for the R4 pass."
+      residual_risk: "The private-bucket + signed-URL half is independently confirmed against the
+        live bucket configuration. The relocation MOVE logic that gets objects into that bucket on
+        downgrade remains unverified by execution against real storage, and its known failure mode
+        (GAL-REL-001) has a fix on master (86145b02) that is itself not yet independently
+        verified."
     disclosure:
       public_repo_safe: true
     history:
@@ -15135,6 +15155,13 @@ findings:
         actor: "gallery-compliance-worker + supervisor session"
         action: "fix-committed"
         note: "Fixed in a56548ce the same day."
+      - date: "2026-08-04"
+        actor: "independent verifier (R4 pass) + docs-integrity (register consolidation)"
+        action: "verification-attempted"
+        note: "The R4 build (69f54d53, migration 0151) that discharges this finding's 'STILL OWED'
+          signed-URL debt was independently adversarially verified against production and a
+          pre-registered local falsification; recorded here as partially-verified because the
+          relocation MOVE mechanism this finding was originally about is untouched by that pass."
 
   - id: "FEE-DSP-002"
     title: "The artist fee-savings goods lane has been dead since it shipped: a column that does
@@ -15871,7 +15898,11 @@ findings:
         health-adjacent."
       production_exposure: "None realised: the gallery capability has never been granted, so no
         artist has uploaded through it. The control is nonetheless the one counsel made
-        public-unlisted hosting conditional on."
+        public-unlisted hosting conditional on. CORRECTION 2026-08-04 (DPIA-GAL-001): 'never
+        granted' is false as worded - a comp-Plus account (artist_id prefix 90f7500c, granted
+        2026-06-05) passes richContentBlocksAllowed live today. The narrower fact still holds and
+        was independently re-confirmed: 0 gallery objects exist in production, so this control has
+        never actually had an image to relocate."
       exploit_preconditions: "Not attacker-driven; a transient database failure during a downgrade
         sweep is sufficient."
       remaining_uncertainty: "None on the mechanism. Whether the destination-check comment should
@@ -15881,13 +15912,21 @@ findings:
         - "HUB-GAL-009"
         - "FEE-DSP-002"
         - "BDEL-PAY-002"
+        - "DPIA-GAL-001"
     remediation:
-      status: "in-progress"
-      proposed_action: "Bind both errors and refuse rather than reporting success. The fix MUST
-        preserve the genuine zero-image case, which is the trap: a guard that treats every zero as
-        a failure breaks the ordinary path. Either implement the destination check the comment
-        describes or correct the comment; a false comment on a compliance control is worse than
-        none."
+      status: "fixed-unverified"
+      fix_commit: "86145b02"
+      fixed_at: "2026-08-02"
+      proposed_action: "CORRECTED 2026-08-04: this row read 'in-progress' but a fix was already
+        committed the SAME day this finding was opened. 86145b02 ('fix(gallery-relocation): stop
+        treating unconfirmed reads as zero-image/already-done') throws on both discarded read
+        errors (ownedGalleryPaths's profiles read, moveOneObject's list call) instead of resolving
+        them to a false zero/already_done, so a transient failure now returns ok:false without
+        touching the marker - preserving the genuine zero-image case, which the commit message
+        confirms was deliberately kept working. The doc comment was rewritten to describe only the
+        source-presence check it actually performs, rather than the destination check it falsely
+        claimed. 86145b02 is confirmed an ancestor of HEAD (96f26465), i.e. already on master; this
+        register entry was simply never updated to reflect it."
     verification:
       status: "not-started"
       independent: true
@@ -15896,8 +15935,15 @@ findings:
       verification_commit: "508c33d5"
       verification_method: "Reported by an independent reviewer and traced end to end by the
         supervisor against the working tree: the discarded read, the ok-with-zero return, the
-        marker write, and both sweep filters were each read and confirmed. Not yet executed."
-      residual_risk: "Unfixed at time of writing; assigned."
+        marker write, and both sweep filters were each read and confirmed. Not yet executed. The
+        86145b02 fix itself has NOT been independently verified by execution (no test forcing the
+        profiles-read or storage-list error to confirm the guard now refuses instead of
+        succeeding); this is separate from, and does not resolve, the fix-commit staleness
+        corrected 2026-08-04."
+      residual_risk: "A fix is committed and on master, but nobody has forced either discarded-read
+        path to fail and confirmed the guard now returns ok:false with the marker untouched. The
+        genuine-zero-image case is preserved by reading the code, not by an executed test that
+        distinguishes it from the failure case."
     disclosure:
       public_repo_safe: true
     history:
@@ -15906,6 +15952,19 @@ findings:
         action: "opened"
         note: "The reviewer traced the full chain from discarded read to permanent exclusion rather
           than stopping at 'this error is unchecked', which is what makes it actionable."
+      - date: "2026-08-02"
+        actor: "gallery-compliance-worker"
+        action: "fix-committed"
+        note: "Fixed same-day in 86145b02, the same session that opened this finding. The register
+          was not updated at the time; remediation.status sat at 'in-progress' for two days after
+          the fix landed on master."
+      - date: "2026-08-04"
+        actor: "docs-integrity (R3/R4/R6 register consolidation pass)"
+        action: "evidence-added"
+        note: "Found the staleness while cross-checking DPIA-GAL-001/002: `git log` shows 86145b02
+          fixing exactly this finding's mechanism, and `git merge-base --is-ancestor 86145b02
+          96f26465` confirms it is on master. Corrected remediation.status to fixed-unverified and
+          added the fix_commit; verification remains not-started and is not claimed here."
 
   - id: "GOODS-SET-001"
     title: "A discarded read in a read-modify-write DESTROYS the artist's entire settings blob, and
@@ -17049,6 +17108,310 @@ findings:
         actor: "independent falsification verifier (read-only)"
         action: "opened"
         note: "Answering the lead's question: the drift test would NOT fail if the label map and array diverged, because they cannot diverge (derived from one source). Recorded as informational; the real protection is the architecture."
+
+  - id: "DPIA-GAL-001"
+    title: "LO-5 DPIA §2/§10 and migration 0151 assert the gallery capability 'has never been
+      granted to any artist'; a comp-Plus account has held the live entitlement since 2026-06-05"
+    summary: "docs/legal/lo-5-dpia.md:67 and its §10 provenance, and
+      apps/web/supabase/migrations/0151_gallery_private_bucket.sql:22-23, all state the gallery
+      capability was never GRANTED, and 0151's cost rationale for a cheap private-bucket cutover
+      rests on that claim. Independently re-queried production account_overrides on 2026-08-04: 6
+      rows; one (artist_id prefix 90f7500c) has plan_tier='plus', plan_source='comp',
+      plan_expires_at=null (never expires), created_at 2026-06-05 - before migration 0151 or R4
+      existed. richContentBlocksAllowed(overrides), the sole gate reached by every gallery call
+      site, evaluates TRUE for that account: plan_tier 'plus' grants 'rich_content_blocks' by
+      default (packages/shared/src/entitlements.ts, PLAN_FEATURES.plus = ENTITLEMENT_FEATURES,
+      which lists 'rich_content_blocks'), and the live deployed DISABLED_CAPABILITIES
+      (https://inklee.app/api/mobile/config, re-fetched 2026-08-04) is
+      ['custom_templates','analytics','entitlement_caps'] - 'rich_content_blocks' is not paused.
+      The literal 'never granted' claim is false. The narrower, substantive claim the DPIA's cost
+      and proportionality reasoning actually needs - that nothing has ever been UPLOADED through
+      the capability - is independently confirmed: 0 rows in storage.objects for the
+      gallery/gallery-archive buckets and 0 profiles rows with an image_gallery block, both
+      re-queried 2026-08-04."
+    classification:
+      domain: "entitlement"
+      category: "incorrect-documentation"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent verifier (production-data-verification pass on the DPIA's 'never
+        granted' precondition, ahead of the founder recording the R3/R4/R6 gate keys)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "96f26465"
+      environment: "production"
+      discovery_context: "go-live-path.md Step 4 explicitly instructs re-verifying 'the capability
+        was never granted' against production immediately before recording R3/R4, because the
+        R3/R4 merges relied on the DPIA's statement of it rather than re-checking it themselves."
+    location:
+      files:
+        - "docs/legal/lo-5-dpia.md"
+        - "apps/web/supabase/migrations/0151_gallery_private_bucket.sql"
+        - "apps/web/src/lib/server/entitlement-gates.ts"
+        - "packages/shared/src/entitlements.ts"
+        - "docs/go-live-path.md"
+      symbols:
+        - "richContentBlocksAllowed"
+        - "canAccess"
+      database_objects:
+        - "account_overrides"
+    evidence:
+      observed_facts:
+        - "docs/legal/lo-5-dpia.md §2 (pre-correction): 'Capability has never been granted to any
+          artist; nothing has been uploaded through it.' Repeated in §10: 'the never-granted
+          gallery capability were each verified rather than assumed.'"
+        - "apps/web/supabase/migrations/0151_gallery_private_bucket.sql:22-23: 'the gallery
+          capability has never been granted to any artist and nothing has ever been uploaded
+          through it', given as the reason the private-bucket cutover is cheap today."
+        - "Production account_overrides, queried directly via the Supabase Management API (project
+          llmzzsmppaqwecbrowlp) on 2026-08-04: 6 rows total; artist_id prefix 90f7500c has
+          plan_tier='plus', plan_source='comp', plan_expires_at=null, created_at='2026-06-05
+          08:20:49+00'. The other 5 rows are plan_tier='free'."
+        - "apps/web/src/lib/server/entitlement-gates.ts:51-55: richContentBlocksAllowed(overrides)
+          = !isCapabilityDisabled('rich_content_blocks') && canAccess(overrides,
+          'rich_content_blocks'), the gate reached by hub render ([slug]/hub/page.tsx:140), the
+          editor (link-hub/page.tsx:39), save (link-hub/actions.ts:127) and both upload paths
+          (hub-gallery-upload.ts:53, the mobile route)."
+        - "packages/shared/src/entitlements.ts:90 lists 'rich_content_blocks' in
+          ENTITLEMENT_FEATURES; :132-137 sets PLAN_FEATURES.plus = ENTITLEMENT_FEATURES, so
+          plan_tier='plus' grants it with no per-account override required."
+        - "Live https://inklee.app/api/mobile/config, fetched 2026-08-04:
+          disabledCapabilities=['custom_templates','analytics','entitlement_caps'] -
+          'rich_content_blocks' is absent, i.e. not paused."
+        - "Re-queried directly 2026-08-04: 0 rows in storage.objects joined to storage.buckets
+          named 'gallery' or 'gallery-archive'; 0 rows in profiles where settings::text ILIKE
+          '%image_gallery%'."
+      references:
+        - "docs/go-live-path.md §4 (the 'do not record a key for work you did yourself; re-verify
+          the capability was never granted' instruction this finding answers)"
+      reproduction: "Query account_overrides for plan_tier/plan_source/plan_expires_at against
+        production; separately evaluate richContentBlocksAllowed against that row's overrides and
+        the live DISABLED_CAPABILITIES payload from /api/mobile/config."
+      contradictory_evidence: "The substantive fact the DPIA's proportionality analysis actually
+        depends on - that no image has ever been uploaded and no data therefore needs migrating -
+        holds: 0 objects, 0 blocks. The DPIA's necessity/proportionality conclusion for gallery
+        images (§6.2) is not undermined by this finding; its factual premise for WHY the R4
+        cutover was cheap is worded more broadly than what is actually true."
+    assessment:
+      interpretation: "A legal artifact and a migration's stated cost rationale both overstate a
+        fact that is checkable in one query. The gate that would make 'granted' meaningfully false
+        - richContentBlocksAllowed - was never consulted when the sentence was written; 'granted'
+        was inferred from 'nobody has used it', which does not follow once a comp override exists."
+      root_cause_hypothesis: "The 'never granted' sentence was drafted from the absence of any
+        gallery objects/blocks, which is a correct and checkable signal for EXERCISE, and was
+        conflated with GRANT, which is a separate, entitlement-level fact requiring a query against
+        account_overrides and the gate function, not the storage layer."
+      reachability: "directly-reachable"
+      impact_status: "reachable-no-known-impact"
+      affected_users_or_systems: "The account_overrides row 90f7500c and any client it might
+        photograph if it were to use the capability; the DPIA's own risk-acceptance chain for
+        R3/R4, which cites 'never granted' as why the R4 cutover carries no migration risk."
+      production_exposure: "The gate evaluates true for one live account today. No gallery object
+        has ever been created (independently confirmed), so no image-level exposure has occurred;
+        the exposure is that the DPIA's documented precondition for judging R4's rollout 'cheap' is
+        false as literally stated, even though the practical consequence (nothing to migrate) still
+        holds because nothing was ever uploaded."
+      exploit_preconditions: "None adversarial: this is a documentation-accuracy finding, not an
+        access-control gap. The comp-Plus account holder using the gallery feature today would be
+        using an entitlement they were actually granted (a comp override), not bypassing anything."
+      remaining_uncertainty: "Whether account 90f7500c is an internal/test account or an external
+        artist, and whether its comp grant was intended to include rich_content_blocks, was not
+        determined - it requires a founder identification, not a database query. Whether
+        DISABLED_CAPABILITIES has ever included 'rich_content_blocks' at any point since
+        2026-06-05 (i.e. whether the gate was ever actually closed for this account) was not
+        checked; only the current deployed value was read. Whether the currently deployed binary
+        matches HEAD 96f26465 was assumed from the Vercel git-deploy model, not independently
+        proven for this pass."
+    relationships:
+      related_findings:
+        - "DPIA-GAL-002"
+        - "HUB-GAL-009"
+        - "GAL-REL-001"
+        - "HUB-GAL-007"
+      analogous_uninspected_areas:
+        - "The same comp-Plus account also holds every OTHER Plus capability not listed in
+          DISABLED_CAPABILITIES today (branding, appearance_custom, form_conditional, form_custom,
+          large_projects, goods_discounts/scheduling/collections/bundles) - none of those were
+          checked for whether their own 'nothing has been exercised' framing elsewhere in the docs
+          holds up the same way this one did not."
+        - "The goods DpiaGate ('goods' in DPIA_GATE_PRECONDITIONS) shares the same unwired-guard
+          shape as the gallery gate (see DPIA-GAL-002) and was not separately re-verified here."
+    remediation:
+      status: "open"
+      proposed_action: "Founder decision, not engineering's to make: (1) correct lo-5-dpia.md §2/§10
+        (done 2026-08-04, inline correction preserving the original text) and decide whether the
+        0151 migration comment is worth touching given the checksum risk of editing an
+        already-applied migration file (left as-is; the correction lives in the DPIA and this
+        register entry instead); (2) determine whether account 90f7500c is internal/test or an
+        external artist, and whether its comp grant should carry rich_content_blocks pre-launch, or
+        should be scoped down before the gallery gate is opened generally."
+      owner: "founder"
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "The 'never exercised' substantive fact is confirmed by direct query,
+        independent of the DPIA's own claim, so the R4 rollout's actual cost rationale (nothing to
+        migrate) still holds. The unresolved risk is about the accuracy of the written record and
+        about whether the comp account's entitlement scope was deliberate, not about present data
+        exposure."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-04"
+        actor: "independent verifier (production-data-verification pass)"
+        action: "opened"
+        note: "Raised while re-verifying the DPIA's 'never granted' precondition ahead of the
+          founder recording dpia_r3/r4/r6; corroborated independently during register
+          consolidation (docs-integrity pass) via a direct re-query of account_overrides, the live
+          DISABLED_CAPABILITIES payload, and packages/shared/src/entitlements.ts's PLAN_FEATURES
+          mapping. docs/legal/lo-5-dpia.md §2/§7/§10 and docs/go-live-path.md §4 corrected in the
+          same pass with inline retractions preserving the original text."
+
+  - id: "DPIA-GAL-002"
+    title: "assertDpiaPreconditionsMet('gallery') has no callers anywhere in the live gallery path;
+      recording the R3/R4/R6 gate keys enforces nothing on artist access"
+    summary: "dpia-gate-preconditions.ts's own docstring claims 'It makes the gate refuse to open
+      while the key is absent' (pre-correction lines 25-27), and go-live-path.md §4
+      (pre-correction) called it 'Enforced by' that module. But assertDpiaPreconditionsMet and
+      missingDpiaPreconditions are referenced only inside dpia-gate-preconditions.ts itself and its
+      own test file - a grep across apps/web/src finds no third caller. The actual live gate on
+      gallery access is richContentBlocksAllowed (rich_content_blocks entitlement, founder ruling
+      FD1 2026-08-01), consulted independently at hub render ([slug]/hub/page.tsx:140), the editor
+      (link-hub/page.tsx:39), save (link-hub/actions.ts:127) and both upload paths
+      (hub-gallery-upload.ts:53, the mobile route) - none of which import or call
+      assertDpiaPreconditionsMet. So recording dpia_r3/r4/r6 in billing_activation_approvals
+      changes nothing a client can reach; the real protection for R3/R4 is the upload-path rights
+      attestation and the private bucket (built and independently verified separately), not the
+      ledger key."
+    classification:
+      domain: "governance"
+      category: "incorrect-documentation"
+      severity: "medium"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent verifier (call-graph pass on the LO-5 DPIA §7 gate-wiring claim)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "96f26465"
+      environment: "repository-only"
+      discovery_context: "Checking, ahead of the founder recording dpia_r3/r4/r6, what actually
+        happens if a key is recorded or left absent - i.e. whether the DPIA's 'gate keys do not
+        drift, prose does' claim (§7) is a technical property or an attestation."
+    location:
+      files:
+        - "apps/web/src/lib/server/billing/dpia-gate-preconditions.ts"
+        - "apps/web/src/lib/server/billing/__tests__/dpia-gate-preconditions.test.ts"
+        - "apps/web/src/lib/server/entitlement-gates.ts"
+        - "apps/web/src/app/[slug]/hub/page.tsx"
+        - "apps/web/src/app/(artist)/link-hub/page.tsx"
+        - "apps/web/src/app/(artist)/link-hub/actions.ts"
+        - "apps/web/src/lib/server/hub-gallery-upload.ts"
+        - "docs/legal/lo-5-dpia.md"
+        - "docs/go-live-path.md"
+      symbols:
+        - "assertDpiaPreconditionsMet"
+        - "missingDpiaPreconditions"
+        - "richContentBlocksAllowed"
+    evidence:
+      observed_facts:
+        - "grep -rn 'assertDpiaPreconditionsMet|missingDpiaPreconditions' apps/web/src matches only
+          apps/web/src/lib/server/billing/dpia-gate-preconditions.ts (the definitions) and
+          apps/web/src/lib/server/billing/__tests__/dpia-gate-preconditions.test.ts (the tests). No
+          production code path imports either function."
+        - "dpia-gate-preconditions.ts (pre-correction lines 25-27): 'WHAT THIS IS NOT. It does not
+          decide whether a mitigation is built... It makes the gate refuse to open while the key is
+          absent' - stated as a present-tense property of the module, not of any specific caller."
+        - "docs/go-live-path.md (pre-correction): 'Enforced by
+          apps/web/src/lib/server/billing/dpia-gate-preconditions.ts, which throws while a key is
+          absent and is deliberately NOT a test-mode no-op.'"
+        - "docs/legal/lo-5-dpia.md §7 'Gate wiring' (pre-correction): 'R3, R4, and R6 are recorded
+          as named preconditions in the activation-gate ledger for the gallery and goods gates -
+          not as document conditions... gate keys do not [drift].'"
+        - "richContentBlocksAllowed (entitlement-gates.ts:51-55) is the function every gallery call
+          site actually consults; its implementation reads only isCapabilityDisabled and
+          canAccess(overrides, 'rich_content_blocks') - it does not read
+          billing_activation_approvals or the DPIA precondition keys at all."
+      references:
+        - "apps/web/src/lib/server/billing/__tests__/dpia-gate-preconditions.test.ts (the only
+          exerciser of assertDpiaPreconditionsMet/missingDpiaPreconditions that exists)"
+      reproduction: "grep -rn 'assertDpiaPreconditionsMet\\|missingDpiaPreconditions' apps/web/src
+        and confirm the only two files are the definition and its own test; separately grep every
+        richContentBlocksAllowed call site and confirm none import billing/dpia-gate-preconditions."
+      contradictory_evidence: "The module itself is correctly implemented and will throw for any
+        caller that does invoke it (proven by its own test suite); the gap is that nothing calls
+        it, not that it fails to gate when called. The R3 and R4 mitigations it is meant to attest
+        to ARE independently enforced on the live path, just by different code: the rights
+        attestation gates upload (gallery-rights-attestation.ts) and the private bucket +
+        signed-URL minting gates read access (gallery-signed-urls.ts, migration 0151) - so the
+        artist-facing risk the DPIA cares about is not open even though this specific mechanism
+        does not close it."
+    assessment:
+      interpretation: "The DPIA's §7 sentence 'gate keys do not drift, prose does' is written as a
+        claim about mechanism (a technical refusal), but as built, recording a key is exactly the
+        prose-conditions failure mode it was designed to replace: nothing downstream reads it. The
+        module is real and tested, but it is wired to nothing, which makes it a well-tested
+        attestation helper rather than an access gate."
+      root_cause_hypothesis: "assertDpiaPreconditionsMet was built to the DPIA's specification
+        (#74/#75) as a standalone precondition-checking primitive, on the assumption a later slice
+        would call it from wherever the gallery/goods gates actually open. That wiring step was
+        never scheduled as its own task, so 'built' silently came to mean 'built and tested in
+        isolation' rather than 'built and load-bearing'."
+      reachability: "unknown"
+      impact_status: "latent"
+      affected_users_or_systems: "Nobody today: richContentBlocksAllowed is currently permissive
+        for exactly one comp-Plus account (DPIA-GAL-001) regardless of whether any dpia_r* key is
+        recorded, so recording or not recording the keys has no observable effect on any artist
+        right now."
+      production_exposure: "None additional beyond DPIA-GAL-001: the entitlement gate that
+        actually controls access does not consult these keys in either direction, so today's
+        exposure is unchanged by this finding; the exposure is that go-live-path.md's Wednesday
+        2026-08-05 target treated 'record the keys' as the final gallery-gate action, when the keys
+        do not gate the gallery feature at all."
+      exploit_preconditions: "None adversarial; this is an enforcement-mechanism gap, not an
+        authorization bypass an outside actor could use."
+      remaining_uncertainty: "Whether wiring assertDpiaPreconditionsMet('gallery') into
+        richContentBlocksAllowed (or a caller upstream of it) is the intended fix, versus
+        correcting the DPIA/go-live-path narrative to say the real gate is the entitlement +
+        upload-path controls, is a product/legal decision this finding does not make. Whether the
+        goods gate (assertDpiaPreconditionsMet('goods')) has the same no-caller shape was confirmed
+        by the same grep (it does) but was not traced through the goods activation flow in this
+        pass."
+    relationships:
+      related_findings:
+        - "DPIA-GAL-001"
+      analogous_uninspected_areas:
+        - "assertDpiaPreconditionsMet('goods') has the same zero-caller shape (same grep result)
+          and was not traced through GOODS_COMMERCE_ENABLED/assertSalesLaunchApproved in this
+          pass."
+    remediation:
+      status: "open"
+      proposed_action: "Founder/engineering decision: either (a) wire
+        assertDpiaPreconditionsMet('gallery') into the actual gallery grant/upload path (e.g.
+        called from richContentBlocksAllowed's server-side callers, or from wherever a comp/paid
+        grant is issued) so the recorded keys become load-bearing, or (b) treat this module as
+        attestation-only and rely on the entitlement + upload/bucket controls for enforcement, as
+        now stated in the corrected docs/legal/lo-5-dpia.md §7 and docs/go-live-path.md §4."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "No production impact today (see impact_status). The risk is that the founder
+        or a future reader relies on 'the key is recorded' as proof the gate is closed for a
+        not-yet-built mitigation, when the mechanism that would enforce that is unwired."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-04"
+        actor: "independent verifier (call-graph pass)"
+        action: "opened"
+        note: "Found while tracing what actually happens when dpia_r3/r4/r6 are recorded, ahead of
+          the founder's Wednesday 2026-08-05 target in go-live-path.md; confirmed independently
+          during register consolidation by re-running the grep and reading
+          dpia-gate-preconditions.ts and every richContentBlocksAllowed call site directly.
+          docs/legal/lo-5-dpia.md §7, docs/go-live-path.md §4, and the dpia-gate-preconditions.ts
+          docstring corrected in the same pass with inline notes preserving the original text."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -20562,3 +20925,120 @@ coverage:
       - "TEST-VAC-009"
     known_exclusions: "takedownGalleryImageAction does NOT re-validate server-side that the reportId's category is image_without_consent, that its status is not already 'actioned', or that image_url belongs to the report; that category/status gate is CLIENT-ONLY (content-reports-client.tsx:139-140). An admin could therefore action an arbitrary (reportId, artistId, imageUrl) triple. It is admin-gated (getAdminId, MFA-stepped) and path-safe (ownedHubImagePath bounds deletion to the named artist's own namespace, verified in the prior takedown pass), so this is operator flexibility, not an authz gap, and is documented here rather than raised as a separate finding. NOT done: submitting a real /legal/report, triggering any email, or writing to prod. The report-form.tsx client validation surface, email deliverability, and the rate-limit / honeypot correctness were not exercised. The content-reports-rls read test asserts an empty result rather than an explicit error, so it would also pass if the SELECT errored (the 42501 insert assertion is the load-bearing one)."
     recommended_next_inspection: "Decide DSA-QUE-001 (surface a reporter error, or an outbox/retry, or an ops runbook on a queue-insert failure); consider server-side re-validation of category+status in takedownGalleryImageAction so the UI gate is enforced where it matters; give TEST-VAC-009 a genuine form/action drift guard from two independent reads."
+  - area: "DPIA R3 direct-upload rights attestation - independent falsification pass (web + native
+      gallery ingest)"
+    subsystem: "storage"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-04"
+    commit_inspected: "96f26465"
+    reviewer: "independent verifier (did not author #74/2a1c81d6)"
+    evidence: "Executed 60/60 across upload-gallery-image.test.ts, the mobile gallery-image route
+      test, and gallery-rights-attestation.test.ts. The sole gallery-bucket writer,
+      uploadProcessedGalleryFile, has exactly 3 gated callers: the web upload action
+      (actions.ts:240), the URL import action (:337), and the native route (:123). The save path
+      persists only URLs that pass sanitizeHostedGalleryImageUrl (bio-page.ts:748-766). The
+      gallery bucket carries 0 storage policies (migration 0151) and uploadProcessedGalleryFile
+      writes via the service-role client, so no client-side bypass exists.
+      billing_consent_records (migration 0106) is the durable attestation record. 2a1c81d6
+      confirmed an ancestor of HEAD."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "Read-only role: no source-mutation red/green pass, carried instead by the
+      suite's own distinction and mutation-style tests. No prod HTTP request was made. The DPIA's
+      'capability never granted' framing was relied on as stated by this pass specifically - see
+      DPIA-GAL-001 for the independent re-check that refutes it as worded while confirming the
+      substantive never-exercised fact."
+    recommended_next_inspection: "The goods hero/flash/cover/logo upload paths carry no rights
+      attestation and can host the same image category (bio-page.ts:627-633) - out of R3's
+      gallery scope and not yet inspected under this lens."
+  - area: "LO-5 DPIA R4 private gallery bucket + signed expiring URLs - independent adversarial
+      verification (build 69f54d53, migration 0151)"
+    subsystem: "storage"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-04"
+    commit_inspected: "96f26465"
+    reviewer: "independent verifier (did not author 69f54d53)"
+    evidence: "PROD read-only: storage.buckets gallery public=false (created
+      2026-08-03T14:32:15Z), gallery-archive public=false; storage.objects RLS on with only
+      policy bookings_owner_select (no gallery policy), i.e. service-role-only. Prod precondition
+      re-query: 0 image_gallery blocks, 0 gallery+gallery-archive objects, 0 public-gallery
+      references. Unit 109/109 (sanitizeHostedGalleryImageUrl refuses /object/public/ and
+      /object/sign/ forms, the renderable-block derivation omits an unsigned URL,
+      signGalleryImageUrls throws on a signing failure). Real-stack DB local 10/10.
+      Pre-registered falsification on LOCAL: flipping the bucket to public=true reds exactly the
+      5 predicted tests; restoring public=false returns them to green; the distinction test
+      stayed green throughout. Mutation falsification covered the two unit claims the DB test
+      does not reach."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "Prod code-deploy match to this commit was inferred from commit depth plus
+      the Vercel git-deploy model and the bucket-creation timestamp, not independently proven. No
+      live signed-URL fetch was performed. The unsigned-GET refusal was executed on LOCAL, not
+      against the production bucket."
+    recommended_next_inspection: "sanitizeHostedPublicImageUrl admits shop hero/cover images onto
+      the PUBLIC logos bucket (bio-page.ts:627-633) - a comparable image-hosting path not covered
+      by R4's private-bucket posture and not inspected here."
+  - area: "LO-5 DPIA R6 intake retention purge - independent verification in production
+      (dpia_r6 gate key, build 637a8aaa, migration 0152)"
+    subsystem: "storage"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-04"
+    commit_inspected: "96f26465"
+    reviewer: "independent verifier (did not author 637a8aaa/0152)"
+    evidence: "PROD catalog read: projects.closed_at column present; projects_stamp_closed_at()
+      body read verbatim; trigger fires BEFORE INSERT OR UPDATE FOR EACH ROW; both partial
+      indexes have the correct shape. Unit intake-retention.test.ts 30/30. DB
+      intake-retention-purge.test.ts 11/11 against real Postgres + storage (trigger stamp, clear,
+      re-stamp; physical object deletion), reproduced independently against the verifier's own
+      fixtures. Confirmed by execution that a Postgres row delete does NOT cascade to storage, and
+      that storage.remove deletes the object - the purge route calls both explicitly. The cron
+      route is deployed (returns 401 unauthenticated); vercel.json schedules it weekly
+      (0 5 * * 1); Vercel is confirmed firing crons generally (growth-snapshot wrote 2026-08-04
+      02:43Z). retention_purge_runs exists with 0 rows, consistent with a weekly cadence whose
+      first run is 2026-08-10."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "No positive proof the purge cron has fired yet; first proof available
+      2026-08-10. Production holds 0 projects and 0 media, so every deletion-path assertion here
+      is synthetic (own-fixture), not observed against a real intake record. A weekly cadence
+      implies roughly a 97-day effective retention window, counsel-ratified as D3. No
+      source-mutation red/green pass on the trigger or purge module itself."
+    recommended_next_inspection: "The other retention-purge cron steps (shop-retention,
+      billing-record-retention, connect-account-teardown, tax-threshold rollup) share the same
+      never-fired-yet-in-prod and 0-row-residual shape and were not inspected in this pass."
+  - area: "LO-5 DPIA gallery-capability 'never granted' precondition for recording the R3/R4 gate
+      keys"
+    subsystem: "billing/entitlements"
+    coverage: "substantial"
+    review_type: "mixed"
+    last_inspected: "2026-08-04"
+    commit_inspected: "96f26465"
+    reviewer: "independent verifier"
+    evidence: "Inspected all 6 account_overrides rows; storage.objects across the
+      gallery/gallery-archive/logos/bookings buckets; all 21 profiles' settings for image_gallery
+      blocks (both a text ILIKE scan and a jsonb array scan); the deployed
+      DISABLED_CAPABILITIES payload; the gallery entitlement/render/upload/relocation call sites;
+      the assertDpiaPreconditionsMet caller graph; and the R3 attestation + R4 private-bucket
+      enforcement in source. Verdict: 'never granted' is REFUTED as literally worded (a comp-Plus
+      account, artist_id prefix 90f7500c, passes richContentBlocksAllowed live today), but the
+      substantive fact - the capability has never been EXERCISED (0 gallery objects, 0
+      image_gallery blocks anywhere in production) - is CONFIRMED. Produced DPIA-GAL-001 and
+      DPIA-GAL-002."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "DPIA-GAL-001"
+      - "DPIA-GAL-002"
+    known_exclusions: "No live upload was executed. The comp account's identity and nature
+      (internal/test vs external artist) was not determined - that needs a founder
+      identification, not a database query. The history of DISABLED_CAPABILITIES (whether
+      rich_content_blocks was ever paused at any point since the 2026-06-05 comp grant) was not
+      inspected, only its current value. Deployed-binary-equals-master was not independently
+      proven for this pass."
+    recommended_next_inspection: "The same comp-Plus account holds every other Plus capability
+      not currently in DISABLED_CAPABILITIES (branding, appearance_custom, form_conditional,
+      form_custom, large_projects, goods_discounts/scheduling/collections/bundles); none of those
+      were checked for the same 'never granted' framing elsewhere in the docs. The goods DpiaGate
+      shares DPIA-GAL-002's unwired-guard shape and was not separately traced."
