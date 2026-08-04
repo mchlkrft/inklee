@@ -34,9 +34,15 @@ describe("getCurrentBillingArtifacts (fail-closed)", () => {
       data: { version_label: "v9" },
       error: null,
     });
-    getLegalDoc.mockReturnValue({ versionHash: "termhash" });
+    // Distinct hash per doc id so a caller reading the wrong doc's hash into
+    // the wrong key (e.g. privacy_notice_approved getting the terms hash)
+    // fails this assertion instead of passing by coincidence.
+    getLegalDoc.mockImplementation((id: string) => ({
+      versionHash: id === "terms" ? "termhash" : "privacyhash",
+    }));
     const a = await getCurrentBillingArtifacts();
     expect(a.terms_approved).toBe("termhash");
+    expect(a.privacy_notice_approved).toBe("privacyhash");
     expect(a.tax_policy_approved).toBe("v9");
     expect(a.consumer_classification_approved).toBe("v9");
     expect(a.consumer_withdrawal_copy_approved).toBe("v9");
@@ -49,16 +55,20 @@ describe("getCurrentBillingArtifacts (fail-closed)", () => {
     });
     const a = await getCurrentBillingArtifacts();
     expect(a.terms_approved).toBe(UNRESOLVED);
+    expect(a.privacy_notice_approved).toBe(UNRESOLVED);
     expect(a.tax_policy_approved).toBe(UNRESOLVED);
     expect(a.consumer_classification_approved).toBe(UNRESOLVED);
     expect(a.consumer_withdrawal_copy_approved).toBe(UNRESOLVED);
   });
 
-  it("a DB error also fails closed", async () => {
+  it("a DB error also fails closed, and terms/privacy resolve independently of it", async () => {
     maybeSingle.mockResolvedValue({ data: null, error: { message: "down" } });
-    getLegalDoc.mockReturnValue({ versionHash: "termhash" });
+    getLegalDoc.mockImplementation((id: string) => ({
+      versionHash: id === "terms" ? "termhash" : "privacyhash",
+    }));
     const a = await getCurrentBillingArtifacts();
     expect(a.tax_policy_approved).toBe(UNRESOLVED);
-    expect(a.terms_approved).toBe("termhash"); // terms resolves independently
+    expect(a.terms_approved).toBe("termhash");
+    expect(a.privacy_notice_approved).toBe("privacyhash");
   });
 });

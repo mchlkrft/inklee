@@ -16,6 +16,8 @@
 //   [fs]  every versioned doc has a frozen snapshot for its declared version
 //   [fs]  live source is byte-identical to that snapshot (edit => version bump)
 //   [db]  terms_approved bound_artifact equals the computed snapshot hash
+//   [db]  privacy_notice_approved bound_artifact equals the computed snapshot
+//         hash (C1.9 / R5 Q5; binding only, not in REQUIRED_APPROVAL_KEYS)
 //   [db]  version-bound policy approvals (tax, classification, withdrawal copy)
 //         are bound to the CURRENT is_current version_label
 //   [db]  no version-bound approval row is bound to an obsolete artifact
@@ -112,7 +114,7 @@ for (const id of DOC_IDS) {
   console.log("\n[db] recorded approvals vs current artifacts");
   try {
     const approvals =
-      await sql`select approval_key, approved, bound_artifact from billing_activation_approvals where approval_key in ('terms_approved','tax_policy_approved','consumer_classification_approved','consumer_withdrawal_copy_approved')`;
+      await sql`select approval_key, approved, bound_artifact from billing_activation_approvals where approval_key in ('terms_approved','privacy_notice_approved','tax_policy_approved','consumer_classification_approved','consumer_withdrawal_copy_approved')`;
     const byKey = Object.fromEntries(
       approvals.map((r) => [r.approval_key, r]),
     );
@@ -128,6 +130,24 @@ for (const id of DOC_IDS) {
         `terms_approved is bound to '${(terms.bound_artifact || "").slice(0, 12)}...' ` +
           `but the current snapshot hashes to '${(hashes.terms || "").slice(0, 12)}...'. ` +
           `The approval references an obsolete Terms version.`,
+      );
+
+    // privacy_notice_approved binds to the snapshot HASH the same way (C1.9 /
+    // R5 Q5, counsel master package §6.1). Binding, not gating: this key is
+    // deliberately absent from REQUIRED_APPROVAL_KEYS, so an unrecorded row
+    // here is expected and not a failure.
+    const privacyNotice = byKey.privacy_notice_approved;
+    if (!privacyNotice)
+      ok("privacy_notice_approved: not recorded yet (nothing to validate)");
+    else if (!privacyNotice.approved)
+      ok("privacy_notice_approved: recorded but not approved");
+    else if (privacyNotice.bound_artifact === hashes.privacy)
+      ok("privacy_notice_approved bound to the current snapshot hash");
+    else
+      fail(
+        `privacy_notice_approved is bound to '${(privacyNotice.bound_artifact || "").slice(0, 12)}...' ` +
+          `but the current snapshot hashes to '${(hashes.privacy || "").slice(0, 12)}...'. ` +
+          `The approval references an obsolete privacy notice version.`,
       );
 
     // Policy-table artifacts bind to the is_current version_label.

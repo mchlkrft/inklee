@@ -8,9 +8,12 @@
 //   node scripts/billing/record-approval.cjs --apply    # write
 //
 // Refuses to --apply unless APPROVED is true and approved_by + evidence_ref are
-// non-empty. Version-bound keys (terms_approved / tax_policy_approved /
-// consumer_classification_approved / consumer_withdrawal_copy_approved) MUST set
-// bound_artifact to the CURRENT artifact version or the gate re-closes itself.
+// non-empty. Version-bound keys (terms_approved / privacy_notice_approved /
+// tax_policy_approved / consumer_classification_approved /
+// consumer_withdrawal_copy_approved) MUST set bound_artifact to the CURRENT
+// artifact version or the gate re-closes itself. privacy_notice_approved is
+// version-bound but NOT in REQUIRED_APPROVAL_KEYS (config.ts) — binding is not
+// gating; see artifacts.ts.
 const CONFIG = {
   approval_key: "terms_approved", // the gate key to record
   approval_group: "b2b", // 'technical' | 'b2b' | 'b2c'
@@ -18,6 +21,7 @@ const CONFIG = {
   evidence_ref: "", // signed email / doc reference / memo id
   // For version-bound keys, set this to the CURRENT version the owner approved.
   // terms_approved            -> the Terms versionHash (see the sign-off package)
+  // privacy_notice_approved   -> the privacy notice versionHash
   // tax_policy_approved       -> the tax_policies version_label
   // consumer_classification_approved -> the service_classification version_label
   // consumer_withdrawal_copy_approved -> the withdrawal_policy version_label
@@ -32,6 +36,7 @@ const CONFIG = {
 // approval whose bound_artifact no longer matches the current version).
 const VERSION_BOUND = new Set([
   "terms_approved",
+  "privacy_notice_approved",
   "tax_policy_approved",
   "consumer_classification_approved",
   "consumer_withdrawal_copy_approved",

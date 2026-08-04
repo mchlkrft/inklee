@@ -3164,3 +3164,82 @@ what is described above and fully re-validated at that commit; no history
 rewrite was attempted given how many other workers were actively committing
 on top of it at the time. Flagged to the team lead rather than silently
 left for someone to discover later.
+
+## Phase I — C1.9 Terms + privacy edit (2026-08-04, DRAFT, not counsel-approved)
+
+Implemented `go-live-execution-plan.md` Phase I: the one-shot C1.9 legal
+version bump. **This is a draft for counsel sign-off (Phase M/M3). No
+approval key was recorded, nothing was pushed, no flag was flipped.**
+
+**terms.md and privacy.md bumped to version `2026-08-04`**, snapshots frozen
+under `content/legal/_versions/2026-08-04/`.
+
+**I1 — privacy.md (R5 Q5, §6.1).** New `##### 3.5 Guest shop buyers (no
+Inklee account)` subsection (email, order contents, hashed cart/wishlist
+token; Art. 6(1)(b)/(c); recipients artist + Stripe), aligned with
+`docs/legal/records-of-processing-guest-shop.md`. Four new retention rows in
+the Section 4 table (completed order 7y, cancelled order pseudonymised at
+30 days, abandoned cart deleted at 30 days, wishlist item deleted at 12
+months inactivity). Hash-bound in the SAME mechanism as terms: new key
+`privacy_notice_approved` in `getCurrentBillingArtifacts()`
+(`artifacts.ts`), a matching `[db]` check in `verify-legal-artifacts.cjs`,
+added to `VERSION_BOUND` in `record-approval.cjs`. Deliberately **NOT**
+added to `REQUIRED_APPROVAL_KEYS` b2c (`config.ts`) — binding is not gating,
+per the lead's instruction; that is a separate founder/counsel call.
+
+**I2 — terms.md, all riders in one bump.**
+- New **Section 13 "Goods orders"**: seller-identity obligation, 14-day
+  return right + Art. 16(c) custom-made flag + return-cost allocation, the
+  Q7 withdrawal-forwarding clause (artist-directed, matching the already-
+  shipped buyer-side sentence on the model-form page), the A5 buyer-invoice
+  line, and a goods-fee bullet (Rider 2: v2 rates 5% Free / 1% Plus, not
+  currently charged, 30-day advance notice before the Free-plan fee first
+  takes effect). A P2B (Regulation 2019/1150) subsection folded into the
+  same section per Q20 (round-2/round-5 §4.1): restriction/suspension
+  grounds + statement of reasons, 15-day Terms-change notice, no
+  cross-trader ranking / no Inklee-owned goods, small-enterprise recital.
+- Renumbered old Sections 13-20 to 14-21 and retargeted the Section 11
+  cross-reference ("Section 13 applies" to "Section 14 applies").
+- Q12 deletion bullet added to Section 11 after "How to cancel", including
+  the R5 Q2 failed-refund sentence (ruling: in, verbatim).
+- R5 Q3: no change made. Terms stay silent on withdrawal-window arithmetic
+  per the ratified ruling.
+- X2: "plan settings" to "account settings" (Section 11, "How to cancel").
+- Rider 1 (dark launch): the Section 11 sentence "Consumer sales are not
+  enabled until that flow is live" replaced with "The online withdrawal
+  function is available from your account settings." (state-independent).
+- Rider 3 (DPIA R2): Section 9 gained a paragraph making a depicted person's
+  consent (client/booking photos) the artist's continuing obligation,
+  referencing the existing upload attestation without transferring
+  responsibility to Inklee.
+- Rider 4: Section 11's "you buy as a business and you confirm this at
+  checkout" (no such checkout control ships) reworded to "these Terms treat
+  you as a business buyer on that basis; we do not currently ask you to
+  declare this separately at checkout."
+
+**Decision flagged, not executed:** C1.7 ("Refunds of our fee" — the
+evidenced-processing-cost retention clause) is in the input package and its
+own text says it "enters the Terms in this single C1.9 version", but it is
+explicitly gated behind the LATER `O8` "fee-refund policy -> v1" step in
+`go-live-execution-plan.md`, and it was not named in the lead's I2 rider
+list. Adding it now risks contradicting Section 12's current live refund
+bullet ("Inklee returns its platform fee" in full) ahead of that flip. Left
+out of this pass; flagging for the lead/counsel to decide whether it rides
+this bump or O8's own pass.
+
+**Validation.** `node scripts/legal/verify-legal-artifacts.cjs`: `[fs]` half
+green for all 7 docs (terms + privacy both `2026-08-04`, byte-identical to
+their snapshots). `[db]` half (read-only, prod): `terms_approved` correctly
+re-closes against the old hash (expected — that's Phase M3's job);
+`privacy_notice_approved` correctly shows "not recorded yet". `npx vitest
+run src/lib/legal/__tests__/legal-artifact-integrity.test.ts`: 21/21 green.
+Billing artifacts tests strengthened (distinct terms/privacy hashes per
+mock instead of one shared value) and green: `artifacts.test.ts` 3/3,
+`activation.test.ts` 28/28 combined. Diff searched for em-dashes in every
+string this pass added; none found (two pre-existing em-dashes in
+`privacy.md` Section 3.2, untouched, are out of scope).
+
+**Not done in this pass (Phase M, founder/counsel-gated):** sending the
+render to counsel, capturing checkout screenshots, recording
+`terms_approved` / `privacy_notice_approved`, and `go-live-worklist.md`
+FA9's checkbox (still open pending counsel re-confirmation).

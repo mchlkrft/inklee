@@ -44,6 +44,22 @@ function currentTermsHash(): string {
   }
 }
 
+// C1.9 / R5 Q5 (counsel master package §6.1): the guest-buyer privacy text
+// lives in privacy.md, not terms.md, and counsel directed hash-binding it in
+// this SAME mechanism while the edit was already in flight ("this pass is the
+// cheapest moment"). Binding is not gating: `privacy_notice_approved` is
+// returned here so a stale-artifact re-close is POSSIBLE, but it is
+// deliberately NOT added to REQUIRED_APPROVAL_KEYS (config.ts) — that is a
+// separate founder/counsel call on gating semantics, not made by this change.
+function currentPrivacyHash(): string {
+  try {
+    return getLegalDoc("privacy").versionHash;
+  } catch {
+    // Runtime read failure (e.g. content not bundled) fails closed.
+    return UNRESOLVED;
+  }
+}
+
 export async function getCurrentBillingArtifacts(): Promise<
   Record<string, string>
 > {
@@ -54,6 +70,7 @@ export async function getCurrentBillingArtifacts(): Promise<
   ]);
   return {
     terms_approved: currentTermsHash(),
+    privacy_notice_approved: currentPrivacyHash(),
     tax_policy_approved: tax,
     consumer_classification_approved: classification,
     consumer_withdrawal_copy_approved: withdrawal,
