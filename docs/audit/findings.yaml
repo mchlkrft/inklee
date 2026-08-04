@@ -16846,6 +16846,73 @@ findings:
         action: "fix-committed"
         note: "Worktree A's four files landed on master; round-5 §4.3 corrected in the same
           change."
+  - id: "GAL-PATH-001"
+    title: "ownedHubImagePath derives a storage path from a non-Inklee host that embeds the gallery marker, contradicting its docstring claim that an external URL returns null"
+    summary: "ownedHubImagePath (apps/web/src/lib/server/hub-images.ts) finds the storage marker with indexOf and never checks the URL host. A URL on ANY host that contains the literal '/storage/v1/object/gallery/' followed by the caller-supplied artist's own '{uid}/hub/{single-segment}' resolves to a deletable path. The module docstring (hub-images.ts:26-29) states 'An external URL ALSO returns null here'; it does not, for this crafted shape. There is NO cross-tenant impact: the derived path must start with the caller-supplied artistId's '/hub/' prefix, so it can only ever name that same artist's own object; every other-artist, traversal, sibling-feature, nested, public-marker and signed-url probe returns null."
+    classification:
+      domain: "storage"
+      category: "incorrect-documentation"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-04"
+      detected_by: "independent falsification verifier (read-only)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "2131d3fe"
+      environment: "local"
+      discovery_context: "Adversarial verification of the #79/Q16 gallery takedown: executed the real exported ownedHubImagePath against 13 hand-built probes to try to make it resolve a path it should reject."
+    location:
+      files:
+        - "apps/web/src/lib/server/hub-images.ts"
+      symbols:
+        - "ownedHubImagePath"
+        - "hubImagePathFromUrl"
+      database_objects: []
+    evidence:
+      observed_facts:
+        - "ownedHubImagePath called with host 'https://evil.com' plus '/storage/v1/object/gallery/{A}/hub/x.webp' and artistId {A} returned '{A}/hub/x.webp' (non-null) when executed against the real exported function."
+        - "The same call with artist B's prefix and artistId A returned null, so the derived path is always bounded to the caller-supplied artistId's own /hub/ namespace."
+        - "hub-images.ts:39-44 hubImagePathFromUrl uses url.indexOf(HOSTED_GALLERY_PRIVATE_MARKER); there is no hostname check anywhere in ownedHubImagePath (hub-images.ts:51-60)."
+        - "The docstring at hub-images.ts:26-29 states 'An external URL ALSO returns null here'."
+        - "Probes for other-artist prefix, '..' traversal, sibling '{uid}/flash/', nested '{uid}/hub/sub/x', public marker '/object/public/gallery/' and signed '/object/sign/' all returned null (13/13 probe test passed)."
+      references:
+        - "apps/web/src/lib/server/gallery-takedown.ts:113 (takedown derives the deletion path from the operator-supplied imageUrl via ownedHubImagePath)"
+      reproduction: "Import ownedHubImagePath and call it with a URL whose host is not a supabase.co host but whose path contains '/storage/v1/object/gallery/{artistId}/hub/{file}'; it returns '{artistId}/hub/{file}' rather than null. Scratch vitest probe executed 2026-08-04; 13/13 pass with the crafted-external case logged non-null."
+      contradictory_evidence: "The takedown operator entry point supplies artistId itself and the derived path is invariant-bounded to that artistId's own hub namespace, so no other artist's object is reachable. A supabase.co-hosted URL already permits deleting an arbitrary object of the named artist, so the missing host check grants an authorized operator no capability they did not already have."
+      inspected_comparables_without_issue:
+        - "sanitizeHostedGalleryImageUrl (packages/shared/src/bio-page.ts:594) DOES validate the host (endsWith '.supabase.co') and anchors the marker with startsWith, so URLs entering a SAVED block via the editor cannot carry a foreign host; the gap exists only on the takedown's operator-supplied URL, which is not run through that sanitizer."
+    assessment:
+      interpretation: "The docstring overclaims a host check the function does not perform. Because the derived path is structurally confined to the caller-named artist's '{uid}/hub/{single-segment}', this is a documentation inaccuracy plus a mild robustness gap, not privilege escalation or cross-tenant deletion. The invariant the takedown depends on (an operator cannot be tricked into deleting another artist's object or traversing out) holds."
+      root_cause_hypothesis: "hubImagePathFromUrl was written to extract a path from a KNOWN-hosted URL (its other callers pre-sanitize the host via sanitizeHostedGalleryImageUrl), and the takedown reused it on an operator-supplied, un-sanitized URL where that precondition no longer holds; the docstring was written from the sanitized-caller's viewpoint."
+      reachability: "conditionally-reachable"
+      impact_status: "theoretical"
+      production_exposure: "None established. content_reports and the takedown have never run in production (local-only build); and even reachable, the deletion is bounded to the operator-named artist's own object."
+      remaining_uncertainty: "Whether the not-yet-built /admin/content-reports UI will pre-fill image_url from the reporter-controlled report.url. If it does, a malicious reporter could steer deletion of a DIFFERENT object of the SAME named artist, which is already possible with a supabase.co URL and is a within-tenant integrity concern, not cross-tenant."
+    relationships:
+      related_findings:
+        - "GAL-REL-001"
+      analogous_uninspected_areas:
+        - "ownedGoodsStoragePath (apps/web/src/lib/server/mobile-goods-server.ts), which hub-images.ts:30 says it mirrors 'verbatim in spirit'; whether it performs a host check was NOT inspected."
+    remediation:
+      status: "fixed-unverified"
+      fix_commit: "0a38126d"
+      proposed_action: "Chose the docstring correction over the two alternatives. Adding a hostname check to ownedHubImagePath or routing the takedown's imageUrl through sanitizeHostedGalleryImageUrl was REJECTED because sanitizeHostedGalleryImageUrl requires a '.supabase.co' host (bio-page.ts:603), which would reject the legitimate operator- and reporter-supplied URLs on the inklee.app host and break the takedown; the path prefix, not the host, is the real security boundary and it already holds. Corrected the ownedHubImagePath docstring and the module block comment (hub-images.ts) to state the host is NOT validated and safety rests solely on the caller's own '{userId}/hub/' path prefix. No behaviour change."
+    verification:
+      status: "pending"
+      independent: false
+      residual_risk: "The fix is a documentation correction only, so there is no behavioural change to re-verify; the underlying behaviour (host-agnostic, path-prefix-bounded) was already CONFIRMED by execution and is unchanged. The takedown's cross-tenant safety is separately confirmed and does not depend on this finding. Independent verification of the doc wording itself is not required (no capability change)."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-04"
+        actor: "independent falsification verifier (read-only)"
+        action: "opened"
+        note: "Found while executing path-safety probes against the real ownedHubImagePath during #79/Q16 takedown verification; the crafted external-host case resolved to a path, contradicting the docstring, but stays bounded to the caller-named artist so it does not refute the takedown safety."
+      - date: "2026-08-04"
+        actor: "inklee worker (author of the takedown)"
+        action: "fix-committed"
+        note: "Corrected the false docstring in commit 0a38126d rather than adding a host check (which would reject legitimate inklee.app-hosted operator URLs and break the takedown). Same commit also wrapped the takedown's per-bucket storage remove in try/catch so a thrown client fault cannot abort the Art. 17 statement + report-resolution legs (the verifier's other recommended_next_inspection item)."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -20332,3 +20399,16 @@ coverage:
     recommended_next_inspection: "Independent verification of the takedown (a different instance) before
       the founder records the gate key; build the /admin/content-reports queue page; correct
       lo-5-dpia.md's `logos` reference to the private gallery buckets."
+  - area: "#79 / Q16 gallery takedown (takedownGalleryImage): INDEPENDENT adversarial verification"
+    subsystem: "public-surface"
+    coverage: "substantial"
+    review_type: "adversarial-verification"
+    last_inspected: "2026-08-04"
+    commit_inspected: "2131d3fe"
+    reviewer: "independent falsification verifier (read-only; did NOT build or edit this code)"
+    evidence: "Reproduced the author's db test tests/db/gallery-takedown-removes-storage-object.test.ts: 2/2 pass, named 'CONTROL: both objects exist before the takedown' and 'deletes the object from BOTH buckets, strips the block, issues the artist's Art.17 statement, and resolves the report'; the CONTROL asserts objectExists==true before takedown, so the after==false is a real storage round-trip, not a mocked bucket. Executed the REAL exported ownedHubImagePath against 13 own-built probes (13/13 pass): cross-artist prefix, '..' traversal, sibling '{uid}/flash/', nested subdir, public marker, signed-url and string-prefix confusion all return null; only a crafted NON-supabase host embedding the marker plus the caller's OWN prefix resolves (recorded as GAL-PATH-001; bounded to the caller-named artist, no cross-tenant reach). Own-fixture db test proved block-strip integrity: a 4-block settings shape (text, target image_gallery, link, second image_gallery) plus bio_page keys (hidden, bookingPolicy, socials) plus top-level settings keys all survived byte-for-byte; only the reported image dropped, the kept image and block ids retained; empty settings did not throw. Idempotency: a second run no-ops the already-gone object removal (Supabase remove of a missing object returns success, so removedFromBuckets still lists both), makes no block change, writes a SECOND Art.17 statement (statements before=1, after=2), leaves the report actioned. Best-effort proven by execution: a report-update failure (invalid-uuid reportId gives 22P02) still returns ok:true with the object removed, block stripped and statement issued; a statement-write failure (artistId with no profile gives an FK error) returns ok:true with statementId null and does not abort. Migration 0155 objects verified via docker psql on the local db: content_reports exists, RLS enabled, ZERO policies (service-role-only), moderation_statements_target_type_check includes 'gallery_image', target_content_report_id column present. Local db and storage confirmed clean of all probe fixtures afterward (0 leftover reports/statements/profiles/objects)."
+    changed_since_inspection: "no"
+    findings_produced:
+      - "GAL-PATH-001"
+    known_exclusions: "The /admin/content-reports LIST/queue UI is not built and was not exercised; the takedown was driven through the module directly (and the admin server action by read), never through a rendered admin page. A per-bucket storage REMOVAL failure was reasoned from code (a returned error is captured to Sentry and skipped, the loop continues) but NOT forced by execution; and a THROWN storage error (as opposed to a returned one) is not wrapped in try/catch in takedownGalleryImage, unlike removeDroppedHubImages, so a synchronous throw on remove would abort after the row-strip. Production apply of 0155 and the founder gate-key recording are out of scope. The takedown leaves moderation_statements.target_content_report_id null (only content_reports.statement_of_reasons_id is set); read, not flagged."
+    recommended_next_inspection: "Force a per-bucket remove failure and a thrown storage error to confirm the takedown does not abort mid-way; verify behaviour through the built /admin/content-reports page once it exists; decide GAL-PATH-001 (doc fix vs host check vs sanitize the operator URL)."

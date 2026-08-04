@@ -5,17 +5,19 @@
 
 # Structural risk report
 
-**Ledger content hash:** `44d06004df87`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `61e0932844b9`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+
+> The ledger has uncommitted changes, so this report may describe data not yet in git.
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-154 recorded finding(s), 4 structural pattern(s), across 110 mapped area(s).
-129 remain open by remediation status. 122 are reachable (directly or conditionally) rather than latent.
-126 have not passed independent verification.
-195 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+155 recorded finding(s), 4 structural pattern(s), across 111 mapped area(s).
+130 remain open by remediation status. 123 are reachable (directly or conditionally) rather than latent.
+127 have not passed independent verification.
+196 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -26,7 +28,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | critical | 2 |
 | high | 37 |
 | medium | 70 |
-| low | 41 |
+| low | 42 |
 | informational | 4 |
 
 ## Findings by remediation status
@@ -35,7 +37,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 67 |
+| fixed-unverified | 68 |
 | in-progress | 4 |
 | mitigated | 3 |
 | not-applicable | 1 |
@@ -50,7 +52,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | not-started | 120 |
 | partially-verified | 4 |
 | passed | 28 |
-| pending | 2 |
+| pending | 3 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
 
@@ -176,13 +178,13 @@ The single most productive defect shape in this repository. A Supabase call is d
 | analytics | 2 |
 | ci-cd | 2 |
 | secrets | 2 |
+| storage | 2 |
 | tooling | 2 |
 | api | 1 |
 | auth | 1 |
 | email | 1 |
 | entitlement | 1 |
 | logging | 1 |
-| storage | 1 |
 
 ## Findings with production reachability
 
@@ -290,6 +292,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | DATA-ORPH-001 | low | conditionally-reachable | latent | createProductAction inserts the product row before processing images and returns the image error without deleting it, so every failed image upload leaves an untitled-to-the-artist orphan product that still consumes the plan's active-product cap |
 | DATA-RACE-002 | low | conditionally-reachable | latent | 0124's self-documented residual risks (timeout and deadlock) not recorded in the audit evidence register |
 | DRIFT-FN-001 | low | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
+| GAL-PATH-001 | low | conditionally-reachable | theoretical | ownedHubImagePath derives a storage path from a non-Inklee host that embeds the gallery marker, contradicting its docstring claim that an external URL returns null |
 | HUB-DST-001 | low | conditionally-reachable | latent | The FD8 destination formula called the standalone shop AVAILABLE while the platform park switch was off, so a brand-new goods block defaulted to a public link to a 404 with no editor warning, and the visibility summary reported the artist as published |
 | HUB-GAL-002 | low | conditionally-reachable | theoretical | Gallery 'Import from URL' SSRF guard validates the resolved address before the request, not the address fetch() itself connects to (DNS-rebinding TOCTOU) |
 | HUB-GAL-005 | low | conditionally-reachable | latent | URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted to the third-party host while the SSRF guard sees only the clean hostname |
@@ -373,6 +376,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | TEST-VAC-007 | medium | fixed-unverified | not-started | 5fa0110e |
 | BILL-UI-003 | low | fixed-unverified | not-started | eb91f1c |
 | COPY-UI-001 | low | fixed-unverified | not-started | 45a44bee |
+| GAL-PATH-001 | low | fixed-unverified | pending | 0a38126d |
 | HUB-DST-001 | low | fixed-unverified | not-started | b2da53c7 |
 | HUB-GAL-005 | low | fixed-unverified | not-started | 6bac9914 |
 | HUB-GAL-006 | low | fixed-unverified | not-started | 6bac9914 |
@@ -569,6 +573,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - markConnectAccountUnreachable's interaction with this state
 - moderation_statements is deliberately excluded from the purge (:129-132) pending Phase 7; nothing enforces that its 5-year bound is eventually implemented.
 - order_fulfillment_status also declares a 'cancelled' label (0036:12-14) and COMPARED CLEAN, but no other enum in the repo was checked for semantically-equivalent silent-mismatch classes (e.g. trailing whitespace, case).
+- ownedGoodsStoragePath (apps/web/src/lib/server/mobile-goods-server.ts), which hub-images.ts:30 says it mirrors 'verbatim in spirit'; whether it performs a host check was NOT inspected.
 - packages/shared/src/order-fees.ts and fee-schedule.ts were not read in full by me; my evidence for the engine's current shape is order-fee-sync.ts plus commit messages.
 - pg_default_acl differences between local and production were not diffed, so whether newly created production objects will keep inheriting this grant is assumed, not verified.
 - product_collections.is_public_visible (0120:19). Whether any standalone-shop surface will read collections was NOT inspected.
