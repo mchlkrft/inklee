@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `f2807fcdbda4`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `75292a3812f2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -53,6 +53,7 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | AUTH-RPC-001 | critical | not-started | false | book_flash_item and increment_fee_sponsored_used were callable by anon via PostgREST until 0060 revoked the grants |
 | PAY-DEP-001 | critical | not-started | false | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
 | ABUSE-PUB-001 | high | not-started | false | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
+| AUTH-EML-001 | high | passed | true | The Supabase Send Email Hook never sent the new-address confirmation on a secure email change, so no user could complete an email change |
 | AUTH-MFA-001 | high | not-started | true | The MFA step-up gate fails OPEN on a transient failure, in production, and the page it redirects to fails open in the same direction |
 | AUTH-RLS-001 | high | passed | true | product_collections shipped RLS-enabled with a SELECT-only policy while every write runs on the user-scoped client |
 | AUTH-RLS-002 | high | passed | true | discount_codes had the identical SELECT-only RLS defect, live in production on the revenue path, from 0118 until 2026-07-29 |

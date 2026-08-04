@@ -5,17 +5,17 @@
 
 # Structural risk report
 
-**Ledger content hash:** `f2807fcdbda4`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `75292a3812f2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-161 recorded finding(s), 4 structural pattern(s), across 118 mapped area(s).
-134 remain open by remediation status. 127 are reachable (directly or conditionally) rather than latent.
+162 recorded finding(s), 4 structural pattern(s), across 119 mapped area(s).
+134 remain open by remediation status. 128 are reachable (directly or conditionally) rather than latent.
 132 have not passed independent verification.
-206 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+209 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -24,7 +24,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | Severity | Count |
 | --- | --- |
 | critical | 2 |
-| high | 37 |
+| high | 38 |
 | medium | 73 |
 | low | 44 |
 | informational | 5 |
@@ -41,7 +41,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | not-applicable | 1 |
 | open | 55 |
 | risk-accepted | 3 |
-| verified | 23 |
+| verified | 24 |
 
 ## Findings by verification status
 
@@ -49,7 +49,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | not-started | 124 |
 | partially-verified | 5 |
-| passed | 29 |
+| passed | 30 |
 | pending | 3 |
 
 A fix is not a verification. 0 finding(s) passed verification that was **not independent**.
@@ -174,13 +174,13 @@ The single most productive defect shape in this repository. A Supabase call is d
 | governance | 5 |
 | production-config | 3 |
 | analytics | 2 |
+| auth | 2 |
 | ci-cd | 2 |
 | entitlement | 2 |
 | secrets | 2 |
 | storage | 2 |
 | tooling | 2 |
 | api | 1 |
-| auth | 1 |
 | email | 1 |
 | logging | 1 |
 
@@ -190,6 +190,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | --- | --- | --- | --- | --- |
 | PAY-DEP-001 | critical | directly-reachable | historically-impacting | A Stripe failure silently converted a card deposit into a manual one, producing a booking with no pay button; the first fix re-opened the same silent degradation |
 | ABUSE-PUB-001 | high | directly-reachable | latent | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
+| AUTH-EML-001 | high | directly-reachable | historically-impacting | The Supabase Send Email Hook never sent the new-address confirmation on a secure email change, so no user could complete an email change |
 | AUTH-MFA-001 | high | directly-reachable | reachable-no-known-impact | The MFA step-up gate fails OPEN on a transient failure, in production, and the page it redirects to fails open in the same direction |
 | AUTH-RLS-001 | high | directly-reachable | historically-impacting | product_collections shipped RLS-enabled with a SELECT-only policy while every write runs on the user-scoped client |
 | AUTH-RLS-002 | high | directly-reachable | historically-impacting | discount_codes had the identical SELECT-only RLS defect, live in production on the revenue path, from 0118 until 2026-07-29 |
@@ -488,6 +489,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
 - The charge.refunded handler returns BEFORE settleGoodsOrderRefund when the PI has payment_allocations (webhook/route.ts:199-205). Today no appointment-payment PI writes an orders row (the only two order inserts are request/[token]/actions.ts:543 and goods-checkout.ts:209), so nothing is shadowed. If an appointment payment ever carries goods, that early return would skip the goods settle entirely. Recorded as a forward hazard; NOT a defect at this commit.
 - The consumer checkout / account-creation path was not traced to confirm whether billing_country is meant to be captured before a withdrawal can occur.
+- The consuming side, /auth/confirm, which must accept both the current- and new-address tokens to actually complete a secure email change, was not exercised.
 - The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.
 - The deposit path's `platform_fee_collected_cents` write, which 0128 cites as the precedent for this shape and which I did not read.
 - The deposit path's refund gate (refundDepositCore) against booking statuses: whether a cancelled booking with a paid deposit has an equivalent stranded-money state was not checked in this pass.
@@ -510,6 +512,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The other Plus block families (feature blocks, featured_collection) at save: featured_collection is render-gated via the collection read; the six feature blocks are not appearance_custom-gated at render either, so their save-path status was not changed here and should be confirmed when those blocks are entitlement-gated.
 - The project intake's uploaded storage objects have no orphan-cleanup job that I looked for. Whether one exists was not checked.
 - The project portal token path, apps/web/src/app/project/[token]/page.tsx:89
+- The recovery, magiclink and invite branches of this same route send a single email to user.email and have NO dedicated assertion (only signup is asserted among the single-recipient flows). They are believed correct but were not proven by test.
 - The refund path's payment_collections read, recorded separately as PAY-RFD-011.
 - The remaining discarded-error reads in account-deletion.ts itself: the profiles select (~line 92) and the auth.admin.getUserById call (~line 101). Same shape, deliberately not widened into during a fee-scoped sweep, now assigned.
 - The same collision shape could exist between any future append-only guard and any cascading FK. No lint or test exists to catch it.
@@ -559,6 +562,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - apps/web/src/app/api/cron/* handlers
 - apps/web/src/app/api/email/webhook/route.ts
 - apps/web/src/app/api/email/webhook/route.ts (167 lines, register says untested)
+- apps/web/src/app/api/email/webhook/route.ts and other Standard-Webhooks HMAC verifiers in the repo share the signature pattern this route uses; their signature and payload handling were not re-audited here.
 - apps/web/src/app/api/email/webhook/route.ts status codes
 - apps/web/src/app/api/stripe/billing-webhook/route.ts status codes
 - apps/web/src/app/api/stripe/billing-webhook/route.ts — same question about event.account and livemode
