@@ -4,13 +4,15 @@
 // (kept, not deleted) behind this flag for a future explicit business/studio tier.
 export const PLUS_BUSINESS_TIER_ENABLED = false;
 
-// The consumer purchase + withdrawal UI carries DRAFT consumer-protection copy
-// (the immediate-performance request and the withdrawal explainer) that counsel
-// has not yet cleared (consumer_withdrawal_copy_approved is unrecorded). Until
-// that copy is approved and the b2c gate is ready to open, do NOT publish it to
-// real users: keep the plan page on a neutral "coming soon" state. Flip this on
-// only together with counsel's copy approval + the consumer launch.
-export const PLUS_CONSUMER_LAUNCH_ENABLED = false;
+// Consumer Plus sales LAUNCHED 2026-08-04. The consumer purchase + withdrawal UI
+// copy is counsel-approved (C1 final sign-off; Terms + Privacy version 2026-08-04),
+// and the server-side b2c activation gate is fully open: all REQUIRED_APPROVAL_KEYS.b2c
+// are recorded, including consumer_sales_launch_approved (the founder go-live
+// decision), and the marketed capabilities are unparked. This compile-time flag
+// publishes the /pricing + plan-page upgrade UI. To pull the launch: set false +
+// redeploy AND void the launch key (scripts/billing/close-sales.cjs) — the server
+// gate blocks new consumer contracts independently of this flag.
+export const PLUS_CONSUMER_LAUNCH_ENABLED = true;
 
 // Yearly Plus (docs/product/pricing-model.md row 3: 24 EUR first year via the
 // auto-applied first-year coupon, then 30 EUR per year). ENABLED 2026-07-25:
