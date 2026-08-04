@@ -22,6 +22,26 @@ conversation (a doc saying it is planned is not a go).
 
 ---
 
+## Execution progress (2026-08-04, evening)
+
+Phase H is largely done and pushed; the rest of the plan is unchanged.
+
+- **H1 — DONE** (`b59cb50d`): shop empty-basket disclosure derives from the
+  catalogue (R5 Q1 (c)). Closes the last counsel blocker on the shop flip.
+- **H2 — DONE** (`b19cf2bb` procedure v4 + `b23805fa` ack copy): 72h aim +
+  interim-disable rule + Art. 29/Section 4 citation (R6 Q2/Q3).
+- **H3 — DONE + APPLIED TO PROD** (`971630e9`; sequencer apply under founder go
+  2026-08-04): migration 0156 seeds the DSA §4 row (prod now at 0156). B2 closed.
+- **H4 — DONE** (`b19cf2bb`): render-time interim-disable of a reported gallery
+  image (5 db tests). The DSA procedure's interim-disable claim is now real.
+- **H6 — DONE** (`b19cf2bb`): BILL-CONF-001 resend runbook +
+  the false "check 11" comment fix. Founder TODO remains: the Sentry alert rule.
+- **REMAINING in H:** H5 (teardown §1E "persistent unreadable balance → Stripe
+  support incident" wording), H7 (SEED-DEL-001 investigation, due 2026-08-11),
+  H8 (round-3 Art. 33(5) records). Then Phases I → O as written.
+
+---
+
 ## Standing rules for the executing session
 
 1. **Invisible-work check before building ANY item:** `git branch -a`,
