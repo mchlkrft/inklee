@@ -57,8 +57,26 @@ Phase H is largely done and pushed; the rest of the plan is unchanged.
 - **Minor follow-up (parking lot):** pricing/page.tsx:79,222 still say "your
   plan settings" (marketing copy, dark behind the launch flag) — inconsistent
   with the X2 Terms fix; 2-word fix when convenient.
-- **REMAINING in H:** H8 (round-3 Art. 33(5) records) — off the go-live path.
-  Then Phases J → O.
+- **C1 COUNSEL SIGN-OFF — DONE** (`8c3b5be1`): counsel confirmed C1 (handoff
+  §3A). Three of four points confirmed existing wording; the one text change
+  (privacy §3.5 retention rows → "within 30 days") applied, snapshot re-frozen,
+  integrity 21/21. **Terms + Privacy (version 2026-08-04) are counsel-final.**
+  Handoff: `docs/legal/c1-final-counsel-handoff-2026-08-04.md`.
+- **Phase J2 (checkout screenshot) — DONE** (`0f620130`): captured fully locally
+  at the RC commit with the flag flipped-and-reverted, an internal Free-tier test
+  account, the live test Stripe price resolving. Shows all Art. 8(2) elements +
+  the unticked immediate-start above the "Order with obligation to pay" button.
+  Evidence + provenance in `docs/audit/evidence/c1-checkout-*`. No prod touched.
+- **Phase J1 (credit-note evidence) — DEFERRED to M3** (founder decision B,
+  2026-08-04): the screenshot satisfies counsel's visual condition and C1 is
+  signed, so the credit-note (a heavier test-mode integration flow: seed
+  tax_policies + a backdated test Stripe subscription with a paid invoice + a
+  real refund) attaches when the founder re-records `consumer_refund_creditnote_tested`.
+  Fully mapped in the chat; not a counsel blocker.
+- **REMAINING:** H8 (Art. 33(5) records, off-path). Then the human gates —
+  K (ledger voids/re-records, 🧑), M3 (record keys against the final hashes, 🧑),
+  N (accountant v2 fee + the 30-day goods-fee notice clock, 💶), O (activation
+  ladder, 🧑). Engineering is done through the counsel gate.
 
 ---
 
