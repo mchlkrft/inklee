@@ -126,11 +126,22 @@ export async function takedownGalleryImage(
 
   const removedFromBuckets: string[] = [];
   for (const bucket of [GALLERY_LIVE_BUCKET, GALLERY_ARCHIVE_BUCKET]) {
-    const { error } = await serviceClient.storage.from(bucket).remove([path]);
-    if (!error) {
-      removedFromBuckets.push(bucket);
-    } else {
-      Sentry.captureException(error, {
+    // Best-effort per bucket AND resilient to a thrown client fault (network,
+    // aborted request): a lost removal is a sweepable orphan, but it must not
+    // abort the statement + report-resolution legs that follow, which are the
+    // artist's Art. 17 notice and the audit trail.
+    try {
+      const { error } = await serviceClient.storage.from(bucket).remove([path]);
+      if (!error) {
+        removedFromBuckets.push(bucket);
+      } else {
+        Sentry.captureException(error, {
+          tags: { area: "dsa", op: "gallery_takedown_remove" },
+          extra: { bucket, path },
+        });
+      }
+    } catch (thrown) {
+      Sentry.captureException(thrown, {
         tags: { area: "dsa", op: "gallery_takedown_remove" },
         extra: { bucket, path },
       });

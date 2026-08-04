@@ -22,12 +22,16 @@ import { GALLERY_LIVE_BUCKET } from "@/lib/server/gallery-signed-urls";
 // regardless, which only ever yields paths inside THIS artist's own hub
 // namespace — another artist's object, a sibling feature's object
 // (`{uid}/flash/...`), or a crafted traversal all return null and are simply
-// not storage candidates. An external URL ALSO returns null here, and as of
-// FD4 (2026-08-01, SUPERSEDES GB2) can no longer even survive the parser into
-// a gallery block in the first place (the permanent free-text URL field is
-// removed); this function keeps rejecting one defensively regardless, for any
-// row written before that change and as defense in depth. Mirrors
-// `ownedGoodsStoragePath` (mobile-goods-server.ts) verbatim in spirit.
+// not storage candidates. The boundary is the PATH PREFIX, not the host: the
+// marker is matched by substring, so a URL on any host that embeds the marker
+// followed by this caller's own `{uid}/hub/{segment}` DOES resolve (GAL-PATH-001)
+// — but only ever inside the passed userId's own prefix, never a foreign
+// tenant's, so it grants no reach the caller does not already have over their
+// own objects. As of FD4 (2026-08-01, SUPERSEDES GB2) an off-host URL can no
+// longer even survive the parser into a gallery block in the first place (the
+// permanent free-text URL field is removed); this function stays deliberately
+// host-agnostic so a row written before that change is still handled by its
+// path. Mirrors `ownedGoodsStoragePath` (mobile-goods-server.ts) in spirit.
 
 // 0151 (LO-5 DPIA R4): gallery objects moved from the PUBLIC `logos` bucket to
 // the PRIVATE `gallery` bucket, so both the marker this derives paths from and
@@ -44,9 +48,14 @@ function hubImagePathFromUrl(url: string): string | null {
 }
 
 /**
- * The storage path for a HOSTED hub-gallery URL owned by `userId`, or null for
- * anything else (external URLs, other artists, other features, traversals).
- * Exactly one segment under `{uid}/hub/`.
+ * The storage path for a HOSTED hub-gallery URL owned by `userId`, or null.
+ * Returns non-null only when the URL embeds the private-gallery marker followed
+ * by exactly one segment under THIS `{userId}/hub/`. It does NOT validate the
+ * host (the marker is matched by substring), so a URL on a foreign host that
+ * embeds the marker plus this caller's own prefix resolves too (GAL-PATH-001) —
+ * the boundary is the path prefix, which is always the passed userId's, never
+ * another tenant's. Other artists, other features (`{uid}/flash/...`) and `..`
+ * traversals all return null.
  */
 export function ownedHubImagePath(url: string, userId: string): string | null {
   const path = hubImagePathFromUrl(url);
