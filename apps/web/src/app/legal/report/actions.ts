@@ -170,6 +170,13 @@ export async function submitReportAction(
   const ackHtml = [
     `<p>Hi ${escapeHtml(reporterName)},</p>`,
     `<p>We received your report. Your reference is <code>${escapeHtml(reference)}</code>. We will review and respond within a reasonable time, in line with our notice-and-action procedure under the EU Digital Services Act (Article 16).</p>`,
+    // R6 Q3 (counsel §6.4): a stated 72-hour decision aim, this category only.
+    // An aim, not a firm SLA. Mirrors the DSA procedure §4.
+    ...(category === "image_without_consent"
+      ? [
+          `<p>Because this reports an image of you shared without consent, we aim to decide within 72 hours.</p>`,
+        ]
+      : []),
     `<p>For your records, the details you submitted:</p>`,
     `<p><strong>Category:</strong> ${escapeHtml(CATEGORY_LABELS[category])}</p>`,
     `<p><strong>URL(s):</strong></p>`,
