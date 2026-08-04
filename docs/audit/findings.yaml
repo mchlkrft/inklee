@@ -20298,3 +20298,37 @@ coverage:
     recommended_next_inspection: "Observe the next genuine connected-account account.updated delivery
       reach the endpoint and bump profiles.stripe_account_updated_at, confirming the full persist
       path live. Delete the temp restricted key claude-03-08-2026."
+  - area: "Q16-R1 / #79 gallery notice-and-action build: report category + Hub link, content_reports
+      queue (migration 0155), the gallery takedown that deletes the storage object, the Art. 17
+      gallery statement, and the DSA procedure v3 doc"
+    subsystem: "public-surface"
+    coverage: "substantial"
+    review_type: "automated-tests"
+    last_inspected: "2026-08-04"
+    commit_inspected: "81c4a407"
+    reviewer: "the session that BUILT it (self, NOT independent — recorded so the gate key is not
+      granted on unverified work)"
+    evidence: "Built in six slices, each tested. report-actions.test.ts (6): the image_without_consent
+      category is accepted, the Art. 16(5) ack fires for it with no per-category branch, a drift test
+      pins the form list and the label map to one shared module, and the durable-queue write is
+      row-first + best-effort. Migration 0155 db tests: content-reports-rls (RLS service-role-only,
+      authed insert 42501, authed reads hidden while the service role sees the row) and
+      moderation-statements-gallery-target (gallery_image+removed accepted, bad target_type 23514,
+      pre-existing vocab survives the drop-then-create). The load-bearing proof:
+      gallery-takedown-removes-storage-object.test.ts uploads a REAL object to both private buckets,
+      runs the takedown, and asserts the bytes are gone from BOTH, the block reference stripped (the
+      other image kept), the gallery_image statement delivered to the artist, and the report actioned
+      + linked. All applied to the local db; prod apply and the gate-key recording are later
+      founder-gated steps."
+    changed_since_inspection: "no"
+    findings_produced: []
+    known_exclusions: "NOT independent: the same session built and tested all of it, so the worklist
+      keeps an independent-verify pass as a precondition for recording dpia_r1_notice_and_action_built.
+      The operator-facing /admin/content-reports LIST page is NOT built (the takedown ACTION and its
+      admin server action are; the queue UI is a tracked follow-up). The block-strip and takedown were
+      exercised through the takedown module directly, not through the admin action + a rendered page.
+      The DSA Section 4 threshold row (B2) is deliberately unbuilt pending counsel round-6 Q1/Q2. The
+      DPIA doc's stale `logos` bucket reference is noted, not corrected."
+    recommended_next_inspection: "Independent verification of the takedown (a different instance) before
+      the founder records the gate key; build the /admin/content-reports queue page; correct
+      lo-5-dpia.md's `logos` reference to the private gallery buckets."
