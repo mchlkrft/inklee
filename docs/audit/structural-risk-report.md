@@ -5,17 +5,17 @@
 
 # Structural risk report
 
-**Ledger content hash:** `7afd1b75fc93`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `f2807fcdbda4`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > **This report is an evidence index and prioritization aid. It does not establish that
 > unlisted areas are safe and does not replace an independent audit.**
 
 ## Executive summary
 
-159 recorded finding(s), 4 structural pattern(s), across 117 mapped area(s).
-132 remain open by remediation status. 125 are reachable (directly or conditionally) rather than latent.
-130 have not passed independent verification.
-202 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
+161 recorded finding(s), 4 structural pattern(s), across 118 mapped area(s).
+134 remain open by remediation status. 127 are reachable (directly or conditionally) rather than latent.
+132 have not passed independent verification.
+206 analogous area(s) are flagged as plausibly affected but **not yet inspected**.
 
 The register is deliberately incomplete. It records what has been examined, not what exists.
 
@@ -25,8 +25,8 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | critical | 2 |
 | high | 37 |
-| medium | 72 |
-| low | 43 |
+| medium | 73 |
+| low | 44 |
 | informational | 5 |
 
 ## Findings by remediation status
@@ -39,7 +39,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 | in-progress | 3 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 53 |
+| open | 55 |
 | risk-accepted | 3 |
 | verified | 23 |
 
@@ -47,7 +47,7 @@ The register is deliberately incomplete. It records what has been examined, not 
 
 | Verification | Count |
 | --- | --- |
-| not-started | 122 |
+| not-started | 124 |
 | partially-verified | 5 |
 | passed | 29 |
 | pending | 3 |
@@ -161,7 +161,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | Domain | Findings |
 | --- | --- |
 | payment | 35 |
-| billing | 14 |
+| billing | 16 |
 | jobs | 14 |
 | webhook | 14 |
 | web | 13 |
@@ -225,6 +225,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | BDEL-RET-002 | medium | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | BILL-BST-001 | medium | conditionally-reachable | latent | The deleted-profile safe branch never advances last_reconciled_at, so every dead row is re-picked forever and can STARVE the backstop that exists to catch lost webhooks |
 | BILL-ENT-001 | medium | directly-reachable | reachable-no-known-impact | OPEN: creating a live Stripe Connect account is gated on auth and rate limit but not on entitlement |
+| BILL-TAX-001 | medium | directly-reachable | actively-impacting | No invoice.paid writer exists for a sale-side (kind='charge') tax snapshot; the first live consumer Plus sale produced zero charge-kind rows in transaction_tax_snapshots |
 | BILL-UI-001 | medium | directly-reachable | latent | A completed statutory withdrawal does not revalidate anything, so /settings/plan keeps rendering the artist as an active Plus subscriber after their contract has ended and their refund has been issued |
 | BILL-UI-002 | medium | directly-reachable | reachable-no-known-impact | Consumer Plus checkout showed 3 of 4 Art. 8(2) elements adjacent to the order button; main service characteristics sat above the panel |
 | BUNDLE-RLS-001 | medium | conditionally-reachable | latent | 0138's variant-ownership RLS check was a TAUTOLOGY: the unqualified column resolved to the subquery's own table, so the clause proved only that the variant exists |
@@ -283,6 +284,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | WHK-SPN-001 | medium | conditionally-reachable | latent | A failed sponsorship booked-stamp after a SUCCESSFUL increment leaves the cap permanently over-consumed, and the comment asserting otherwise only covers the other case |
 | BDEL-STE-001 | low | directly-reachable | reachable-no-known-impact | profiles already carries account_status, deleted_at, deleted_by, suspended_at and suspended_reason, but account_status enforces nothing outside admin surfaces |
 | BILL-CONF-001 | low | conditionally-reachable | latent | Durable purchase confirmation could silently ship without the inline Terms text on a fail-soft path |
+| BILL-TAX-002 | low | directly-reachable | actively-impacting | The first live consumer credit-note tax snapshot resolved to tax_treatment='manual_review' instead of a determinate zero-VAT class |
 | BILL-UI-003 | low | conditionally-reachable | latent | Consumer Plus checkout fail-safe path defers the total price to Stripe Checkout, off the order screen |
 | COPY-UI-001 | low | directly-reachable | actively-impacting | Two em-dashes in user-visible checkout copy on the screen where a consumer commits to a recurring charge, plus a yearly option that renders only for a cohort that does not exist |
 | CRON-AUT-001 | low | directly-reachable | theoretical | Seven of eight cron endpoints use a plain string comparison for the bearer secret while the repo's own timing-safe helper is used by exactly one |
@@ -485,6 +487,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - The booking add-on refund branch of the same webhook was NOT inspected for the same consumed-flip-then-throw shape.
 - The bookings cleanup cron's interaction with paid bookings (already noted in .claude-audit-digest-round1.md:153-156)
 - The charge.refunded handler returns BEFORE settleGoodsOrderRefund when the PI has payment_allocations (webhook/route.ts:199-205). Today no appointment-payment PI writes an orders row (the only two order inserts are request/[token]/actions.ts:543 and goods-checkout.ts:209), so nothing is shadowed. If an appointment payment ever carries goods, that early return would skip the goods settle entirely. Recorded as a forward hazard; NOT a defect at this commit.
+- The consumer checkout / account-creation path was not traced to confirm whether billing_country is meant to be captured before a withdrawal can occur.
 - The deposit endpoint's `account.updated` and `account.application.deauthorized` branches return 500 on a persistence error. Whether that can loop on a permanently failing account was not examined.
 - The deposit path's `platform_fee_collected_cents` write, which 0128 cites as the precedent for this shape and which I did not read.
 - The deposit path's refund gate (refundDepositCore) against booking statuses: whether a cancelled booking with a paid deposit has an equivalent stranded-money state was not checked in this pass.
@@ -565,6 +568,7 @@ These are the register's highest-value entries for an auditor: places a recorded
 - apps/web/src/lib/analytics-gates.ts and growth-queries.ts also branch on ADMIN_EMAILS and were not compared.
 - apps/web/src/lib/order-fulfillment.ts
 - apps/web/src/lib/order-fulfillment.ts decrementInventory internals
+- apps/web/src/lib/server/appointment-payment-settlement.ts and apps/web/src/lib/server/goods-checkout.ts: a grep confirms neither references tax_snapshot, tax_treatment or tax_policy, so neither writes to transaction_tax_snapshots either. Whether either path SHOULD have its own sale-side tax snapshot (a parallel obligation, or none at all if Inklee's own tax posture only concerns Plus subscription revenue) was not investigated.
 - apps/web/src/lib/server/bookings.ts refundDepositCore and cancelBookingCore interaction with a partial refund
 - apps/web/src/lib/server/discounts.ts recordDiscountRedemption
 - apps/web/src/lib/server/storage-purge.ts was NOT inspected for the same retention conflict.
@@ -573,7 +577,9 @@ These are the register's highest-value entries for an auditor: places a recorded
 - billing_subscriptions.last_event_created (0107) and its caller in apps/web/src/app/api/stripe/billing-webhook/route.ts: the same guard shape, never probed for the equal-timestamp case.
 - charge.dispute.* for appointment payments, which A4 deliberately defers to A5 and which has to move BOTH the allocations' status and the request's. It will meet exactly this seam.
 - cleanup's overdueWindow (route.ts:92-94) also builds a date key from a UTC instant and compares it to a DATE column (deposit_due_at is DATE per 0006_deposit_fields.sql:3); I read it and found the comparison type-consistent but did not analyse its timezone edges.
+- deriveTaxTreatment (packages/shared/src/billing.ts:375-434) versus tax-snapshot.ts's inline fallback resolver: the two can emit different treatment strings (blocked vs manual_review) for a class with no policy rule. Not exercised side by side against the same inputs.
 - docs/ contains roughly twenty one-off audit documents (security-audit-2026-06-10.md, payment-audit-2026-06-03.md and -06-05.md, mobile-audit-2026-06-08.md, mobile-audit-2-2026-06-08.md, launch-readiness-audit.md, web-functionality-audit-2026-06-11.md, analytics-audit-2026-05-14.md, flash-parity-audit-2026-07-04.md, mobile-web-audit-2026-06-18.md, admin-growth-cockpit-audit.md, me15-tablet-audit.md, branding-ui-audit.md, nav-auth-ui-audit-slice-61.md, seo-geo-audit-slice-1.md, phase-d-audit-2026-05-24.md, docs/ux-audit/) that I did NOT open. Each is a candidate carrier of the same defect: a verdict recorded without executed evidence, now cited as authority.
+- docs/legal/vat-and-oss-architecture.md section 4.2 (P7), the design source cited by tax-snapshot.ts:11, was not read in this pass to confirm the charge writer's intended scope and timeline.
 - every remaining /api/mobile/* route
 - executeCoverageTask, handOffBatches, finalizeRun (all in seed-coverage.ts) - the 1847-line module was only read around the claim path.
 - gsc-sync's rolling 10-day window self-corrects late data and so is gap-tolerant by design; the coverage-worker's checkpointing was not evaluated for gap recovery.

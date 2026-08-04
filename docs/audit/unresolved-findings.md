@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `7afd1b75fc93`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `f2807fcdbda4`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (53)
+## Open (55)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -21,6 +21,7 @@ Operational view. Generated from the ledger; do not edit.
 | WHK-TOK-001 | high | webhook | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
 | BDEL-CON-001 | medium | billing | directly-reachable | latent | Counsel decision 7 on the Connected Account is half implemented: the pointer is retained but the scheduled account deletion at window-end was never built, and the pointer is purged at seven years |
 | BILL-BST-001 | medium | billing | conditionally-reachable | latent | The deleted-profile safe branch never advances last_reconciled_at, so every dead row is re-picked forever and can STARVE the backstop that exists to catch lost webhooks |
+| BILL-TAX-001 | medium | billing | directly-reachable | actively-impacting | No invoice.paid writer exists for a sale-side (kind='charge') tax snapshot; the first live consumer Plus sale produced zero charge-kind rows in transaction_tax_snapshots |
 | CRON-CAP-001 | medium | jobs | conditionally-reachable | latent | The per-artist 10-email daily cap is consumed in branch order, and a capped appointment reminder is lost rather than deferred |
 | CRON-COV-001 | medium | jobs | conditionally-reachable | unknown | coverage-worker has no run-level mutual exclusion and its real cadence comes from a GitHub Actions schedule against production, making overlap plausible for the non-task work |
 | CRON-GRW-001 | medium | jobs | directly-reachable | historically-impacting | The daily growth snapshot has two permanent unrecoverable gaps and nothing detects or backfills a missed run |
@@ -45,6 +46,7 @@ Operational view. Generated from the ledger; do not edit.
 | WHK-SPN-001 | medium | webhook | conditionally-reachable | latent | A failed sponsorship booked-stamp after a SUCCESSFUL increment leaves the cap permanently over-consumed, and the comment asserting otherwise only covers the other case |
 | AUTH-GRT-001 | low | authorization | currently-unreachable | latent | All 107 public tables in production grant TRUNCATE to `authenticated`, and RLS does not gate TRUNCATE — a layer the codebase already treats as real for exactly one table |
 | BDEL-STE-001 | low | billing | directly-reachable | reachable-no-known-impact | profiles already carries account_status, deleted_at, deleted_by, suspended_at and suspended_reason, but account_status enforces nothing outside admin surfaces |
+| BILL-TAX-002 | low | billing | directly-reachable | actively-impacting | The first live consumer credit-note tax snapshot resolved to tax_treatment='manual_review' instead of a determinate zero-VAT class |
 | CRON-AUT-001 | low | jobs | directly-reachable | theoretical | Seven of eight cron endpoints use a plain string comparison for the bearer secret while the repo's own timing-safe helper is used by exactly one |
 | CRON-CCH-001 | low | jobs | conditionally-reachable | latent | Module-scope artist caches are never invalidated and cache a swallowed profile-read failure for the whole run |
 | CRON-GSC-001 | low | jobs | currently-unreachable | latent | gsc-sync releases the sync lock without checking ownership, so a stale takeover leads to two runs holding it |
