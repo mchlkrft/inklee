@@ -76,8 +76,12 @@ describe("sitemap / IndexNow safeguards for the public map", () => {
     expect(stateful).toEqual([]);
   });
 
-  it("keeps /pricing out until the indexation proposal is ratified", () => {
-    expect(paths).not.toContain("/pricing");
+  it("includes /pricing since the indexation proposal was ratified at the consumer launch", () => {
+    // The 2026-07-25 proposal was founder-approved at the Plus consumer launch
+    // flip (2026-08-04): /pricing now owns pricing intent, is indexable, and is
+    // in the sitemap + IndexNow. See marketing-routes.ts and
+    // docs/seo/seo-implementation-log.md (2026-08-04).
+    expect(paths).toContain("/pricing");
   });
 });
 
