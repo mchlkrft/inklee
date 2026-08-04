@@ -11,14 +11,37 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * surface ever falls back to an unsigned URL.
  */
 
-const { createSignedUrls, from } = vi.hoisted(() => ({
-  createSignedUrls: vi.fn(),
-  from: vi.fn(),
-}));
+const { createSignedUrls, from, reportsFrom, reportsResult } = vi.hoisted(
+  () => ({
+    createSignedUrls: vi.fn(),
+    from: vi.fn(),
+    reportsFrom: vi.fn(),
+    reportsResult: vi.fn(),
+  }),
+);
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/service", () => ({
   serviceClient: {
+    // R6 Q3 interim suppression (added in b19cf2bb): signGalleryImageUrls now
+    // reads content_reports BEFORE signing, to drop any candidate URL under an
+    // open image_without_consent report. This models the exact call shape it
+    // uses — `.from("content_reports").select("url").eq("category", ...)
+    // .in("status", ...).in("url", candidateUrls)` — and resolves to whatever
+    // `reportsResult` is set to. The beforeEach default is "no open reports",
+    // so every pre-existing signing assertion in this file is unaffected.
+    from: (table: string) => {
+      reportsFrom(table);
+      return {
+        select: () => ({
+          eq: () => ({
+            in: () => ({
+              in: () => Promise.resolve(reportsResult()),
+            }),
+          }),
+        }),
+      };
+    },
     storage: {
       from: (bucket: string) => {
         from(bucket);
@@ -46,6 +69,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.NEXT_PUBLIC_SUPABASE_URL = BASE;
   createSignedUrls.mockResolvedValue({ data: [], error: null });
+  // Default: no gallery URL is under an open report, so suppression is a no-op
+  // and the signing behaviour every other test asserts is unchanged.
+  reportsResult.mockReturnValue({ data: [], error: null });
 });
 
 describe("the bucket and TTL are the ones the DPIA disposition assumes", () => {
@@ -210,6 +236,71 @@ describe("signGalleryImageUrls", () => {
       GALLERY_SIGNED_URL_TTL_SECONDS,
     );
     expect(out.get(url("u1/hub/a.webp"))).toBe("https://signed/a");
+  });
+
+  // R6 Q3 INTERIM SUPPRESSION (b19cf2bb). The three tests below cover behaviour
+  // that shipped with zero application-level coverage: a candidate URL under an
+  // open "image of me without consent" report must be pulled from the signable
+  // set BEFORE the storage call, and a failure to read that moderation state
+  // must fail CLOSED rather than sign a possibly-reported image.
+
+  it("drops a URL under an OPEN report BEFORE signing, and signs the rest", async () => {
+    // b is under an open report; a is clean. Assert the storage call itself
+    // never saw b's path, not merely that b is absent from the output — the
+    // suppression is the whole control, and "absent from output" alone would
+    // also pass if b were signed and then filtered by some later accident.
+    reportsResult.mockReturnValue({
+      data: [{ url: url("u1/hub/b.webp") }],
+      error: null,
+    });
+    createSignedUrls.mockResolvedValue({
+      data: [{ path: "u1/hub/a.webp", signedUrl: "https://signed/a" }],
+      error: null,
+    });
+    const out = await signGalleryImageUrls([
+      url("u1/hub/a.webp"),
+      url("u1/hub/b.webp"),
+    ]);
+    // FALSIFICATION: delete the `pathByUrl.delete(row.url)` suppression loop in
+    // signGalleryImageUrls and this reddens — createSignedUrls is then called
+    // with both paths and b appears in the output.
+    expect(createSignedUrls).toHaveBeenCalledWith(
+      ["u1/hub/a.webp"],
+      GALLERY_SIGNED_URL_TTL_SECONDS,
+    );
+    expect(out.get(url("u1/hub/a.webp"))).toBe("https://signed/a");
+    expect(out.has(url("u1/hub/b.webp"))).toBe(false);
+  });
+
+  it("signs NOTHING when every candidate is under an open report", async () => {
+    reportsResult.mockReturnValue({
+      data: [{ url: url("u1/hub/a.webp") }],
+      error: null,
+    });
+    const out = await signGalleryImageUrls([url("u1/hub/a.webp")]);
+    // FALSIFICATION: remove the post-suppression `if (pathByUrl.size === 0)
+    // return out;` guard and this reddens — createSignedUrls is then called
+    // with an empty path list instead of not at all.
+    expect(out.size).toBe(0);
+    expect(createSignedUrls).not.toHaveBeenCalled();
+  });
+
+  it("THROWS (fails CLOSED) when the content_reports check errors, and signs nothing", async () => {
+    // A moderation-state read that errors must never fall through to signing,
+    // or a reported image could be served during a database blip. Note this is
+    // the OPPOSITE default from discounts (fail-open): a suppressed image is a
+    // consent harm, a lost sale is not the trade here.
+    reportsResult.mockReturnValue({
+      data: null,
+      error: { message: "content_reports unreachable" },
+    });
+    // FALSIFICATION: delete the `if (reportError) throw` guard and this reddens
+    // — the function then treats a null result as "no open reports", signs the
+    // URL, and resolves instead of rejecting.
+    await expect(signGalleryImageUrls([url("u1/hub/a.webp")])).rejects.toThrow(
+      /content_reports/,
+    );
+    expect(createSignedUrls).not.toHaveBeenCalled();
   });
 });
 

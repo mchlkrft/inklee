@@ -24,6 +24,17 @@ const SELLER = {
 };
 const SUPPORT_EMAIL = "support@inklee.app";
 
+// The distinctive opening of the STANDARD return NOTICE (returnRightNotice).
+// The receipt now reproduces the FULL Terms of Service in the durable record
+// (counsel Q6(b)), and the Terms body carries its own "Right of return." label
+// in the Goods-orders section — so a bare `toContain("Right of return.")` /
+// `not.toContain("Right of return.")` no longer distinguishes "the order's
+// return notice is shown" from "the Terms happen to mention returns". This
+// sentence appears ONLY in the notice, never in the Terms, so asserting on it
+// makes each branch's presence/absence check actually about the notice.
+const STANDARD_RETURN_NOTICE =
+  "Right of return. You may withdraw from this purchase within 14 days";
+
 beforeEach(() => {
   vi.clearAllMocks();
   sendEmail.mockResolvedValue(undefined);
@@ -75,7 +86,7 @@ describe("sendGoodsOrderConfirmation", () => {
       seller: SELLER,
       supportEmail: SUPPORT_EMAIL,
     });
-    expect(html()).toContain("Right of return.");
+    expect(html()).toContain(STANDARD_RETURN_NOTICE);
     expect(html()).not.toContain("Custom-made item");
   });
 
@@ -98,7 +109,7 @@ describe("sendGoodsOrderConfirmation", () => {
       supportEmail: SUPPORT_EMAIL,
     });
     expect(html()).toContain("Custom-made item: no right of return.");
-    expect(html()).not.toContain("Right of return.");
+    expect(html()).not.toContain(STANDARD_RETURN_NOTICE);
   });
 
   it("shows BOTH notices for a mixed order (the cross-cutting failure mode)", async () => {
@@ -127,7 +138,7 @@ describe("sendGoodsOrderConfirmation", () => {
       supportEmail: SUPPORT_EMAIL,
     });
     expect(html()).toContain("Custom-made item: no right of return.");
-    expect(html()).toContain("Right of return.");
+    expect(html()).toContain(STANDARD_RETURN_NOTICE);
   });
 
   it("Q4: marks the custom-made line, and only that line, in the durable record", async () => {
