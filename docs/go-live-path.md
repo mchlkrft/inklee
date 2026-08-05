@@ -1,5 +1,13 @@
 # The go-live path
 
+> **✅ COMPLETE — CONSUMER PLUS SALES WENT LIVE 2026-08-04.** The full activation
+> ladder ran and is verified (first live purchase + withdrawal + credit note,
+> independently checked). Prod at migration 0156,
+> `PLUS_CONSUMER_LAUNCH_ENABLED=true`, capabilities unparked, b2c gate 8/8.
+> This document is retained as the historical position record. The NEXT milestone
+> is app store submission — see `docs/session-handoff-2026-08-05.md` and
+> `docs/app-store-submission-runbook-2026-08-04.md`.
+
 **Written 2026-08-03.** One ordered sequence from where the repository actually
 is to consumer sales being live. Every position claim below was verified by
 command against git, the production database or the Stripe API on that date,
