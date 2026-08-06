@@ -6,6 +6,14 @@ This version has breaking changes - APIs, conventions, and file structure may al
 
 <!-- END:nextjs-agent-rules -->
 
+## Edge firewall (Vercel WAF) is NOT in git
+
+A live Vercel WAF rule denies CMS/PHP exploit-scanner probes (`.php`, `/.env`,
+`/.git`, etc.) at the edge. Its config lives in Vercel, not the repo. The in-repo
+mirror is `apps/web/src/lib/edge-probe.ts` (wired into `proxy.ts`); if you change
+the blocked paths there, keep the WAF rule in sync. Full record, conditions and
+CLI management: `docs/runbooks/vercel-firewall.md`.
+
 ## Supabase Migration Gotcha
 
 - Migration history for `0000-0009` was normalized on 2026-04-20 with `supabase migration repair ... --status applied`.
