@@ -5,7 +5,7 @@
 
 # Independent auditor handoff
 
-**Ledger content hash:** `75292a3812f2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `dd16cf2993e3`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 ## What this system is
 
@@ -75,6 +75,7 @@ Regenerate with `pnpm audit:generate`; validate with `pnpm audit:validate`.
 | PAY-AUTHZ-002 | high | not-started | true | refundGoodsOrderCore had the same defect, and the attacker authors the order_items the refund amount is computed from |
 | PAY-BAL-001 | high | not-started | false | deposit and balance payment requests have no subject-scoped ceiling because the stored final service price is null in production |
 | PAY-CONN-001 | high | not-started | false | Cached Connect state asserted a routing capability Stripe denied, and the first corrective predicate was broad enough to downgrade the entire artist fleet on one platform-scope fault |
+| PAY-CONN-002 | high | not-started | false | Custom Connect requirement/restriction reminders reach the platform inbox, never the artist |
 | PAY-FEE-002 | high | not-started | false | The appointment platform fee was computed on the whole frozen basket while the charge was the remainder, so a partial collection was charged the fee twice and could exceed the amount |
 | PAY-ORD-001 | high | not-started | false | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
 | PAY-ORD-002 | high | not-started | false | A `payment_intent.succeeded` cannot move a request out of `failed`, so a collection recorded after a payment_failed on the same intent leaves the request permanently `failed` with the money already allocated, and says nothing |

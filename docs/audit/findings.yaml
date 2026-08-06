@@ -17909,6 +17909,220 @@ findings:
           guard/control cases stay green in both states. Independent of the fix author because the
           fix was implemented in 4833b923 by a separate process; this test-integrity engineer did
           not write that fix."
+  - id: "OBS-NOISE-001"
+    title: "Scanner probes and stale-deployment Server Action errors page us as high-priority Sentry alerts"
+    summary: "An unhandled Next.js server error ('Failed to find Server Action') reached Sentry as a
+      high-priority, level=error, handled=no alert. Its request was a vulnerability scanner POSTing a
+      Joomla SP Page Builder exploit (option=com_sppagebuilder&task=asset.uploadCustomIcon) at
+      /index.php on a Next.js app that runs no PHP. The probe failed harmlessly; the only artifact was
+      a false alert. Sentry's beforeSend had no message- or url-based noise filter, so any bot that
+      blind-POSTs a form body to a page url, and any real user whose tab survives a deploy, produces
+      the same unactionable alert. Alert noise on the money-live app risks masking a real error."
+    classification:
+      domain: "logging"
+      category: "process-gap"
+      severity: "low"
+      confidence: "confirmed"
+    discovery:
+      detected_at: "2026-08-06"
+      detected_by: "one-off investigation (founder-forwarded Sentry + Stripe emails)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "1b6ca71a"
+      environment: "production"
+      discovery_context: "Founder forwarded a Sentry 'JAVASCRIPT-NEXTJS-6' alert email. Its request URL
+        was https://inklee.app/index.php with query option=com_sppagebuilder&task=asset.uploadCustomIcon;
+        transaction POST /[slug]/page; release 1b6ca71a; environment vercel-production."
+    location:
+      files:
+        - "apps/web/sentry.server.config.ts"
+        - "apps/web/src/instrumentation-client.ts"
+        - "apps/web/src/lib/sentry-noise.ts"
+        - "apps/web/src/lib/__tests__/sentry-noise.test.ts"
+      symbols:
+        - "beforeSend"
+        - "isDroppableSentryNoise"
+      routes:
+        - "/[slug]/page"
+      clients:
+        - "public"
+        - "web"
+    evidence:
+      observed_facts:
+        - "Sentry event (release 1b6ca71a, env vercel-production): Error 'Failed to find Server Action.
+          This request might be from an older or newer deployment.', mechanism
+          auto.function.nextjs.on_request_error, handled=no, level=error, url
+          https://inklee.app/index.php?option=com_sppagebuilder&task=asset.uploadCustomIcon."
+        - "Before this change apps/web/sentry.server.config.ts beforeSend only scrubbed
+          cookie/authorization/apikey headers and returned the event; it had no branch that inspected
+          event.exception.values[].value or event.request.url to drop noise."
+      references:
+        - "apps/web/src/lib/__tests__/sentry-noise.test.ts"
+      reproduction: "Unit test sentry-noise.test.ts asserts isDroppableSentryNoise returns true for the
+        exact probe url + 'Failed to find Server Action' message, true for the url alone, and FALSE for
+        a genuine TypeError on a real artist-handle page (so real errors are still recorded)."
+      contradictory_evidence: "None. The probe is a real, ongoing internet-background scan, not a
+        one-off; the same class of event will recur regardless of this app."
+      inspected_comparables_without_issue: []
+    assessment:
+      interpretation: "Next's Server Action resolver runs on POSTs to a page route before the page can
+        notFound(), so a bogus POST throws before any app code decides the request is invalid. The right
+        layer to suppress the resulting non-event is the reporting boundary (Sentry beforeSend), not the
+        route."
+      root_cause_hypothesis: "beforeSend was written for credential scrubbing only; nobody had yet needed
+        to distinguish unactionable scanner/stale-deploy errors from real ones."
+      reachability: "directly-reachable"
+      impact_status: "actively-impacting"
+      production_exposure: "Confirmed in production: the alert fired from vercel-production. Impact is
+        limited to monitoring signal quality (alert fatigue); no user-facing or data effect. The probe
+        itself does nothing on a Next.js app (no PHP, no Joomla)."
+      remaining_uncertainty: "Volume of such events over time is not quantified (no Sentry query run
+        here). The fix is implemented in the working tree but not committed or deployed, so events keep
+        arriving until a deploy carries it."
+    relationships:
+      related_findings: []
+      structural_patterns: []
+      analogous_uninspected_areas:
+        - "Whether the mobile /api/mobile/* routes emit comparable unactionable errors that also page
+          without filtering was not inspected."
+        - "The browser Sentry init (instrumentation-client.ts) received the same ignoreErrors entry, but
+          no production browser-error volume was reviewed to see what other noise it forwards."
+    remediation:
+      status: "open"
+      proposed_action: "Implemented in the working tree (NOT yet committed): apps/web/src/lib/sentry-noise.ts
+        (pure, unit-tested predicates), wired into sentry.server.config.ts beforeSend (returns null for
+        scanner-probe urls and the Server-Action-not-found message) and into instrumentation-client.ts
+        ignoreErrors. Commit + deploy to activate. Optional hardening (recommended, not done): block
+        .php / wp-* / com_sppagebuilder probes at the edge via Vercel WAF so they never reach a Function."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Filter logic is unit-tested but not verified against a live Sentry pipeline, and
+        the change is uncommitted/undeployed. A too-broad probe fragment could in principle drop a real
+        error whose url coincidentally contains one of the fragments; the fragments were chosen to avoid
+        any substring a real inkl.ee slug or route can contain, and a test asserts real pages are kept."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-06"
+        actor: "one-off investigation (Claude Code)"
+        action: "opened"
+        note: "Found while triaging a forwarded Sentry alert that turned out to be a Joomla exploit scan
+          against a Next.js app. Fix (Sentry noise filter + test) implemented in the working tree the
+          same session; left open because no commit exists yet and verification is not independent."
+  - id: "PAY-CONN-002"
+    title: "Custom Connect requirement/restriction reminders reach the platform inbox, never the artist"
+    summary: "Inklee runs Stripe Connect Custom accounts with stripe_dashboard.type='none' and
+      requirement_collection='application', so Stripe sends 'your connected accounts will be restricted
+      soon' requirement reminders to the PLATFORM, not to the artist (confirmed: such an email landed in
+      the founder inbox listing connected accounts with 'Verify representative' due 2026-09-18, impacted
+      capability Payouts). No Inklee code path forwards this to the affected artist: account.updated only
+      mirrors status into profiles, no cron scans for upcoming due dates, and the payouts page shows
+      requirements only when the artist happens to open it. A real artist can therefore have payouts
+      restricted on the due date with no warning from either Stripe or Inklee."
+    classification:
+      domain: "payment"
+      category: "process-gap"
+      severity: "high"
+      confidence: "high"
+    discovery:
+      detected_at: "2026-08-06"
+      detected_by: "one-off investigation (founder-forwarded Stripe sandbox email)"
+      repository: "mchlkrft/inklee"
+      branch: "master"
+      commit: "3847e58c"
+      environment: "repository-only"
+      discovery_context: "Triaging a forwarded Stripe '[Sandbox] Some of your connected accounts will be
+        restricted soon' email (platform account acct_1TODmbQi3Lu5kKnK), then tracing whether any Inklee
+        code notifies the artist about Connect requirements."
+    location:
+      files:
+        - "apps/web/src/lib/stripe-connect.ts"
+        - "apps/web/src/app/api/stripe/webhook/route.ts"
+        - "apps/web/src/app/(artist)/settings/payouts/page.tsx"
+      symbols:
+        - "createConnectAccount"
+        - "persistConnectAccountFromEvent"
+      routes:
+        - "/api/stripe/webhook"
+        - "/settings/payouts"
+      clients:
+        - "web"
+    evidence:
+      observed_facts:
+        - "createConnectAccount sets controller.stripe_dashboard.type='none' and
+          requirement_collection='application' (apps/web/src/lib/stripe-connect.ts:171-176), so the
+          connected-account holder has no Stripe dashboard and Stripe does not email them."
+        - "The observed Stripe reminder ('Verify representative', impacted capability Payouts, due
+          2026-09-18) arrived in the PLATFORM/founder inbox, listing two connected accounts."
+        - "The account.updated handler (apps/web/src/app/api/stripe/webhook/route.ts:184-197) only calls
+          persistConnectAccountFromEvent, which updates profiles.stripe_* and sends no notification."
+        - "grep of apps/web/src/app/api/cron/* for stripe_account_status|connect|requirement|payout finds
+          only incidental matches (retention-purge, instagram-refresh, gsc-sync); no cron reads Connect
+          requirements to notify an artist."
+        - "The payouts page reads getConnectRequirementState only on server render
+          (apps/web/src/app/(artist)/settings/payouts/page.tsx), i.e. only when the artist opens it."
+      references:
+        - "docs/artist-account-and-payouts.md"
+      reproduction: "Static: trace account.updated -> persistConnectAccountFromEvent (no email/notification
+        sink) and enumerate api/cron/* (none reference Connect requirements). No runtime repro attempted."
+      contradictory_evidence: "deriveConnectStatus keeps an account 'active' while a requirement is only
+        currently_due (future), downgrading to 'restricted' only on past_due
+        (apps/web/src/lib/stripe-connect.ts:89-94). So charges/payouts are not cut the instant a
+        requirement appears; there is a window. The gap is the absence of a warning within that window,
+        not an immediate cutoff."
+      inspected_comparables_without_issue: []
+    assessment:
+      interpretation: "Choosing Custom + dashboard:none (so the artist never visits Stripe) transfers the
+        duty to warn the artist onto Inklee, and that duty is currently unimplemented for the
+        requirement-reminder case."
+      root_cause_hypothesis: "In-app KYC (Slice 79/80) built the surfaces that show requirements when the
+        artist is present, but not an outbound push for when they are absent; Stripe's own reminders were
+        implicitly relied on and those do not reach a dashboard:none account holder."
+      reachability: "conditionally-reachable"
+      impact_status: "latent"
+      production_exposure: "Currently latent: per the internal market-data pin there are no external
+        paying customers and the first live charge was the founder's own verification purchase. Not yet
+        checked whether any real artist has completed payout onboarding in production, nor whether any
+        has an outstanding currently_due requirement."
+      remaining_uncertainty: "Whether the mobile payouts route surfaces requirements; whether the founder
+        intends Stripe-hosted vs Inklee-authored reminders; the exact due-date-to-restriction timeline
+        Stripe applies to Custom accounts."
+    relationships:
+      related_findings: []
+      structural_patterns: []
+      analogous_uninspected_areas:
+        - "apps/web/src/app/api/mobile/settings/payouts/route.ts — whether the app surfaces Connect
+          requirements at all, or shares the same no-outbound-notification gap, was not inspected."
+        - "The lifecycle/reminders crons (api/cron/lifecycle, api/cron/reminders) as the natural host for
+          an outbound requirement reminder were not evaluated for fit."
+    remediation:
+      status: "open"
+      proposed_action: "Add an artist-facing 'action needed on your payouts' notification: on
+        account.updated when requirements.currently_due is non-empty (and/or a lifecycle cron that scans
+        for accounts approaching a due date), send an email + surface a persistent dashboard banner using
+        describeRequirements() for the human labels. Must be sandbox-safe (do not act on test-mode
+        events) and idempotent (Stripe redelivers; do not re-notify on every account.updated)."
+    verification:
+      status: "not-started"
+      independent: false
+      residual_risk: "Unbuilt. Until built, a production artist can lose payouts on a Stripe due date with
+        no Inklee-originated warning."
+    disclosure:
+      public_repo_safe: true
+    history:
+      - date: "2026-08-06"
+        actor: "one-off investigation (Claude Code)"
+        action: "opened"
+        note: "Recorded after a forwarded Stripe sandbox requirement-reminder email prompted a trace of
+          whether Inklee notifies artists about Connect requirements. It does not. Latent today (no real
+          payout artists); recorded before scale makes it a live payout outage."
+      - date: "2026-08-06"
+        actor: "founder"
+        action: "reclassified"
+        note: "Severity raised medium -> high at founder direction. Stays OPEN (unbuilt). The build is
+          the artist-facing Connect requirement notification described in remediation.proposed_action;
+          it must land before real artists onboard payouts at scale."
 patterns:
   - id: "PAT-004"
     title: "A database read whose error is never bound, degrading silently to a plausible empty
@@ -18504,10 +18718,14 @@ coverage:
     changed_since_inspection: "unknown"
     known_exclusions: "The CARD deposit path (PaymentIntent creation, client secret, webhook settlement)
       is exercised by ZERO automated tests. G-5, the live money test, has never been run
-      (docs/launch-gate.md, 2026-07-21)."
+      (docs/launch-gate.md, 2026-07-21). Artist NOTIFICATION of Connect requirement/restriction state is
+      out of scope of the money-correctness rules and was found unimplemented on 2026-08-06
+      (PAY-CONN-002)."
+    findings_produced: ["PAY-CONN-002"]
     recommended_next_inspection: "G-5 live test; a Stripe test-mode harness that drives
       payment_intent.succeeded / charge.refunded through the real handler; re-review bookings.ts
-      after the P9 fee unification."
+      after the P9 fee unification; build + test an artist-facing Connect requirement notification
+      (PAY-CONN-002) before real artists onboard payouts at scale."
   - area: "Webhooks (Stripe deposits, Stripe billing, Resend email, appointment settlement)"
     subsystem: "webhooks"
     coverage: "partial"
@@ -18860,20 +19078,25 @@ coverage:
     subsystem: "observability"
     coverage: "initial"
     review_type: "mixed"
-    last_inspected: "2026-06-10"
-    commit_inspected: "b4852d8"
-    reviewer: "docs/security-audit-2026-06-10.md 'Continue-fixes slice' (Sentry observability)"
+    last_inspected: "2026-08-06"
+    commit_inspected: "3847e58c"
+    reviewer: "one-off investigation (Claude Code), on top of docs/security-audit-2026-06-10.md
+      'Continue-fixes slice' (Sentry observability)"
     evidence: "OBSERVED: apps/web/src/instrumentation.ts exports onRequestError =
       Sentry.captureRequestError; apps/web/sentry.server.config.ts and
       apps/web/src/instrumentation-client.ts both call Sentry.init. The webhook's orphaned-payment
-      Sentry.captureMessage alert was added in the same slice. No test asserts any of it; no
-      alerting/threshold doc exists in the repo."
-    changed_since_inspection: "unknown"
+      Sentry.captureMessage alert was added in the same slice. 2026-08-06: a production Sentry alert
+      was traced to a vulnerability-scanner probe surfacing as an unactionable high-priority error;
+      beforeSend had no message/url noise filter (OBS-NOISE-001)."
+    changed_since_inspection: "yes: sentry.server.config.ts beforeSend and instrumentation-client.ts
+      ignoreErrors gained a noise filter (working tree, uncommitted); new module src/lib/sentry-noise.ts
+      with unit test."
     known_exclusions: "Whether Sentry actually receives events from crons and webhooks in production;
-      log redaction; alert routing."
+      log redaction; alert routing; the VOLUME of scanner-probe events (no Sentry query was run)."
+    findings_produced: ["OBS-NOISE-001"]
     recommended_next_inspection: "Prove (not assume) that a cron failure and a webhook orphan alert
       reach Sentry in production; define and record alert thresholds for the money-path
-      captureMessage."
+      captureMessage; consider an edge-level (Vercel WAF) block for .php/wp-*/com_sppagebuilder probes."
   - area: "Dependency security"
     subsystem: "secops"
     coverage: "none"

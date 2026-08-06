@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { decideHostRouting, parseHost } from "@/lib/host";
 import { resolveMfaStepUp } from "@/lib/mfa-step-up";
+import { isBlockedProbePath } from "@/lib/edge-probe";
 
 const ARTIST_PATHS = [
   "/dashboard",
@@ -30,6 +31,19 @@ const HOST_ROUTING_HEADER = "x-host-routing";
 const ARTIST_SLUG_HEADER = "x-artist-slug";
 
 export async function proxy(request: NextRequest) {
+  // Edge probe blocker (OT hardening, 2026-08-06). Vulnerability scanners
+  // continuously hit CMS/PHP exploit paths this app does not serve (e.g.
+  // `POST /index.php?option=com_sppagebuilder&task=asset.uploadCustomIcon`),
+  // which otherwise reach the `[slug]` route and trip Next's Server Action
+  // resolver into an unhandled 500 (OBS-NOISE-001). Answer them with a bare 404
+  // before any host routing, auth, or Supabase client work. The predicate 404s
+  // ONLY unambiguous script-extension / dotfile probes (see edge-probe.ts, which
+  // is unit-tested against every real route family), so it can never block a
+  // real page. The existing matcher already covers these paths.
+  if (isBlockedProbePath(request.nextUrl.pathname)) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   // Host-based routing runs first. On artist subdomains we rewrite the
   // URL and skip the auth-gate logic entirely — subdomain traffic is
   // strictly public-only, and cookies for the authenticated app live

@@ -5,17 +5,18 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `75292a3812f2`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `dd16cf2993e3`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (55)
+## Open (57)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
 | ABUSE-PUB-001 | high | public-surface | directly-reachable | latent | The public project intake server action has none of the five abuse controls its direct sibling, the public booking intake, applies — no honeypot, no origin check, no rate limit, no image MIME allowlist and no dedupe |
 | AUTH-RLS-003 | high | authorization | directly-reachable | latent | product_collections RLS DELETE policy allows artists to bypass delete_collection_if_eligible safety check, cascade-deleting populated collection items |
 | BILL-ENT-002 | high | billing | conditionally-reachable | latent | OPEN: account deletion cancels PaymentIntents but never the subscription, and all nine billing/tax tables cascade-delete with the profile |
+| PAY-CONN-002 | high | payment | conditionally-reachable | latent | Custom Connect requirement/restriction reminders reach the platform inbox, never the artist |
 | PAY-ORD-001 | high | payment | conditionally-reachable | latent | The refund ordering guard compares a second-granularity clock with a strict `<`, so a stale `charge.refunded` created in the same second as the newest one is applied and walks the recorded refund backwards |
 | WHK-ERR-001 | high | webhook | directly-reachable | unknown | 17 of 23 Supabase calls in the deposit webhook discard the error, and the handler then returns HTTP 200, so Stripe never redelivers and the skipped money work is permanently lost |
 | WHK-TOK-001 | high | webhook | directly-reachable | latent | The customer's magic-link token is rotated inside the atomic settlement flip, then delivered by an email path that swallows every error and can never be retried |
@@ -55,6 +56,7 @@ Operational view. Generated from the ledger; do not edit.
 | DRIFT-FN-001 | low | database | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
 | HUB-GAL-007 | low | data-retention | directly-reachable | latent | An image uploaded but never saved is an orphan no cleanup can see: removeDroppedHubImages diffs PERSISTED state against saved state, so a file that never reached a save has no prior state to be dropped from |
 | OBS-MAP-001 | low | analytics | directly-reachable | actively-impacting | Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence |
+| OBS-NOISE-001 | low | logging | directly-reachable | actively-impacting | Scanner probes and stale-deployment Server Action errors page us as high-priority Sentry alerts |
 | OPS-CFG-001 | low | production-config | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
 | OPS-CRD-001 | low | secrets | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |
 | OPS-ERR-001 | low | api | directly-reachable | actively-impacting | Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile JSON API and 31 in web server actions |

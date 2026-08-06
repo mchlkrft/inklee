@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { isDroppableSentryNoise } from "./src/lib/sentry-noise";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -18,6 +19,19 @@ Sentry.init({
   ],
 
   beforeSend(event) {
+    // Drop vulnerability-scanner and stale-deployment noise BEFORE it becomes an
+    // alert. See src/lib/sentry-noise.ts for what qualifies and why. This is a
+    // pure reporting decision: the client still gets the same 404/500, we just
+    // stop recording a non-event.
+    if (
+      isDroppableSentryNoise({
+        exceptionMessages: (event.exception?.values ?? []).map((v) => v.value),
+        requestUrl: event.request?.url,
+      })
+    ) {
+      return null;
+    }
+
     // Belt and braces for the credential-bearing headers `include.cookies`
     // does not cover, and for events that reach Sentry by another path.
     const headers = event.request?.headers;
