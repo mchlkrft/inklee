@@ -5,11 +5,11 @@
 
 # Unresolved findings
 
-**Ledger content hash:** `dd16cf2993e3`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0d1ac9945e4e`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 Operational view. Generated from the ledger; do not edit.
 
-## Open (57)
+## Open (56)
 
 | ID | Sev | Domain | Reachability | Impact | Title |
 | --- | --- | --- | --- | --- | --- |
@@ -56,7 +56,6 @@ Operational view. Generated from the ledger; do not edit.
 | DRIFT-FN-001 | low | database | directly-reachable | reachable-no-known-impact | Production's map_search body and idx_map_locations_city_trgm expression differ from committed migration 0097, which documents in its own header that it was hand-applied to production |
 | HUB-GAL-007 | low | data-retention | directly-reachable | latent | An image uploaded but never saved is an orphan no cleanup can see: removeDroppedHubImages diffs PERSISTED state against saved state, so a file that never reached a save has no prior state to be dropped from |
 | OBS-MAP-001 | low | analytics | directly-reachable | actively-impacting | Public-map analytics plane has recorded zero events and one pageview since the 2026-07-27 launch; silence cause indistinguishable from repo+DB evidence |
-| OBS-NOISE-001 | low | logging | directly-reachable | actively-impacting | Scanner probes and stale-deployment Server Action errors page us as high-priority Sentry alerts |
 | OPS-CFG-001 | low | production-config | directly-reachable | reachable-no-known-impact | The grandfathering backfill defaults ADMIN_EMAILS to a hardcoded personal address; the application's admin guard has no default at all |
 | OPS-CRD-001 | low | secrets | conditionally-reachable | latent | RISK INTRODUCED BY THIS REMEDIATION: an exported DATABASE_URL now outranks apps/web/.env.local in every governance recorder |
 | OPS-ERR-001 | low | api | directly-reachable | actively-impacting | Raw Postgres error messages are returned to clients from 91 call sites — 60 in the mobile JSON API and 31 in web server actions |
@@ -79,7 +78,7 @@ Operational view. Generated from the ledger; do not edit.
 | BDEL-RET-002 | medium | data-retention | conditionally-reachable | latent | The 0129 retention repair created the inverse gap: five billing tables now survive account deletion INDEFINITELY because nothing purges them |
 | SEED-GRT-001 | medium | production-config | directly-reachable | latent | seed.sql re-grants ALL on ALL public tables to anon and authenticated after every local reset, clobbering the migrations' REVOKEs; its hand-maintained mirror list misses 0067, so two growth views are wide open locally and correctly locked in production |
 
-## Fixed but NOT verified (70)
+## Fixed but NOT verified (71)
 
 A commit exists. Nothing independent has confirmed it works.
 
@@ -149,6 +148,7 @@ A commit exists. Nothing independent has confirmed it works.
 | HUB-GAL-005 | low | web | conditionally-reachable | latent | URL credentials are not rejected: userinfo in an artist-supplied import URL is transmitted to the third-party host while the SSRF guard sees only the clean hostname |
 | HUB-GAL-006 | low | web | conditionally-reachable | latent | The hosted-logos marker single-sourcing is incomplete: a second literal survives in mobile-goods-server.ts while the parser comment claims the drift risk was closed |
 | MIG-IDX-001 | low | migration | currently-unreachable | latent | `create index if not exists` is an existence check, not a shape check: a wrong-shaped index under the right name survives a successful re-run, proven by execution and fixed in 0148 |
+| OBS-NOISE-001 | low | logging | directly-reachable | actively-impacting | Scanner probes and stale-deployment Server Action errors page us as high-priority Sentry alerts |
 | OPS-LINT-001 | low | ci-cd | directly-reachable | actively-impacting | packages/shared is linted by nothing, so 'lint 0 errors' has always been vacuous for 78 files including all the money math |
 | PAY-UI-006 | low | payment | directly-reachable | latent | Payments list UI cancel-button state set drifted from the core's authorization constant |
 | SHOP-FUL-005 | low | webhook | conditionally-reachable | latent | A settle that returns false answers Stripe 200, so recovery from a pre-flip refusal falls entirely to the daily sweep: worst case roughly two days with money captured and the order still pending |

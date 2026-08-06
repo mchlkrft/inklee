@@ -17956,6 +17956,11 @@ findings:
         - "Before this change apps/web/sentry.server.config.ts beforeSend only scrubbed
           cookie/authorization/apikey headers and returned the event; it had no branch that inspected
           event.exception.values[].value or event.request.url to drop noise."
+        - "2026-08-06 live production test after publishing the Vercel WAF rule
+          rule_block_cms_php_exploit_probes_8pYTqN: curl to /index.php?option=com_sppagebuilder,
+          /wp-login.php, /.env, /.git/config, /xmlrpc.php each returned HTTP 403; / and /pricing returned
+          200; /.well-known/apple-app-site-association returned 404 (NOT blocked). So probes are denied at
+          the edge before any Function runs, and no real route family is affected."
       references:
         - "apps/web/src/lib/__tests__/sentry-noise.test.ts"
       reproduction: "Unit test sentry-noise.test.ts asserts isDroppableSentryNoise returns true for the
@@ -17988,19 +17993,26 @@ findings:
         - "The browser Sentry init (instrumentation-client.ts) received the same ignoreErrors entry, but
           no production browser-error volume was reviewed to see what other noise it forwards."
     remediation:
-      status: "open"
-      proposed_action: "Implemented in the working tree (NOT yet committed): apps/web/src/lib/sentry-noise.ts
-        (pure, unit-tested predicates), wired into sentry.server.config.ts beforeSend (returns null for
-        scanner-probe urls and the Server-Action-not-found message) and into instrumentation-client.ts
-        ignoreErrors. Commit + deploy to activate. Optional hardening (recommended, not done): block
-        .php / wp-* / com_sppagebuilder probes at the edge via Vercel WAF so they never reach a Function."
+      status: "fixed-unverified"
+      fix_commit: "e6297b58"
+      fixed_at: "2026-08-06"
+      proposed_action: "Two layers, both live. (1) Code: apps/web/src/lib/sentry-noise.ts (pure,
+        unit-tested) wired into sentry.server.config.ts beforeSend (returns null for scanner-probe urls
+        and the Server-Action-not-found message) and instrumentation-client.ts ignoreErrors; plus
+        apps/web/src/lib/edge-probe.ts wired into the existing proxy() as an early 404. Committed e6297b58,
+        deployed to production (Ready). (2) Edge: Vercel WAF custom rule
+        rule_block_cms_php_exploit_probes_8pYTqN (deny on path regex for script extensions + /.env,/.git),
+        published to production, so probes are denied before a Function runs and are not billed."
     verification:
       status: "not-started"
       independent: false
-      residual_risk: "Filter logic is unit-tested but not verified against a live Sentry pipeline, and
-        the change is uncommitted/undeployed. A too-broad probe fragment could in principle drop a real
-        error whose url coincidentally contains one of the fragments; the fragments were chosen to avoid
-        any substring a real inkl.ee slug or route can contain, and a test asserts real pages are kept."
+      residual_risk: "The EDGE block is live-verified by execution (2026-08-06 production curl: 403 on
+        five probe paths, 200/404 on controls), but that verification was run by the same instance that
+        made the change, so it is not independent. The Sentry beforeSend/ignoreErrors DROP of a genuine
+        stale-deployment 'Failed to find Server Action' from a real user's browser is NOT verified against
+        a live Sentry pipeline (with the WAF now denying probes at the edge, the scanner variant no longer
+        reaches Sentry to observe). Predicate over-match risk is bounded by unit tests asserting real
+        routes and /.well-known are untouched; the live control requests confirmed this for the WAF."
     disclosure:
       public_repo_safe: true
     history:
@@ -18010,6 +18022,20 @@ findings:
         note: "Found while triaging a forwarded Sentry alert that turned out to be a Joomla exploit scan
           against a Next.js app. Fix (Sentry noise filter + test) implemented in the working tree the
           same session; left open because no commit exists yet and verification is not independent."
+      - date: "2026-08-06"
+        actor: "one-off investigation (Claude Code)"
+        action: "fix-committed"
+        note: "Committed e6297b58 (Sentry noise filter + edge-probe predicate wired into proxy()) and
+          pushed to master; Vercel git deploy reached Ready in production. Separately published Vercel WAF
+          rule rule_block_cms_php_exploit_probes_8pYTqN denying script-extension / dotfile probes at the
+          edge."
+      - date: "2026-08-06"
+        actor: "one-off investigation (Claude Code)"
+        action: "verification-attempted"
+        note: "Live production curl confirmed the edge block: 403 on /index.php?option=com_sppagebuilder,
+          /wp-login.php, /.env, /.git/config, /xmlrpc.php; 200 on / and /pricing; 404 (not 403) on
+          /.well-known/apple-app-site-association. NOT independent (same instance made the change), and
+          the Sentry-drop half remains unobserved on a live pipeline, so status stays fixed-unverified."
   - id: "PAY-CONN-002"
     title: "Custom Connect requirement/restriction reminders reach the platform inbox, never the artist"
     summary: "Inklee runs Stripe Connect Custom accounts with stripe_dashboard.type='none' and
@@ -19079,7 +19105,7 @@ coverage:
     coverage: "initial"
     review_type: "mixed"
     last_inspected: "2026-08-06"
-    commit_inspected: "3847e58c"
+    commit_inspected: "e6297b58"
     reviewer: "one-off investigation (Claude Code), on top of docs/security-audit-2026-06-10.md
       'Continue-fixes slice' (Sentry observability)"
     evidence: "OBSERVED: apps/web/src/instrumentation.ts exports onRequestError =
@@ -19088,9 +19114,11 @@ coverage:
       Sentry.captureMessage alert was added in the same slice. 2026-08-06: a production Sentry alert
       was traced to a vulnerability-scanner probe surfacing as an unactionable high-priority error;
       beforeSend had no message/url noise filter (OBS-NOISE-001)."
-    changed_since_inspection: "yes: sentry.server.config.ts beforeSend and instrumentation-client.ts
-      ignoreErrors gained a noise filter (working tree, uncommitted); new module src/lib/sentry-noise.ts
-      with unit test."
+    changed_since_inspection: "yes, deployed (e6297b58): sentry.server.config.ts beforeSend and
+      instrumentation-client.ts ignoreErrors gained a noise filter; new modules src/lib/sentry-noise.ts
+      and src/lib/edge-probe.ts (the latter wired into proxy() as an early 404), both unit-tested. Plus a
+      live Vercel WAF deny rule (rule_block_cms_php_exploit_probes_8pYTqN) blocking the same probes at the
+      edge."
     known_exclusions: "Whether Sentry actually receives events from crons and webhooks in production;
       log redaction; alert routing; the VOLUME of scanner-probe events (no Sentry query was run)."
     findings_produced: ["OBS-NOISE-001"]

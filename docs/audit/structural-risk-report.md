@@ -5,7 +5,7 @@
 
 # Structural risk report
 
-**Ledger content hash:** `dd16cf2993e3`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
+**Ledger content hash:** `0d1ac9945e4e`  (sha256 of findings.yaml, first 12; deliberately not a clock or a git commit, see scripts/audit/generate.cjs)
 
 > The ledger has uncommitted changes, so this report may describe data not yet in git.
 
@@ -37,11 +37,11 @@ The register is deliberately incomplete. It records what has been examined, not 
 | --- | --- |
 | accepted | 2 |
 | deferred | 1 |
-| fixed-unverified | 70 |
+| fixed-unverified | 71 |
 | in-progress | 3 |
 | mitigated | 3 |
 | not-applicable | 1 |
-| open | 57 |
+| open | 56 |
 | risk-accepted | 3 |
 | verified | 24 |
 
@@ -390,6 +390,7 @@ The single most productive defect shape in this repository. A Supabase call is d
 | HUB-GAL-005 | low | fixed-unverified | not-started | 6bac9914 |
 | HUB-GAL-006 | low | fixed-unverified | not-started | 6bac9914 |
 | MIG-IDX-001 | low | fixed-unverified | pending | 2204f077 |
+| OBS-NOISE-001 | low | fixed-unverified | not-started | e6297b58 |
 | OPS-LINT-001 | low | fixed-unverified | not-started | 45a44bee |
 | PAY-UI-006 | low | fixed-unverified | passed | 752e989 |
 | SHOP-FUL-005 | low | fixed-unverified | not-started | 5fa0110e |
